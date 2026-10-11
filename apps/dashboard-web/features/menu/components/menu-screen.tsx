@@ -77,6 +77,7 @@ export function MenuScreen() {
   const items = menu.state.kind === "ready" ? menu.state.items : [];
   const categories = menu.state.kind === "ready" ? menu.state.categories : [];
   const off = offCount(items);
+  const canAdd = !adding && categories.length > 0;
 
   return (
     <main className={styles.page}>
@@ -84,12 +85,12 @@ export function MenuScreen() {
       <PauseBox />
       <MenuTabs current="items" />
 
-      {ready && (
-        <div className={styles.toolbar}>
-          {!adding && categories.length > 0 && (
+      {ready && (canAdd || off > 0) && (
+        <div className={styles.tools}>
+          {canAdd && (
             <button
               type="button"
-              className={styles.primary}
+              className={`${styles.primary} ${styles.add}`}
               onClick={() => setAdding(true)}
             >
               {M.add}

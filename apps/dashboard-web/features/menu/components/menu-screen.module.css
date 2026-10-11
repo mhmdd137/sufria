@@ -18,15 +18,24 @@
   margin-inline: auto;
 }
 
-/* «أضف صنفا», «المطفأة» — one under the other, at the start. */
-.toolbar {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
+/* «الأصناف»'s tools, one row at every width (brief ي-ب-9 §4.4): «أضف
+   صنفا» at the start; «المطفأة» and «شغّل الكل» at the end, while any is
+   off. Grid areas: each keeps its place when the other is not there. The
+   8px gap (the row's buttons') keeps a three-digit count inside 360px. */
+.tools {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "add . off";
+  align-items: center;
+  gap: 8px;
+}
+
+.add {
+  grid-area: add;
 }
 
 .off {
+  grid-area: off;
   display: flex;
   align-items: center;
   gap: 12px;

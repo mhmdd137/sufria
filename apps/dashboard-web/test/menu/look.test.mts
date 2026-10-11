@@ -1,8 +1,9 @@
 /**
  * The menu screen's look after the laptop trial (brief ي-ب-9 §4, decision
- * 4A): the switched-off item, the phone's row, the pause box. Held by reading the TSX and the CSS, as the
- * orders card's link is (test/orders/card.test.mts): the look itself needs
- * a browser, what decides it does not.
+ * 4A): the switched-off item, the phone's row, the pause box, the tools
+ * row. Held by reading the TSX and the CSS, as the orders card's link is
+ * (test/orders/card.test.mts): the look itself needs a browser, what
+ * decides it does not.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -164,4 +165,25 @@ test("🔴 the pause box sits above the two tabs, in both, its sign before the w
     /className=\{`\$\{screen\.secondary\} \$\{styles\.button\}`\}/,
   );
   assert.match(body(boxCss, ".box .button"), /background: var\(--bg\);/);
+});
+
+test("🔴 «الأصناف»'s tools are one row at every width: «أضف صنفا» at the start, «المطفأة» and «شغّل الكل» at the end while any is off", () => {
+  const css = read(`${C}menu-screen.module.css`);
+  const tools = body(css, ".tools");
+  assert.match(tools, /grid-template-areas: "add \. off";/);
+  assert.match(tools, /grid-template-columns: auto minmax\(0, 1fr\) auto;/);
+  // One row at every width: no rule for it under any media query.
+  assert.ok(!rules(css).some((r) => r.media && r.selectors.includes(".tools")));
+  assert.match(body(css, ".add"), /grid-area: add;/);
+  assert.match(body(css, ".off"), /grid-area: off;/);
+
+  // On «الأصناف» alone; «أضف صنفا» first, the count and its button after,
+  // and only while the count is over 0.
+  assert.doesNotMatch(removed, /styles\.tools/);
+  const at = screen.indexOf("className={styles.tools}");
+  assert.notEqual(at, -1);
+  const row = screen.slice(at, screen.indexOf("{ready && adding", at));
+  assert.ok(row.indexOf("{M.add}") < row.indexOf("offCountAr(off)"));
+  assert.match(row, /\{off > 0 && \(\s*<div className=\{styles\.off\}>/);
+  assert.ok(row.indexOf("offCountAr(off)") < row.indexOf("{M.enableAll}"));
 });
