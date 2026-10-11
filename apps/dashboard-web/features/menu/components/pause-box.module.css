@@ -1,0 +1,51 @@
+/* The pause box (brief ي-ب-9 §4.3): above the screen's two tabs, a surface
+   with its line and 12 radius. Below 640px the button, then the line under
+   it; from 640px up side by side — the button, then the line — centred.
+   Grid areas; a failed pause's line under both. Logical properties only. */
+
+.box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "button"
+    "hint";
+  justify-items: start;
+  gap: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+@media (min-width: 640px) {
+  .box {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "button hint";
+    align-items: center;
+  }
+}
+
+/* The screen's secondary button, on the page's ground to stand out on the
+   box; its pause sign before the words. */
+.box .button {
+  grid-area: button;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+}
+
+/* What every customer gets while paused: a sentence, it wraps. */
+.hint {
+  grid-area: hint;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* A row of its own only when it shows: no empty row, no gap for it. */
+.line {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}

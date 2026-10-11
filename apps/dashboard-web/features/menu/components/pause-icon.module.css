@@ -1,0 +1,10 @@
+/* Two bars, in the text's colour: a 10×12 box whose inline borders are the
+   bars (brief ي-ب-9 §4.3). box-sizing is border-box (globals.css). */
+
+.icon {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 12px;
+  border-inline: 3px solid currentColor;
+}

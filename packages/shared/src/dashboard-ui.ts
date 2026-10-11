@@ -1,7 +1,9 @@
 /**
  * The staff dashboard's text — brief G §3 (G-5). Every string the orders
  * screen and the login screen show is here, verbatim from the brief; nothing
- * is written inline in `dashboard-web` (brief G §0).
+ * is written inline in `dashboard-web` (brief G §0). The menu screen's own
+ * text is in `dashboard-menu-ui.ts` (brief ي-ب-9 §3): this object reaches
+ * every page.
  *
  * The same pattern as the customer texts of `domain.ts`: one exported
  * dictionary, its exact wording held by a test, and `check:numerals` walking
@@ -31,7 +33,7 @@ export const DASHBOARD_UI_AR = {
   brand: "سُفريا",
   live: "مباشر",
   logout: "خروج",
-  tabs: { active: "الطلبات", history: "السجل" },
+  tabs: { active: "الطلبات", history: "السجل", menu: "المنيو" },
   /** Under the history list, while the API says `hasMore`. */
   more: "المزيد",
   login: {
@@ -96,6 +98,11 @@ export const DASHBOARD_UI_AR = {
     active: "ستظهر هنا طلبات واتساب الجديدة تلقائيا.",
     history: "لا طلبات منتهية بعد.",
   },
+  /**
+   * The strip under the header on every page while orders are paused —
+   * the label, then from the first minute `itemSeparator` and «منذ…».
+   */
+  paused: { label: "الطلبات موقفة", resume: "استأنف" },
   fulfillment: { pickup: "استلام", delivery: "توصيل" },
   /** The card's order number, before the customer: «#102». */
   orderNumber: `#${ORDER_NUMBER_SLOT}`,
@@ -302,4 +309,18 @@ export function amountAr(amount: string, currency: Currency): string {
     [PRICE_SLOT]: amount,
     [CURRENCY_SLOT]: CURRENCY_LABEL_AR[currency],
   });
+}
+
+/**
+ * The pause strip (brief ي-ب, text 19): «الطلبات موقفة», and from the first
+ * whole minute «الطلبات موقفة · منذ دقيقة» — `relativeTimeAr`, by the
+ * browser's clock against the API's `ordersPausedAt`. Under a minute, or a
+ * moment ahead of this clock, the label alone.
+ */
+export function ordersPausedAr(pausedAt: string, now: number): string {
+  const minutes = Math.floor((now - Date.parse(pausedAt)) / 60_000);
+  const { label } = DASHBOARD_UI_AR.paused;
+  return minutes < 1
+    ? label
+    : `${label}${DASHBOARD_UI_AR.itemSeparator}${relativeTimeAr(minutes)}`;
 }

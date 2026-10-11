@@ -82,6 +82,41 @@ test("🔴 text-muted (light) and accent (dark) are not text colours — they mi
   assert.ok(!checkedTextVariables().includes("--text-muted"));
 });
 
+test("🔴 «مطفأ» inverted — `bg` on `text-primary` — is in the gate, in both modes", () => {
+  // Brief ي-ب-9 §4.1: the menu row's switched-off word.
+  const pairs = contrastPairs();
+  for (const mode of COLOR_MODES) {
+    const pair = pairs.find((p) => p.name === `${mode} · bg on text-primary`);
+    assert.ok(pair, mode);
+    assert.equal(pair.text, COLOR_TOKENS[mode].bg);
+    assert.equal(pair.background, COLOR_TOKENS[mode]["text-primary"]);
+    // About 16:1 (brief ي-ب-9 §4.1): 16.88 light, 15.89 dark.
+    assert.ok(pair.ratio >= 15, `${mode}: ${pair.ratio.toFixed(2)}`);
+  }
+  assert.ok(checkedTextVariables().includes("--bg"));
+});
+
+test("🔴 the pause strip's amber — `paused-text` on `paused-bg` — is in the gate, in both modes, under names of its own", () => {
+  // Brief ي-ب-9 §4.5: «بانتظار القبول»'s values today, its own tokens.
+  const expected = {
+    light: { bg: "#FCE8D6", text: "#8A4A0A" },
+    dark: { bg: "#43290F", text: "#F2B577" },
+  } as const;
+  const pairs = contrastPairs();
+  for (const mode of COLOR_MODES) {
+    assert.equal(COLOR_TOKENS[mode]["paused-bg"], expected[mode].bg);
+    assert.equal(COLOR_TOKENS[mode]["paused-text"], expected[mode].text);
+    const pair = pairs.find(
+      (p) => p.name === `${mode} · paused-text on paused-bg`,
+    );
+    assert.ok(pair, mode);
+    // 5.76 light, 7.46 dark.
+    assert.ok(pair.ratio >= MIN_TEXT_CONTRAST, `${mode}: ${pair.ratio}`);
+  }
+  assert.ok(checkedTextVariables().includes("--paused-text"));
+  assert.match(designTokensCss(), /--paused-bg:#FCE8D6;/);
+});
+
 test("designTokensCss: every token, light by default and dark by the device", () => {
   const css = designTokensCss();
   const [light, dark] = css.split("@media (prefers-color-scheme: dark)");

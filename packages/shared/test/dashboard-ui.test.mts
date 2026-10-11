@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 
 import {
   DASHBOARD_UI_AR,
+  ordersPausedAr,
   ORDER_STATUSES,
   STAFF_TRANSITIONS,
   amountAr,
@@ -30,7 +31,7 @@ test("DASHBOARD_UI_AR is the brief's text, verbatim", () => {
     brand: "سُفريا",
     live: "مباشر",
     logout: "خروج",
-    tabs: { active: "الطلبات", history: "السجل" },
+    tabs: { active: "الطلبات", history: "السجل", menu: "المنيو" },
     more: "المزيد",
     login: {
       identifier: "البريد الإلكتروني أو رقم الهاتف",
@@ -82,6 +83,7 @@ test("DASHBOARD_UI_AR is the brief's text, verbatim", () => {
       active: "ستظهر هنا طلبات واتساب الجديدة تلقائيا.",
       history: "لا طلبات منتهية بعد.",
     },
+    paused: { label: "الطلبات موقفة", resume: "استأنف" },
     fulfillment: { pickup: "استلام", delivery: "توصيل" },
     orderNumber: "#[رقم الطلب]",
     amount: "[السعر] [العملة]",
@@ -327,4 +329,20 @@ test("waLink: wa.me with the number alone — a Jordanian and a Palestinian one"
 
 test("cancelTitleAr: the order number in the dialog's title", () => {
   assert.equal(cancelTitleAr(102), "إلغاء الطلب رقم 102؟");
+});
+
+// --- the pause strip — brief ي-ب -------------------------------------------
+
+test("🔴 the pause strip: the label alone in the first minute, then «· منذ…»", () => {
+  const at = "2026-10-10T12:00:00.000Z";
+  const after = (ms: number) => Date.parse(at) + ms;
+  assert.equal(ordersPausedAr(at, after(0)), "الطلبات موقفة");
+  assert.equal(ordersPausedAr(at, after(59_999)), "الطلبات موقفة");
+  assert.equal(ordersPausedAr(at, after(60_000)), "الطلبات موقفة · منذ دقيقة");
+  assert.equal(
+    ordersPausedAr(at, after(12 * 60_000)),
+    "الطلبات موقفة · منذ 12 دقيقة",
+  );
+  // The API's clock a moment ahead of the browser's: the label alone.
+  assert.equal(ordersPausedAr(at, after(-5_000)), "الطلبات موقفة");
 });

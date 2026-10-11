@@ -21,12 +21,18 @@ export type ColorToken =
   | "text-muted"
   | "border"
   | "accent"
-  | "on-accent";
+  | "on-accent"
+  | "paused-bg"
+  | "paused-text";
 
 /**
  * `on-accent` is not in the brief's table: it is the white of the bench's
  * primary button (`.accept{color:#fff}`), named so that no component writes
  * `#fff` itself.
+ *
+ * `paused-bg` and `paused-text`: the pause strip, amber (brief ي-ب-9 §4.5,
+ * Mohammed, 11 October). Today the values of «بانتظار القبول»'s badge,
+ * under names of their own so that each can change alone.
  */
 export const COLOR_TOKENS: Record<ColorMode, Record<ColorToken, string>> = {
   light: {
@@ -38,6 +44,8 @@ export const COLOR_TOKENS: Record<ColorMode, Record<ColorToken, string>> = {
     border: "#E2E2DE",
     accent: "#75284A",
     "on-accent": "#FFFFFF",
+    "paused-bg": "#FCE8D6",
+    "paused-text": "#8A4A0A",
   },
   dark: {
     bg: "#171715",
@@ -48,6 +56,8 @@ export const COLOR_TOKENS: Record<ColorMode, Record<ColorToken, string>> = {
     border: "#302F2B",
     accent: "#B54874",
     "on-accent": "#FFFFFF",
+    "paused-bg": "#43290F",
+    "paused-text": "#F2B577",
   },
 };
 
@@ -70,6 +80,10 @@ export const TEXT_ON_BACKGROUND: Readonly<
   "text-primary": ["bg", "surface"],
   "text-secondary": ["bg", "surface"],
   "on-accent": ["accent"],
+  /** «مطفأ», inverted: the page's ground as text (brief ي-ب-9 §4.1). */
+  bg: ["text-primary"],
+  /** The pause strip (brief ي-ب-9 §4.5). */
+  "paused-text": ["paused-bg"],
 };
 
 /** A status badge: its text on its own background, nothing else. */

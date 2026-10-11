@@ -14,3 +14,4 @@ export * from "./staff-input.js";
 export * from "./dashboard-api.js";
 export * from "./design-tokens.js";
 export * from "./dashboard-ui.js";
+export * from "./dashboard-menu-ui.js";
