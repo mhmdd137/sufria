@@ -537,18 +537,18 @@ into the same `.next` that `next start` serves: restart a running one after.
   the leftovers by the killed run's id (`d5-<pid>-<time>` in their names), as
   the test's own `afterAll` would — and never the seed's (`both@`, `onlya@`,
   `onlyz@sufria.test`).
-- **`check:budget` is red, pending Mohammed's decision on the design round
-  (brief ي-ب-9, 11 October).** Decided and done: 1A — `main`'s three
-  dashboard budgets up by exactly 396 (a Turbopack chunk split since ي-أ/ك,
-  the same code); 2B — the menu's texts in `dashboard-menu-ui.ts`, which
-  brought the branch, against `main`, to `/login` +200 · `/orders` +851 ·
-  `/history` +851 · `/orders/[id]` +879, and `/menu` +318 · `/menu/removed`
-  +290 over their ي-ب budgets. The design round (§4) adds, over 2B, 0 · +107
-  · +107 · +107 · +284 · +405 (JS, gzip) — over the 100 per page allowed in
-  advance (the pause sign on every page; the pause box, now on «المُزالة»
-  too). Not raised: the brief's stop. Final JS today: `/login` 138799 ·
-  `/orders` 146089 · `/history` 146316 · `/orders/[id]` 149167 · `/menu`
-  150999 · `/menu/removed` 148876.
+- **`check:budget` is green again, by three decisions of Mohammed's (brief
+  ي-ب-9, 11 October).** 1A — `main`'s three dashboard budgets up by
+  exactly 396 (a Turbopack chunk split since ي-أ/ك, the same code). 2B —
+  the menu's texts in `dashboard-menu-ui.ts`, off the pages that do not show
+  them. A (§5) — the six budgets to the measure after the design round,
+  which passed the 100 per page allowed in advance. JS gzip, over the budget
+  after 1A — 2B + design: `/login` +200 + 0 · `/orders` +851 + 107 ·
+  `/history` +851 + 107 · `/orders/[id]` +879 + 107 · `/menu` +318 + 284 ·
+  `/menu/removed` +290 + 405 (the pause sign on every page; the pause box,
+  on «المُزالة» too). The budgets now: JS `/login` 138799 · `/orders` 146089
+  · `/history` 146316 · `/orders/[id]` 149167 · `/menu` 150999 ·
+  `/menu/removed` 148876; fonts 123204 each.
 - **No `:hover` and no `:active` anywhere in the dashboard** (found 11
   October): a button or a link looks the same under the pointer and while
   pressed. Its own brief, after the menu screen's merge (decision 5A).
