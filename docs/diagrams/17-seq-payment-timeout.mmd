@@ -5,7 +5,7 @@ sequenceDiagram
     participant CE as Conversation Engine
     participant DB as PostgreSQL
     participant SCH as Scheduler
-    Note over C,SCH: Starting point: an order exists with payment_status='pending_online'.<br/>Two independent outcomes, and they can race.
+    Note over C,SCH: DESIGN — NOT BUILT. Online payment is deferred, and no scheduler runs yet.<br/>Starting point: an order exists with payment_status='pending_online'.<br/>Two independent outcomes, and they can race.
     rect rgba(220,238,220,0.35)
         Note over C,DB: Path A — customer switches to cash (one-directional, same order row)
         C->>WA: "pay cash instead"
@@ -24,7 +24,7 @@ sequenceDiagram
         SCH->>DB: UPDATE orders SET status='cancelled', cancelled_by='system',<br/>cancellation_reason='payment_timeout_2h'<br/>WHERE payment_status='pending_online'
         DB-->>SCH: rowcount
         alt rowcount = 0
-            Note over SCH: Payment landed in the same instant. Leave it alone.
+            Note over SCH: Payment landed in the same<br/>instant. Leave it alone.
         else rowcount = 1
             SCH->>DB: INSERT order_status_history (actor='system')
             Note over SCH,DB: No refund — payment_status was never 'paid'.

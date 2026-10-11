@@ -5,11 +5,24 @@ flowchart TB
     classDef crit fill:#F5DEDD,stroke:#8A332F,stroke-width:2px,color:#161615
     classDef fin fill:#DCEEDC,stroke:#24632F,color:#161615
 
-    S(("from part a")):::start --> A5["app.resolve_restaurant_by_phone_id()<br/>then set_config(app.current_restaurant_id, ..., true)"]:::crit
-    A5 --> A6["Upsert customer · resolve or create session"]:::act
-    A6 --> A7["Route to the handler for the current state<br/>browse · cart · reorder · fulfilment"]:::act
-    A7 --> A8["Customer selects cash on delivery"]:::act
-    A8 --> A9["Re-validate price and availability<br/>of every cart item against menu_items"]:::act
-    A9 --> D4{"Anything changed since<br/>it was added to the cart?"}:::dec
-    D4 -- yes --> E4["Show the change · request re-confirmation"]:::act --> A7
-    D4 -- no --> F2(("continue in part c")):::fin
+    S(("from part a")):::start --> A5["app.resolve_restaurant_by_phone_id()"]:::crit
+    A5 --> D0{"Restaurant found<br/>and not suspended?"}:::dec
+    D0 -- no --> E0["ROLLBACK, the dedup<br/>claim included · 500,<br/>so Meta resends"]:::crit --> F1(("end")):::fin
+    D0 -- yes --> A6["set_config(<br/>app.current_restaurant_id,<br/>..., true)<br/>INSERT inbound_messages<br/>read the restaurant"]:::crit
+    A6 --> D1{"Active session?"}:::dec
+    D1 -- yes --> D2{"Silent for 60 min<br/>or more?"}:::dec
+    D2 -- no --> D7{"Orders paused?<br/><i>FR-28</i>"}:::dec
+    D7 -- yes --> E7["The paused text ·<br/>the session is<br/>not touched"]:::act --> F2(("COMMIT · 200")):::fin
+    D7 -- no --> A7["Route to the state handler<br/>browsing · fulfilment ·<br/>cart review"]:::act --> F2
+    D2 -- yes --> A8["CAS the old session<br/>to abandoned · treat as<br/>a new conversation"]:::act --> D3
+    D1 -- no --> D3{"Restaurant open now?<br/><i>in its own timezone</i>"}:::dec
+    D3 -- no --> E3["Closing message with<br/>today's opening hours ·<br/>no session"]:::act --> F2
+    D3 -- yes --> D5{"Orders paused?<br/><i>FR-28</i>"}:::dec
+    D5 -- yes --> E5["The paused text ·<br/>no session"]:::act --> F2
+    D5 -- no --> A10["Read the last accepted order<br/><i>FR-08 · none if any order<br/>is under 3 hours old</i>"]:::act
+    A10 --> D4{"Any item<br/>to show?"}:::dec
+    D4 -- no --> E6["The paused text instead<br/>of an empty menu ·<br/>no session"]:::act --> F2
+    D4 -- yes --> D6{"Welcome + menu<br/>within 4,096<br/>characters?"}:::dec
+    D6 -- no --> E4["Log an error ·<br/>send nothing ·<br/>no session"]:::crit --> F2
+    D6 -- yes --> A11["Add the last-order block<br/>only if it still fits"]:::act
+    A11 --> A9["Upsert customer ·<br/>open session, one active<br/>per customer · CAS new<br/>to browsing · send"]:::act --> F3(("cart built in later<br/>messages · continue<br/>in part c")):::fin
