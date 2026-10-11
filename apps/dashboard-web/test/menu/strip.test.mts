@@ -1,8 +1,8 @@
 /**
  * The header and the pause strip (brief ي-ب §5): «المنيو» after «السجل»,
  * the page's tab on /menu and /menu/removed; the strip under the header on
- * every page, above «انقطع الاتصال», as that one looks and neutral, with a
- * 44px «استأنف». What is TSX is held by reading it.
+ * every page, above «انقطع الاتصال» — amber since brief ي-ب-9 §4.5, with a
+ * 44px «استأنف» right after its text. What is TSX is held by reading it.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -68,9 +68,76 @@ test("🔴 the strip sits under the header, above «انقطع الاتصال»,
   assert.match(strip, /role="status"/);
 });
 
-test("the strip looks like «انقطع الاتصال» — neutral, never the accent — and «استأنف» is 44px", () => {
-  const offline = rule(headerCss, ".offline");
+test("🔴 the strip is amber — its own tokens, 16px/700, the pause sign — and «استأنف» comes right after the text", () => {
+  // Brief ي-ب-9 §4.5 replaced decision 3's «as «انقطع الاتصال» looks» (and
+  // the test that held it): on purpose, by Mohammed's decision of 11 October.
   const own = rule(stripCss, ".strip");
+  for (const decl of [
+    "background: var(--paused-bg);",
+    "border-block-end: 1px solid var(--border);",
+    "padding-block: 10px;",
+    "font-size: 16px;",
+    "font-weight: 700;",
+    "color: var(--paused-text);",
+  ])
+    assert.ok(own.includes(decl), `.strip: ${decl}`);
+  assert.doesNotMatch(
+    stripCss.replace(/\/\*[\s\S]*?\*\//g, ""),
+    /--accent/,
+    "amber, never the accent",
+  );
+  // The sign before the text, in the text's box.
+  const label = strip.slice(
+    strip.indexOf("className={styles.label}"),
+    strip.indexOf("</span>\n        <button"),
+  );
+  assert.match(
+    label,
+    /<PauseIcon \/>\s*<span>\{ordersPausedAr\(ordersPausedAt, readAt\)\}<\/span>/,
+  );
+
+  // «استأنف» right after the text: the next column, and the text's column
+  // is never a 1fr that pushes it to the line's end.
+  const bounds = rule(stripCss, ".bounds");
+  assert.match(bounds, /max-width: var\(--page-width, none\);/);
+  assert.match(bounds, /padding-inline: 18px;/);
+  const areas = /grid-template-areas: "([^"]+)";/
+    .exec(bounds)![1]!
+    .split(/\s+/);
+  const columns = /grid-template-columns: ([^;]+);/
+    .exec(bounds)![1]!
+    .match(/\w+\([^)]*\)|\S+/g)!;
+  assert.equal(columns.length, areas.length);
+  const at = areas.indexOf("label");
+  assert.equal(areas[at + 1], "resume");
+  assert.doesNotMatch(
+    columns[at]!,
+    /fr\b/,
+    `the text's column: ${columns[at]}`,
+  );
+  assert.ok(strip.indexOf("styles.label") < strip.indexOf("styles.resume"));
+
+  // «استأنف»: the surface, its line, primary text, 700, 20px, 44px, one line.
+  const resume = rule(stripCss, ".resume");
+  for (const decl of [
+    "min-height: 44px;",
+    "padding-inline: 20px;",
+    "background: var(--surface);",
+    "border: 1px solid var(--border);",
+    "font-weight: 700;",
+    "color: var(--text-primary);",
+    "white-space: nowrap;",
+  ])
+    assert.ok(resume.includes(decl), `.resume: ${decl}`);
+  // Its text, working on aria-busy; a failed resume's line under both.
+  assert.match(strip, /\{T\.paused\.resume\}/);
+  assert.match(strip, /aria-busy=\{busy\}/);
+  assert.match(strip, /pauseChanged\(res\.value\.ordersPausedAt\)/);
+  assert.match(rule(stripCss, ".failed"), /grid-column: 1 \/ -1;/);
+});
+
+test("«انقطع الاتصال» has not changed", () => {
+  const offline = rule(headerCss, ".offline");
   for (const decl of [
     "background: var(--surface);",
     "border-block-end: 1px solid var(--border);",
@@ -78,25 +145,6 @@ test("the strip looks like «انقطع الاتصال» — neutral, never the 
     "font-size: 13px;",
     "font-weight: 600;",
     "color: var(--text-primary);",
-  ]) {
+  ])
     assert.ok(offline.includes(decl), `.offline: ${decl}`);
-    assert.ok(own.includes(decl), `.strip: ${decl}`);
-  }
-  assert.doesNotMatch(
-    stripCss.replace(/\/\*[\s\S]*?\*\//g, ""),
-    /--accent/,
-    "the strip is neutral",
-  );
-  // The header's width and edges.
-  const bounds = rule(stripCss, ".bounds");
-  assert.match(bounds, /max-width: var\(--page-width, none\);/);
-  assert.match(bounds, /padding-inline: 18px;/);
-  const resume = rule(stripCss, ".resume");
-  assert.match(resume, /min-height: 44px;/);
-  assert.match(resume, /white-space: nowrap;/);
-  // Its text: the label and «منذ…», and «استأنف», working on aria-busy.
-  assert.match(strip, /ordersPausedAr\(ordersPausedAt, readAt\)/);
-  assert.match(strip, /\{T\.paused\.resume\}/);
-  assert.match(strip, /aria-busy=\{busy\}/);
-  assert.match(strip, /pauseChanged\(res\.value\.ordersPausedAt\)/);
 });

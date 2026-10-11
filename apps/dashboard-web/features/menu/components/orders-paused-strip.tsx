@@ -4,17 +4,19 @@ import { useState } from "react";
 import { DASHBOARD_UI_AR, ordersPausedAr } from "@sufria/shared";
 import { useLiveSettings } from "../../../shared/settings/live-settings.tsx";
 import { ordersPauseApi } from "../api/orders-pause-api.ts";
+import { PauseIcon } from "./pause-icon.tsx";
 import styles from "./orders-paused-strip.module.css";
 
 const T = DASHBOARD_UI_AR;
 
 /**
  * While orders are paused (brief ي-ب §5, decision 3): a strip under the
- * header on every page — where «انقطع الاتصال» is, and as it looks: the
- * surface, a line under it, neutral, never the accent — with «استأنف», the
- * one button that resumes. Above «انقطع الاتصال» when both show (the
- * header's `strip` slot). The pause is the poll's, read every tick, and the
- * answer's after «أوقف» or «استأنف» (`useLiveSettings`).
+ * header on every page, where «انقطع الاتصال» is — amber since brief ي-ب-9
+ * §4.5: a forgotten pause loses orders for hours — the pause sign and the
+ * text, then «استأنف», the one button that resumes, right after them.
+ * Above «انقطع الاتصال» when both show (the header's `strip` slot). The
+ * pause is the poll's, read every tick, and the answer's after «أوقف» or
+ * «استأنف» (`useLiveSettings`).
  */
 export function OrdersPausedStrip() {
   const { ordersPausedAt, readAt, pauseChanged } = useLiveSettings();
@@ -36,7 +38,8 @@ export function OrdersPausedStrip() {
     <div className={styles.strip} role="status">
       <div className={styles.bounds}>
         <span className={styles.label}>
-          {ordersPausedAr(ordersPausedAt, readAt)}
+          <PauseIcon />
+          <span>{ordersPausedAr(ordersPausedAt, readAt)}</span>
         </span>
         <button
           type="button"
