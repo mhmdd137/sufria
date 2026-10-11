@@ -26,17 +26,20 @@ const C = "features/menu/components/";
 const screen = read(`${C}menu-screen.tsx`);
 const row = read(`${C}menu-row.tsx`);
 const add = read(`${C}add-item-form.tsx`);
+const pauseBox = read(`${C}pause-box.tsx`);
 
 test("🔴 «أوقف الطلبات مؤقتا» and its line only while taking orders — the strip's «استأنف» is then the one button", () => {
-  const at = screen.indexOf("{ordersPausedAt === null && (");
-  assert.notEqual(at, -1);
-  const block = screen.slice(at, screen.indexOf("</div>", at));
-  assert.match(block, /\{M\.pause\}/);
-  assert.match(block, /\{M\.pauseHint\}/);
+  // In its own box since brief ي-ب-9 §4.3: gone while paused, and before
+  // the first read (`undefined`).
+  assert.match(pauseBox, /if \(ordersPausedAt !== null\) return null;/);
+  assert.match(pauseBox, /\{M\.pause\}/);
+  assert.match(pauseBox, /\{M\.pauseHint\}/);
   // No dialog for it: the press sends, and the answer shows the strip.
-  assert.match(screen, /ordersPauseApi\.setPaused\(true\)/);
-  assert.match(screen, /pauseChanged\(res\.value\.ordersPausedAt\)/);
-  assert.equal((screen.match(/T\.paused\.resume/g) ?? []).length, 0);
+  assert.match(pauseBox, /ordersPauseApi\.setPaused\(true\)/);
+  assert.match(pauseBox, /pauseChanged\(res\.value\.ordersPausedAt\)/);
+  assert.match(pauseBox, /aria-busy=\{pausing\}/);
+  assert.equal((pauseBox.match(/T\.paused\.resume/g) ?? []).length, 0);
+  assert.doesNotMatch(screen, /ordersPauseApi/, "the screen no longer pauses");
 });
 
 test("«المطفأة» and «شغّل الكل» only while an item is off; «شغّل الكل» asks first, with the count", () => {

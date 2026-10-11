@@ -1,6 +1,6 @@
 /**
  * The menu screen's look after the laptop trial (brief ي-ب-9 §4, decision
- * 4A): the switched-off item. Held by reading the TSX and the CSS, as the
+ * 4A): the switched-off item, the phone's row, the pause box. Held by reading the TSX and the CSS, as the
  * orders card's link is (test/orders/card.test.mts): the look itself needs
  * a browser, what decides it does not.
  */
@@ -48,6 +48,12 @@ const WIDE = "(min-width: 640px)";
 const C = "features/menu/components/";
 const row = read(`${C}menu-row.tsx`);
 const rowCss = read(`${C}menu-row.module.css`);
+const screen = read(`${C}menu-screen.tsx`);
+const removed = read(`${C}removed-items.tsx`);
+const pauseBox = read(`${C}pause-box.tsx`);
+const boxCss = read(`${C}pause-box.module.css`);
+const icon = read(`${C}pause-icon.tsx`);
+const iconCss = read(`${C}pause-icon.module.css`);
 
 test("🔴 a switched-off item looks it: «مطفأ» inverted, «متاح» an outline; the row dashed, without its surface", () => {
   // The row says it is off; its word is the view's («متاح» or «مطفأ»).
@@ -117,4 +123,45 @@ test("🔴 the phone's row is two lines — name, its state, the price; then the
   );
   assert.match(body(rowCss, ".title", WIDE), /display: contents;/);
   assert.match(body(rowCss, ".row", WIDE), /padding: 12px 14px;/);
+});
+
+test("🔴 the pause box sits above the two tabs, in both, its sign before the words — and is gone while paused", () => {
+  for (const [name, src] of [
+    ["menu-screen.tsx", screen],
+    ["removed-items.tsx", removed],
+  ] as const) {
+    const box = src.indexOf("<PauseBox />");
+    assert.ok(box !== -1 && box < src.indexOf("<MenuTabs "), name);
+  }
+  assert.match(pauseBox, /if \(ordersPausedAt !== null\) return null;/);
+  // The button, then its line: the phone's reading order.
+  assert.ok(pauseBox.indexOf("<button") < pauseBox.indexOf("{M.pauseHint}"));
+
+  // The sign: CSS alone, two bars, hidden from screen readers.
+  assert.match(pauseBox, /<PauseIcon \/>\s*\{M\.pause\}/);
+  assert.match(icon, /<span className=\{styles\.icon\} aria-hidden="true" \/>/);
+  assert.doesNotMatch(icon, /<svg/);
+  const bars = body(iconCss, ".icon");
+  assert.match(bars, /width: 10px;/);
+  assert.match(bars, /height: 12px;/);
+  assert.match(bars, /border-inline: 3px solid currentColor;/);
+
+  // The box: a surface, its line, 12 radius, 12/14 padding.
+  const box = body(boxCss, ".box");
+  assert.match(box, /background: var\(--surface\);/);
+  assert.match(box, /border: 1px solid var\(--border\);/);
+  assert.match(box, /border-radius: 12px;/);
+  assert.match(box, /padding: 12px 14px;/);
+  // Below 640 the button over its line; from 640 side by side, centred.
+  assert.match(box, /grid-template-areas:\s*"button"\s*"hint";/);
+  const wide = body(boxCss, ".box", WIDE);
+  assert.match(wide, /grid-template-areas: "button hint";/);
+  assert.match(wide, /align-items: center;/);
+
+  // The button: the screen's secondary, on the page's ground.
+  assert.match(
+    pauseBox,
+    /className=\{`\$\{screen\.secondary\} \$\{styles\.button\}`\}/,
+  );
+  assert.match(body(boxCss, ".box .button"), /background: var\(--bg\);/);
 });

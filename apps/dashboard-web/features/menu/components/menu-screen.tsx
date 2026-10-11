@@ -12,7 +12,6 @@ import {
 import { useLiveSettings } from "../../../shared/settings/live-settings.tsx";
 import { Skeleton } from "../../../shared/ui/skeleton.tsx";
 import { menuApi } from "../api/menu-api.ts";
-import { ordersPauseApi } from "../api/orders-pause-api.ts";
 import { useMenu } from "../hooks/use-menu.ts";
 import {
   byCategory,
@@ -24,6 +23,7 @@ import { AddItemForm } from "./add-item-form.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
 import { MenuRow } from "./menu-row.tsx";
 import { MenuTabs } from "./menu-tabs.tsx";
+import { PauseBox } from "./pause-box.tsx";
 import styles from "./menu-screen.module.css";
 
 const T = DASHBOARD_UI_AR;
@@ -35,20 +35,17 @@ type Asking =
   | { kind: "enableAll"; count: number };
 
 /**
- * «المنيو» (brief ي-ب §6): «أضف صنفا», «أوقف الطلبات مؤقتا» with what the
- * customers will get under it — both gone while paused (decision 3: the
- * strip's «استأنف» is then the one button) — «المطفأة» and «شغّل الكل»
- * while any is off, the two tabs, and the menu under its categories in the
- * customer's order, an item switched off keeping its place. No menu
- * numbers: the bot's change with every switch-off.
+ * «المنيو» (brief ي-ب §6): the pause box above the two tabs (brief ي-ب-9
+ * §4.3), «أضف صنفا», «المطفأة» and «شغّل الكل» while any is off, and the
+ * menu under its categories in the customer's order, an item switched off
+ * keeping its place. No menu numbers: the bot's change with every
+ * switch-off.
  */
 export function MenuScreen() {
-  const { currency, ordersPausedAt, pauseChanged } = useLiveSettings();
+  const { currency } = useLiveSettings();
   const menu = useMenu();
   const { update, drop, reload } = menu;
   const [adding, setAdding] = useState(false);
-  const [pausing, setPausing] = useState(false);
-  const [pauseFailed, setPauseFailed] = useState(false);
   const [asking, setAsking] = useState<Asking | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [askLine, setAskLine] = useState<string | null>(null);
@@ -57,17 +54,6 @@ export function MenuScreen() {
     setAskLine(null);
     setAsking({ kind: "remove", item });
   }, []);
-
-  async function pause() {
-    setPausing(true);
-    setPauseFailed(false);
-    const res = await ordersPauseApi.setPaused(true);
-    setPausing(false);
-    // The strip shows at once, from the answer; this button goes with it.
-    if (res.ok) pauseChanged(res.value.ordersPausedAt);
-    // `unauthorized`: the gate takes the page to login.
-    else if (res.error.kind !== "unauthorized") setPauseFailed(true);
-  }
 
   async function confirm() {
     if (!asking) return;
@@ -95,6 +81,7 @@ export function MenuScreen() {
   return (
     <main className={styles.page}>
       <h1 className="visually-hidden">{T.tabs.menu}</h1>
+      <PauseBox />
       <MenuTabs current="items" />
 
       {ready && (
@@ -107,25 +94,6 @@ export function MenuScreen() {
             >
               {M.add}
             </button>
-          )}
-          {ordersPausedAt === null && (
-            <div className={styles.pause}>
-              <button
-                type="button"
-                className={styles.secondary}
-                onClick={pause}
-                disabled={pausing}
-                aria-busy={pausing}
-              >
-                {M.pause}
-              </button>
-              <p className={styles.hint}>{M.pauseHint}</p>
-              {pauseFailed && (
-                <p className={styles.line} role="status">
-                  {T.errors.stepFailed}
-                </p>
-              )}
-            </div>
           )}
           {off > 0 && (
             <div className={styles.off}>

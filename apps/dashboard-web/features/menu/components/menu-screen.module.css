@@ -18,25 +18,12 @@
   margin-inline: auto;
 }
 
-/* «أضف صنفا», the pause, «المطفأة» — one under the other, at the start. */
+/* «أضف صنفا», «المطفأة» — one under the other, at the start. */
 .toolbar {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 12px;
-}
-
-.pause {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-}
-
-/* What every customer gets while paused: a sentence, it wraps. */
-.hint {
-  font-size: 13px;
-  color: var(--text-secondary);
 }
 
 .off {
@@ -75,12 +62,6 @@
 
 .secondary[aria-busy="true"] {
   cursor: progress;
-}
-
-.line {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
 }
 
 /* A category: its heading, then its items. */

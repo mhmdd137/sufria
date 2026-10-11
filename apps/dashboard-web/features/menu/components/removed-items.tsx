@@ -14,6 +14,7 @@ import { menuApi } from "../api/menu-api.ts";
 import { useRemovedItems } from "../hooks/use-removed.ts";
 import { itemErrorLine, removedRowView } from "../lib/menu.ts";
 import { MenuTabs } from "./menu-tabs.tsx";
+import { PauseBox } from "./pause-box.tsx";
 import screen from "./menu-screen.module.css";
 import styles from "./removed-items.module.css";
 
@@ -21,8 +22,9 @@ const T = DASHBOARD_UI_AR;
 const M = DASHBOARD_MENU_UI_AR;
 
 /**
- * «المُزالة» (brief ي-ب §7, decision 4): what was removed from the menu,
- * the most recent first — its name, price and category, and «إرجاع». An
+ * «المُزالة» (brief ي-ب §7, decision 4): the pause box above the two tabs
+ * (brief ي-ب-9 §4.3), then what was removed from the menu, the most recent
+ * first — its name, price and category, and «إرجاع». An
  * item brought back leaves this list, switched off (decision 6), and the
  * line under the tabs says where it went and what is left to do.
  */
@@ -46,6 +48,7 @@ export function RemovedItems() {
   return (
     <main className={screen.page}>
       <h1 className="visually-hidden">{T.tabs.menu}</h1>
+      <PauseBox />
       <MenuTabs current="removed" />
 
       {restored && (
