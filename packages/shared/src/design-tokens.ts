@@ -70,6 +70,8 @@ export const TEXT_ON_BACKGROUND: Readonly<
   "text-primary": ["bg", "surface"],
   "text-secondary": ["bg", "surface"],
   "on-accent": ["accent"],
+  /** «مطفأ», inverted: the page's ground as text (brief ي-ب-9 §4.1). */
+  bg: ["text-primary"],
 };
 
 /** A status badge: its text on its own background, nothing else. */

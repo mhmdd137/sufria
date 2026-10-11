@@ -42,8 +42,17 @@
   overflow-wrap: anywhere;
 }
 
-/* Switched off: the word says it (.status); the name steps back too. */
-.row[data-off] .name {
+/* Switched off (brief ي-ب-9 §4.1): the row steps back — no surface, its
+   line dashed in the same colour, the name and the price secondary — and
+   its word is inverted (.status below). Not by colour alone: the word and
+   the dashed line say it too. */
+.row[data-off] {
+  background: transparent;
+  border-style: dashed;
+}
+
+.row[data-off] .name,
+.row[data-off] .price {
   color: var(--text-secondary);
 }
 
@@ -62,13 +71,24 @@
   padding: 2px 10px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
+/* «مطفأ», inverted: the primary text's colour as its ground. «متاح» keeps
+   the outline, quieter than the name. */
+.row[data-off] .status {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg);
+}
+
+/* One width for the two words, so the price's column never moves. */
 @media (min-width: 640px) {
   .status {
     justify-self: start;
+    min-width: 4.25rem;
+    text-align: center;
   }
 }
 
