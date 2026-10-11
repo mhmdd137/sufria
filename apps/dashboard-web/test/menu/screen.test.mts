@@ -31,8 +31,8 @@ test("🔴 «أوقف الطلبات مؤقتا» and its line only while taking
   const at = screen.indexOf("{ordersPausedAt === null && (");
   assert.notEqual(at, -1);
   const block = screen.slice(at, screen.indexOf("</div>", at));
-  assert.match(block, /\{T\.menu\.pause\}/);
-  assert.match(block, /\{T\.menu\.pauseHint\}/);
+  assert.match(block, /\{M\.pause\}/);
+  assert.match(block, /\{M\.pauseHint\}/);
   // No dialog for it: the press sends, and the answer shows the strip.
   assert.match(screen, /ordersPauseApi\.setPaused\(true\)/);
   assert.match(screen, /pauseChanged\(res\.value\.ordersPausedAt\)/);
@@ -67,7 +67,7 @@ test("🔴 every field has its label, and the price brings the decimal keyboard"
     const fields = [...src.matchAll(/<(input|select)\b/g)].length;
     const labelled = [
       ...src.matchAll(
-        /<label\b[^>]*>\s*<span className=\{styles\.label\}>\{T\.menu\.fields\.\w+\}<\/span>\s*<(input|select)\b/g,
+        /<label\b[^>]*>\s*<span className=\{styles\.label\}>\{M\.fields\.\w+\}<\/span>\s*<(input|select)\b/g,
       ),
     ].length;
     assert.equal(labelled, fields, `${name}: a field without its label`);
@@ -82,8 +82,8 @@ test("🔴 the row in edit: «حفظ» and «إلغاء» always shown, «لم �
   );
   assert.match(edit, /<form[\s\S]*onSubmit=\{save\}/);
   assert.match(edit, /e\.key === "Escape"[\s\S]*cancel\(\)/);
-  assert.match(edit, /type="submit"[\s\S]*\{T\.menu\.save\}/);
-  assert.match(edit, /onClick=\{cancel\}[\s\S]*\{T\.menu\.cancel\}/);
+  assert.match(edit, /type="submit"[\s\S]*\{M\.save\}/);
+  assert.match(edit, /onClick=\{cancel\}[\s\S]*\{M\.cancel\}/);
   // Neither is ever disabled for want of a change: «حفظ» waits while it
   // sends alone.
   assert.match(
@@ -93,7 +93,7 @@ test("🔴 the row in edit: «حفظ» and «إلغاء» always shown, «لم �
   assert.match(edit, /const unsaved = isUnsaved\(item, draft\);/);
   assert.match(
     edit,
-    /\{unsaved && \(?\s*<span className=\{styles\.unsaved\}>\{T\.menu\.unsaved\}<\/span>\s*\)?\}/,
+    /\{unsaved && \(?\s*<span className=\{styles\.unsaved\}>\{M\.unsaved\}<\/span>\s*\)?\}/,
   );
 });
 

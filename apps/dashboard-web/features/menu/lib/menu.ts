@@ -5,6 +5,7 @@
  * rules are tested without a browser (the pattern of `features/orders/lib/`).
  */
 import {
+  DASHBOARD_MENU_UI_AR,
   DASHBOARD_UI_AR,
   amountAr,
   menuTooLongAr,
@@ -16,7 +17,7 @@ import {
 } from "@sufria/shared";
 import type { ApiError } from "../../../shared/api/http.ts";
 
-const T = DASHBOARD_UI_AR.menu;
+const M = DASHBOARD_MENU_UI_AR;
 
 export type RowView = {
   name: string;
@@ -32,10 +33,10 @@ export function rowView(item: MenuItemListItem, currency: Currency): RowView {
   return {
     name: item.name,
     amount: amountAr(item.price, currency),
-    status: item.isAvailable ? T.status.available : T.status.off,
+    status: item.isAvailable ? M.status.available : M.status.off,
     toggle: item.isAvailable
-      ? { label: T.turnOff, isAvailable: false }
-      : { label: T.turnOn, isAvailable: true },
+      ? { label: M.turnOff, isAvailable: false }
+      : { label: M.turnOn, isAvailable: true },
   };
 }
 
@@ -104,9 +105,9 @@ export function checkName(raw: string): Checked {
   if (result.ok) return { value: result.name };
   switch (result.issue) {
     case "empty":
-      return { error: T.errors.nameEmpty };
+      return { error: M.errors.nameEmpty };
     case "too_long":
-      return { error: T.errors.nameTooLong };
+      return { error: M.errors.nameTooLong };
     default:
       return { error: DASHBOARD_UI_AR.errors.stepFailed };
   }
@@ -114,7 +115,7 @@ export function checkName(raw: string): Checked {
 
 export function checkPrice(raw: string): Checked {
   const result = normalizeMenuPrice(raw);
-  return result.ok ? { value: result.price } : { error: T.errors.priceInvalid };
+  return result.ok ? { value: result.price } : { error: M.errors.priceInvalid };
 }
 
 /**
@@ -206,8 +207,8 @@ export function itemErrorLine(error: ApiError): string | null {
   if (error.kind === "menu_conflict")
     return error.code === "menu_too_long"
       ? menuTooLongAr(error.length)
-      : T.errors.archived;
-  if (error.kind === "http" && error.status === 404) return T.errors.archived;
+      : M.errors.archived;
+  if (error.kind === "http" && error.status === 404) return M.errors.archived;
   return DASHBOARD_UI_AR.errors.stepFailed;
 }
 

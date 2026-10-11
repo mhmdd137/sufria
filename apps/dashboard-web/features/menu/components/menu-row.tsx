@@ -2,7 +2,7 @@
 
 import { memo, useId, useState, type FormEvent } from "react";
 import {
-  DASHBOARD_UI_AR,
+  DASHBOARD_MENU_UI_AR,
   type Currency,
   type MenuItemListItem,
 } from "@sufria/shared";
@@ -16,7 +16,7 @@ import {
 } from "../lib/menu.ts";
 import styles from "./menu-row.module.css";
 
-const T = DASHBOARD_UI_AR;
+const M = DASHBOARD_MENU_UI_AR;
 
 type Props = {
   item: MenuItemListItem;
@@ -110,7 +110,7 @@ export const MenuRow = memo(function MenuRow({
           noValidate
         >
           <label className={`${styles.field} ${styles.nameField}`}>
-            <span className={styles.label}>{T.menu.fields.name}</span>
+            <span className={styles.label}>{M.fields.name}</span>
             <input
               className={styles.input}
               value={draft.name}
@@ -127,7 +127,7 @@ export const MenuRow = memo(function MenuRow({
             )}
           </label>
           <label className={`${styles.field} ${styles.priceField}`}>
-            <span className={styles.label}>{T.menu.fields.price}</span>
+            <span className={styles.label}>{M.fields.price}</span>
             <input
               className={`num ${styles.input}`}
               value={draft.price}
@@ -151,14 +151,12 @@ export const MenuRow = memo(function MenuRow({
               disabled={busy === "save"}
               aria-busy={busy === "save"}
             >
-              {T.menu.save}
+              {M.save}
             </button>
             <button type="button" className={styles.button} onClick={cancel}>
-              {T.menu.cancel}
+              {M.cancel}
             </button>
-            {unsaved && (
-              <span className={styles.unsaved}>{T.menu.unsaved}</span>
-            )}
+            {unsaved && <span className={styles.unsaved}>{M.unsaved}</span>}
           </div>
         </form>
         {line && (
@@ -194,7 +192,7 @@ export const MenuRow = memo(function MenuRow({
             onClick={edit}
             disabled={busy !== null}
           >
-            {T.menu.edit}
+            {M.edit}
           </button>
           <button
             type="button"
@@ -202,7 +200,7 @@ export const MenuRow = memo(function MenuRow({
             onClick={() => onRemove(item)}
             disabled={busy !== null}
           >
-            {T.menu.remove}
+            {M.remove}
           </button>
         </div>
       </div>

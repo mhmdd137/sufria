@@ -1,9 +1,10 @@
 /**
- * Brief G §0: every visible text comes from one dictionary exported by
- * `@sufria/shared` — no text inline in the components. Held here the only
- * way a script can: no Arabic letter in the code of `app/`, `features/` and
- * `shared/`, comments aside. A string the screen shows in Arabic can then
- * only have come from shared.
+ * Brief G §0: every visible text comes from a dictionary exported by
+ * `@sufria/shared` — `DASHBOARD_UI_AR`, or the menu screen's
+ * `DASHBOARD_MENU_UI_AR` (brief ي-ب-9 §3) — no text inline in the
+ * components. Held here the only way a script can: no Arabic letter in the
+ * code of `app/`, `features/` and `shared/`, comments aside. A string the
+ * screen shows in Arabic can then only have come from shared.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -30,7 +31,7 @@ function withoutComments(src: string): string {
 
 const ARABIC_LETTER = /[ء-ي]/u;
 
-test("no Arabic text inline in app/, features/ or shared/ — it comes from DASHBOARD_UI_AR", () => {
+test("no Arabic text inline in app/, features/ or shared/ — it comes from @sufria/shared", () => {
   const sources = [
     ...files(join(APP_ROOT, "app")),
     ...files(join(APP_ROOT, "features")),
@@ -44,7 +45,7 @@ test("no Arabic text inline in app/, features/ or shared/ — it comes from DASH
         line,
         ARABIC_LETTER,
         `${relative(APP_ROOT, file)}:${i + 1} writes Arabic inline: «${line.trim()}». ` +
-          `Add it to DASHBOARD_UI_AR in packages/shared/src/dashboard-ui.ts.`,
+          `Add it to DASHBOARD_UI_AR in packages/shared/src/dashboard-ui.ts, or a menu screen's text to dashboard-menu-ui.ts.`,
       );
     });
   }

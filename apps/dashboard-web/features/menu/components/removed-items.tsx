@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useState } from "react";
 import {
+  DASHBOARD_MENU_UI_AR,
   DASHBOARD_UI_AR,
   restoredLineAr,
   type ArchivedMenuItem,
@@ -17,6 +18,7 @@ import screen from "./menu-screen.module.css";
 import styles from "./removed-items.module.css";
 
 const T = DASHBOARD_UI_AR;
+const M = DASHBOARD_MENU_UI_AR;
 
 /**
  * «المُزالة» (brief ي-ب §7, decision 4): what was removed from the menu,
@@ -71,7 +73,7 @@ export function RemovedItems() {
       )}
 
       {ready && items.length === 0 && (
-        <p className={screen.empty}>{T.menu.empty.removed}</p>
+        <p className={screen.empty}>{M.empty.removed}</p>
       )}
 
       {ready && items.length > 0 && (
@@ -127,7 +129,7 @@ const RemovedRow = memo(function RemovedRow({
           disabled={busy}
           aria-busy={busy}
         >
-          {T.menu.restore}
+          {M.restore}
         </button>
       </div>
       {line && (

@@ -8,6 +8,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  DASHBOARD_MENU_UI_AR,
   DASHBOARD_UI_AR,
   MENU_ITEM_NAME_MAX,
   type MenuItemListItem,
@@ -26,7 +27,7 @@ import {
   saveDecision,
 } from "../../features/menu/lib/menu.ts";
 
-const T = DASHBOARD_UI_AR.menu;
+const M = DASHBOARD_MENU_UI_AR;
 
 /**
  * A number as a staff keyboard types it — Arabic-Indic digits and `٫`
@@ -55,13 +56,13 @@ const item = (
 
 test("🔴 a row: the available one offers «أطفئ», not «شغّل»; the switched-off one the other way round", () => {
   const on = rowView(item("a"), "JOD");
-  assert.equal(on.toggle.label, T.turnOff);
-  assert.notEqual(on.toggle.label, T.turnOn);
+  assert.equal(on.toggle.label, M.turnOff);
+  assert.notEqual(on.toggle.label, M.turnOn);
   assert.equal(on.toggle.isAvailable, false);
   assert.equal(on.status, "متاح");
   const off = rowView(item("a", { isAvailable: false }), "JOD");
-  assert.equal(off.toggle.label, T.turnOn);
-  assert.notEqual(off.toggle.label, T.turnOff);
+  assert.equal(off.toggle.label, M.turnOn);
+  assert.notEqual(off.toggle.label, M.turnOff);
   assert.equal(off.toggle.isAvailable, true);
   // The state in a word, never by colour alone.
   assert.equal(off.status, "مطفأ");
@@ -151,7 +152,7 @@ test("🔴 «حفظ» sends the changed field alone — and nothing without a ch
   assert.deepEqual(saveDecision(SAVED, { ...SAVED, price: "0" }), {
     kind: "invalid",
     name: null,
-    price: T.errors.priceInvalid,
+    price: M.errors.priceInvalid,
   });
   // A saved name longer than 40 (the setup script does not check) does not
   // stop a new price: only what changed is checked.
@@ -165,8 +166,8 @@ test("🔴 «حفظ» sends the changed field alone — and nothing without a ch
 test("«أضف»: both fields checked, then the category, the name and the price as the API stores them", () => {
   assert.deepEqual(addDecision("c1", { name: "", price: "x" }), {
     kind: "invalid",
-    name: T.errors.nameEmpty,
-    price: T.errors.priceInvalid,
+    name: M.errors.nameEmpty,
+    price: M.errors.priceInvalid,
   });
   assert.deepEqual(
     addDecision("c1", { name: " فتوش ", price: arabic("2.25") }),

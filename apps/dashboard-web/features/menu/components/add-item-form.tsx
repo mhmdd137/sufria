@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { DASHBOARD_UI_AR, type MenuCategory } from "@sufria/shared";
+import { DASHBOARD_MENU_UI_AR, type MenuCategory } from "@sufria/shared";
 import { menuApi } from "../api/menu-api.ts";
 import { addDecision, menuErrorLine, type Draft } from "../lib/menu.ts";
 import styles from "./add-item-form.module.css";
 
-const T = DASHBOARD_UI_AR;
+const M = DASHBOARD_MENU_UI_AR;
 
 type Props = {
   /** `GET /menu-categories`: an existing one (decision 1). */
@@ -70,7 +70,7 @@ export function AddItemForm({ categories, onAdded, onCancel }: Props) {
       noValidate
     >
       <label className={`${styles.field} ${styles.category}`}>
-        <span className={styles.label}>{T.menu.fields.category}</span>
+        <span className={styles.label}>{M.fields.category}</span>
         <select
           className={styles.input}
           value={categoryId}
@@ -84,7 +84,7 @@ export function AddItemForm({ categories, onAdded, onCancel }: Props) {
         </select>
       </label>
       <label className={`${styles.field} ${styles.name}`}>
-        <span className={styles.label}>{T.menu.fields.name}</span>
+        <span className={styles.label}>{M.fields.name}</span>
         <input
           ref={name}
           className={styles.input}
@@ -102,7 +102,7 @@ export function AddItemForm({ categories, onAdded, onCancel }: Props) {
         )}
       </label>
       <label className={`${styles.field} ${styles.price}`}>
-        <span className={styles.label}>{T.menu.fields.price}</span>
+        <span className={styles.label}>{M.fields.price}</span>
         <input
           className={`num ${styles.input}`}
           value={draft.price}
@@ -127,10 +127,10 @@ export function AddItemForm({ categories, onAdded, onCancel }: Props) {
             disabled={busy}
             aria-busy={busy}
           >
-            {T.menu.addSubmit}
+            {M.addSubmit}
           </button>
           <button type="button" className={styles.button} onClick={onCancel}>
-            {T.menu.cancel}
+            {M.cancel}
           </button>
         </div>
         {line && (

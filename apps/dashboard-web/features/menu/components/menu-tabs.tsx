@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { DASHBOARD_UI_AR } from "@sufria/shared";
+import { DASHBOARD_MENU_UI_AR } from "@sufria/shared";
 import styles from "./menu-tabs.module.css";
 
-const T = DASHBOARD_UI_AR;
+const M = DASHBOARD_MENU_UI_AR;
 
 /**
  * «الأصناف» and «المُزالة» — the menu screen's two views (decision 4):
@@ -17,14 +17,14 @@ export function MenuTabs({ current }: { current: "items" | "removed" }) {
         className={styles.tab}
         aria-current={current === "items" ? "page" : undefined}
       >
-        {T.menu.tabs.items}
+        {M.tabs.items}
       </Link>
       <Link
         href="/menu/removed"
         className={styles.tab}
         aria-current={current === "removed" ? "page" : undefined}
       >
-        {T.menu.tabs.removed}
+        {M.tabs.removed}
       </Link>
     </nav>
   );

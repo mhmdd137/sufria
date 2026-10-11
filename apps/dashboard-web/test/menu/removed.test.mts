@@ -66,5 +66,5 @@ test("«المُزالة»: the API's list, in its order; its tab marked; its em
   );
   assert.doesNotMatch(removed, /\.sort\(/);
   assert.match(removed, /<MenuTabs current="removed" \/>/);
-  assert.match(removed, /\{T\.menu\.empty\.removed\}/);
+  assert.match(removed, /\{M\.empty\.removed\}/);
 });

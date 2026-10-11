@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import {
+  DASHBOARD_MENU_UI_AR,
   DASHBOARD_UI_AR,
   enableAllBodyAr,
   offCountAr,
@@ -26,6 +27,7 @@ import { MenuTabs } from "./menu-tabs.tsx";
 import styles from "./menu-screen.module.css";
 
 const T = DASHBOARD_UI_AR;
+const M = DASHBOARD_MENU_UI_AR;
 
 /** One of the screen's two confirmations, open. */
 type Asking =
@@ -103,7 +105,7 @@ export function MenuScreen() {
               className={styles.primary}
               onClick={() => setAdding(true)}
             >
-              {T.menu.add}
+              {M.add}
             </button>
           )}
           {ordersPausedAt === null && (
@@ -115,9 +117,9 @@ export function MenuScreen() {
                 disabled={pausing}
                 aria-busy={pausing}
               >
-                {T.menu.pause}
+                {M.pause}
               </button>
-              <p className={styles.hint}>{T.menu.pauseHint}</p>
+              <p className={styles.hint}>{M.pauseHint}</p>
               {pauseFailed && (
                 <p className={styles.line} role="status">
                   {T.errors.stepFailed}
@@ -138,7 +140,7 @@ export function MenuScreen() {
                   setAsking({ kind: "enableAll", count: off });
                 }}
               >
-                {T.menu.enableAll}
+                {M.enableAll}
               </button>
             </div>
           )}
@@ -175,7 +177,7 @@ export function MenuScreen() {
       )}
 
       {ready && items.length === 0 && (
-        <p className={styles.empty}>{T.menu.empty.items}</p>
+        <p className={styles.empty}>{M.empty.items}</p>
       )}
 
       {ready &&
@@ -207,16 +209,14 @@ export function MenuScreen() {
         title={
           asking?.kind === "remove"
             ? removeTitleAr(asking.item.name)
-            : T.menu.enableAllTitle
+            : M.enableAllTitle
         }
         body={
           asking?.kind === "enableAll"
             ? enableAllBodyAr(asking.count)
-            : T.menu.removeBody
+            : M.removeBody
         }
-        confirm={
-          asking?.kind === "enableAll" ? T.menu.enableAll : T.menu.removeConfirm
-        }
+        confirm={asking?.kind === "enableAll" ? M.enableAll : M.removeConfirm}
         busy={confirming}
         line={askLine}
         onConfirm={() => void confirm()}
