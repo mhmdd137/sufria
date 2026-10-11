@@ -163,7 +163,10 @@ they fail if a status label is written inline, if a local status map or
 `OrderStatus` type reappears, or if `preparing`/`completed` gain a customer
 message. Since task G they also fail on **any** Arabic letter in the code of
 `app/`, `features/` or `shared/` (every visible text comes from
-`DASHBOARD_UI_AR` in `packages/shared/src/dashboard-ui.ts`), and on a local
+`DASHBOARD_UI_AR` in `packages/shared/src/dashboard-ui.ts`, or from the menu
+screen's own `DASHBOARD_MENU_UI_AR` in `dashboard-menu-ui.ts` — brief ي-ب-9
+§3: what only `/menu` and `/menu/removed` show stays off the other pages),
+and on a local
 copy of an API contract type; since task I, on an import that breaks the
 structure (`test/boundaries.test.mts`). The screens' decisions — the card's
 text, the pulse, what the next-step button sends and what a 409 leads to, the
@@ -325,7 +328,13 @@ the header, and **one** poll of «الطلبات» feeding both the count and th
 `shared/settings/live-settings.tsx`; «أوقف»/«استأنف» write their answer there
 at once, and a read sent before that answer does not undo it. While paused,
 `features/menu/components/orders-paused-strip.tsx` shows under the header on
-every page, above «انقطع الاتصال».
+every page, above «انقطع الاتصال» — amber since brief ي-ب-9 §4.5 (its own
+tokens `paused-bg`/`paused-text`, today «بانتظار القبول»'s values), 16px/700,
+the pause sign before its text and «استأنف» right after it. On the menu
+screen «أوقف الطلبات مؤقتا» is a box of its own above «الأصناف» and
+«المُزالة» (`pause-box.tsx`), gone while paused; a switched-off item's row is
+dashed, without its surface, and «مطفأ» is inverted (`--bg` on
+`--text-primary`) — brief ي-ب-9 §4.1, §4.3.
 
 **The RTL and width contract, on every file touched** — from 375px to 1440px,
 right to left by `dir="rtl"` on `<html>` alone, no horizontal scroll:
@@ -528,13 +537,21 @@ into the same `.next` that `next start` serves: restart a running one after.
   the leftovers by the killed run's id (`d5-<pid>-<time>` in their names), as
   the test's own `afterAll` would — and never the seed's (`both@`, `onlya@`,
   `onlyz@sufria.test`).
-- **`check:budget` is red, pending Mohammed's decision (brief ي-ب, 11
-  October).** `main` was already over by 396 bytes on `/orders`, `/history`
-  and `/orders/[id]` since ي-أ/ك — a Turbopack chunk split, the same code. The
-  menu screen adds, against `main`: `/login` +889 · `/orders` +1553 ·
-  `/history` +1553 · `/orders/[id]` +1581. About 710 of each is the menu's
-  texts: `DASHBOARD_UI_AR` is one object, and every page carries all of it.
-  The four old budgets were not raised.
+- **`check:budget` is red, pending Mohammed's decision on the design round
+  (brief ي-ب-9, 11 October).** Decided and done: 1A — `main`'s three
+  dashboard budgets up by exactly 396 (a Turbopack chunk split since ي-أ/ك,
+  the same code); 2B — the menu's texts in `dashboard-menu-ui.ts`, which
+  brought the branch, against `main`, to `/login` +200 · `/orders` +851 ·
+  `/history` +851 · `/orders/[id]` +879, and `/menu` +318 · `/menu/removed`
+  +290 over their ي-ب budgets. The design round (§4) adds, over 2B, 0 · +107
+  · +107 · +107 · +284 · +405 (JS, gzip) — over the 100 per page allowed in
+  advance (the pause sign on every page; the pause box, now on «المُزالة»
+  too). Not raised: the brief's stop. Final JS today: `/login` 138799 ·
+  `/orders` 146089 · `/history` 146316 · `/orders/[id]` 149167 · `/menu`
+  150999 · `/menu/removed` 148876.
+- **No `:hover` and no `:active` anywhere in the dashboard** (found 11
+  October): a button or a link looks the same under the pointer and while
+  pressed. Its own brief, after the menu screen's merge (decision 5A).
 - **The menu list is not polled.** Another device's change to an item shows
   when the screen is opened again; the pause alone is read every tick.
 - **A failed «استلمنا طلبك» is never retried.** It is logged, and the order is
