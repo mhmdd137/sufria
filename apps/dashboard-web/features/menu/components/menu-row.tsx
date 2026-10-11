@@ -171,11 +171,13 @@ export const MenuRow = memo(function MenuRow({
   return (
     <li className={styles.row} data-off={item.isAvailable ? undefined : ""}>
       <div className={styles.view}>
-        <span className={styles.name} dir="auto">
-          {view.name}
-        </span>
+        <div className={styles.title}>
+          <span className={styles.name} dir="auto">
+            {view.name}
+          </span>
+          <span className={styles.status}>{view.status}</span>
+        </div>
         <span className={`num ${styles.price}`}>{view.amount}</span>
-        <span className={styles.status}>{view.status}</span>
         <div className={styles.actions}>
           <button
             type="button"

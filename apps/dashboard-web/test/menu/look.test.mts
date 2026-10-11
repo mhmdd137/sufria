@@ -79,3 +79,42 @@ test("🔴 a switched-off item looks it: «مطفأ» inverted, «متاح» an 
   assert.match(wide, /min-width: 4\.25rem;/);
   assert.match(wide, /text-align: center;/);
 });
+
+test("🔴 the phone's row is two lines — name, its state, the price; then the buttons — and the DOM reads in that order", () => {
+  const view = row.slice(row.indexOf("<div className={styles.view}>"));
+  const at = (s: string) => {
+    const i = view.indexOf(s);
+    assert.notEqual(i, -1, s);
+    return i;
+  };
+  // The reading order on the phone: name, state, price, buttons.
+  assert.ok(at("styles.name") < at("styles.status"));
+  assert.ok(at("styles.status") < at("styles.price"));
+  assert.ok(at("styles.price") < at("styles.actions"));
+  // The name and its state share one box; the price is outside it.
+  const title = view.slice(at("styles.title"), at("styles.price"));
+  assert.match(title, /styles\.name[\s\S]*styles\.status[\s\S]*<\/div>/);
+
+  // Below 640: two rows, the price at the end of the first.
+  const narrow = body(rowCss, ".view");
+  assert.match(
+    narrow,
+    /grid-template-areas:\s*"title price"\s*"actions actions";/,
+  );
+  assert.match(narrow, /grid-template-columns: minmax\(0, 1fr\) auto;/);
+  assert.match(body(rowCss, ".title"), /grid-area: title;/);
+  assert.match(body(rowCss, ".row"), /padding: 10px 12px;/);
+  // The three buttons in equal thirds, as before.
+  assert.match(
+    body(rowCss, ".actions"),
+    /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/,
+  );
+
+  // From 640 up, the one row as before; the box steps aside.
+  assert.match(
+    body(rowCss, ".view", WIDE),
+    /grid-template-areas: "name price status actions";/,
+  );
+  assert.match(body(rowCss, ".title", WIDE), /display: contents;/);
+  assert.match(body(rowCss, ".row", WIDE), /padding: 12px 14px;/);
+});

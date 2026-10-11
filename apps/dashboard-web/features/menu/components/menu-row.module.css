@@ -2,27 +2,34 @@
    (order-card.module.css): a surface, 12 radius, 15 text · 13 labels,
    44px buttons, tokens only, logical properties only.
 
-   Below 640px, three fixed rows: the name · the price at the start, the
-   state at the end · the three buttons, the row's width. From 640px up, one
-   row. Grid areas, not flex-wrap: nothing moves with a name's length. The
-   grid follows dir="rtl" by itself. */
+   Below 640px, two rows (brief ي-ب-9 §4.2): the name, its state right
+   after it and the price at the end · the three buttons, the row's width.
+   From 640px up, one row: name · price · state · buttons. The DOM is the
+   phone's reading order — name, state, price, buttons — and the change at
+   640 is grid areas, not flex-wrap. The grid follows dir="rtl" by itself. */
 
 .row {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   line-height: 1.55;
 }
 
+@media (min-width: 640px) {
+  .row {
+    padding: 12px 14px;
+  }
+}
+
+/* The price on the title's first line, whatever its length. */
 .view {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "name name"
-    "price status"
+    "title price"
     "actions actions";
-  align-items: center;
+  align-items: baseline;
   gap: 8px 12px;
 }
 
@@ -30,6 +37,26 @@
   .view {
     grid-template-columns: minmax(0, 1fr) auto auto auto;
     grid-template-areas: "name price status actions";
+    align-items: center;
+  }
+}
+
+/* The name and its state. The state drops under a name too long to leave
+   it room — on purpose (§4.2): a wrap by the name's length, inside this
+   box alone. From 640px up the box steps aside and its two take their own
+   areas. */
+.title {
+  grid-area: title;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+@media (min-width: 640px) {
+  .title {
+    display: contents;
   }
 }
 
@@ -65,7 +92,7 @@
 
 .status {
   grid-area: status;
-  justify-self: end;
+  justify-self: start;
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 2px 10px;
@@ -86,7 +113,6 @@
 /* One width for the two words, so the price's column never moves. */
 @media (min-width: 640px) {
   .status {
-    justify-self: start;
     min-width: 4.25rem;
     text-align: center;
   }
