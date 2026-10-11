@@ -3,34 +3,34 @@
   "unit": "bytes: JS gzip-compressed, fonts as woff2, loaded before the first paint",
   "pages": {
     "/login": {
-      "js": 138599,
+      "js": 138799,
       "fonts": 123204,
-      "total": 261803
+      "total": 262003
     },
     "/orders": {
-      "js": 145131,
+      "js": 146089,
       "fonts": 123204,
-      "total": 268335
+      "total": 269293
     },
     "/history": {
-      "js": 145358,
+      "js": 146316,
       "fonts": 123204,
-      "total": 268562
+      "total": 269520
     },
     "/orders/[id]": {
-      "js": 148181,
+      "js": 149167,
       "fonts": 123204,
-      "total": 271385
+      "total": 272371
     },
     "/menu": {
-      "js": 150397,
+      "js": 150999,
       "fonts": 123204,
-      "total": 273601
+      "total": 274203
     },
     "/menu/removed": {
-      "js": 148181,
+      "js": 148876,
       "fonts": 123204,
-      "total": 271385
+      "total": 272080
     }
   }
 }
