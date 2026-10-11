@@ -1,7 +1,7 @@
 # مخططات تصميم النظام — الفصل ٣
 
 **٢٦ مخطط.** المصادر `.mmd` هي المرجع؛ الـ`.png` مولّدة منها، والوثيقة الرسمية
-`docs/Sufria_Chapter3_System_Design_v1.0.docx` مبنية من الـ`.png`.
+`docs/Sufria_Chapter3_System_Design_v1.2.docx` مبنية من الـ`.png`.
 
 GitHub بيعرض Mermaid تلقائيا، فكل مخطط تحت بينعرض مباشرة بالمتصفح.
 
