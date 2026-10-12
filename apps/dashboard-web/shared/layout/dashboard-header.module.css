@@ -127,9 +127,11 @@
 
 /* The current page's tab: its accent underline. Its text stays primary —
    accent text on the dark surface is 3.26:1 (design-tokens.ts). */
+/* On the baseline (brief ل §5.2): «الطلبات» and its count on the line
+   «السجل» and «المنيو» write on. */
 .tab {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   min-height: 44px;
   padding: 9px 14px;
   border-block-end: 2px solid transparent;
@@ -160,8 +162,12 @@
   background: var(--surface-press);
 }
 
+/* The text's size, so it no longer looks dropped (it sat 0.3px high, but
+   2px smaller); line-height 1 keeps the tab at 46px and «الطلبات» on
+   «السجل»'s line. */
 .count {
-  font-size: 13px;
+  font-size: 15px;
+  line-height: 1;
   color: var(--text-secondary);
   margin-inline-start: 6px;
 }

@@ -117,3 +117,15 @@ test("🔴 the compact header: the mark, the restaurant's name, «مباشر» a
     assert.ok(name.includes(decl), `.title: ${decl}`);
   assert.doesNotMatch(header, /\.wordmark|26px/);
 });
+
+test("«الطلبات»'s count: 15px on the tabs' baseline, line-height 1 — the tab 46px as before", () => {
+  // Brief ل §5.2 (note 10): 13px centred looked dropped.
+  const tab = rule(header, ".tab");
+  assert.match(tab, /align-items: baseline;/);
+  assert.match(tab, /min-height: 44px;/);
+  assert.match(tab, /padding: 9px 14px;/);
+  const count = rule(header, ".count");
+  assert.match(count, /font-size: 15px;/);
+  assert.match(count, /line-height: 1;/);
+  assert.match(count, /color: var\(--text-secondary\);/);
+});
