@@ -114,11 +114,17 @@
   font-weight: 700;
 }
 
+/* A category's items: one card, its rows a line apart (brief ل §4.6) —
+   «المُزالة»'s list too. */
 .items {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .empty {

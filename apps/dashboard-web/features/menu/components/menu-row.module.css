@@ -1,6 +1,7 @@
-/* One item of the menu — brief ي-ب §6, in the orders card's language
-   (order-card.module.css): a surface, 12 radius, 15 text · 13 labels,
-   44px buttons, tokens only, logical properties only.
+/* One item of the menu — brief ي-ب §6: 15 text · 13 labels, 44px
+   buttons, tokens only, logical properties only. A row of its category's
+   card (menu-screen.module.css .items, brief ل §4.6): no surface, line or
+   corners of its own, a line between two rows.
 
    Below 640px, two rows (brief ي-ب-9 §4.2): the name, its state right
    after it and the price at the end · the two buttons, the row's width.
@@ -10,11 +11,12 @@
    areas, not flex-wrap. The grid follows dir="rtl" by itself. */
 
 .row {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
   padding: 10px 12px;
   line-height: 1.55;
+}
+
+.row + .row {
+  border-block-start: 1px solid var(--border);
 }
 
 @media (min-width: 640px) {
@@ -67,13 +69,12 @@
   overflow-wrap: anywhere;
 }
 
-/* Switched off (brief ي-ب-9 §4.1): the row steps back — no surface, its
-   line dashed in the same colour, the name and the price secondary — and
-   its word is inverted (.status below). Not by colour alone: the word and
-   the dashed line say it too. */
+/* Switched off (brief ل §4.6, after ي-ب-9 §4.1's dashed line): the row
+   steps back to the page's ground, the name and the price secondary — and
+   its word and its «شغّل» are inverted (.status, .actions below). Not by
+   colour alone: the word says it too. */
 .row[data-off] {
-  background: transparent;
-  border-style: dashed;
+  background: var(--bg);
 }
 
 .row[data-off] .name,
@@ -151,6 +152,31 @@
 .button:not(:disabled, [aria-busy="true"]):active {
   background: var(--surface-press);
   border-color: var(--surface-press);
+}
+
+/* «شغّل» in a switched-off row, inverted like «مطفأ» (brief ل §4.6,
+   addition 1): seen at a glance, at arm's length. The row's first button
+   is its toggle; in an available row it stays the plain one. */
+.row[data-off] .actions > :first-child {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row[data-off]
+    .actions
+    > :first-child:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--inverse-hover);
+    border-color: var(--inverse-hover);
+  }
+}
+
+.row[data-off]
+  .actions
+  > :first-child:not(:disabled, [aria-busy="true"]):active {
+  background: var(--inverse-press);
+  border-color: var(--inverse-press);
 }
 
 /* Under the row: why the last action did not go through. */

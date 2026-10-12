@@ -184,6 +184,14 @@ const KINDS: {
     line,
   })),
   {
+    kind: "inverted",
+    file: "features/menu/components/menu-row.module.css",
+    selector: ".row[data-off] .actions > :first-child",
+    hover: "inverse-hover",
+    press: "inverse-press",
+    line: true,
+  },
+  {
     kind: "on bg",
     file: "features/menu/components/pause-box.module.css",
     selector: ".box .button",

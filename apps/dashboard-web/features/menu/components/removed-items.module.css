@@ -13,12 +13,15 @@
   color: var(--text-primary);
 }
 
+/* A row of the list's card (menu-screen.module.css .items, brief ل
+   §4.6): a line between two rows, nothing of its own around it. */
 .row {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
   padding: 12px 14px;
   line-height: 1.55;
+}
+
+.row + .row {
+  border-block-start: 1px solid var(--border);
 }
 
 .view {

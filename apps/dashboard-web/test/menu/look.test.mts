@@ -56,15 +56,20 @@ const boxCss = read(`${C}pause-box.module.css`);
 const icon = read(`${C}pause-icon.tsx`);
 const iconCss = read(`${C}pause-icon.module.css`);
 
-test("🔴 a switched-off item looks it: «مطفأ» inverted, «متاح» an outline; the row dashed, without its surface", () => {
+test("🔴 a switched-off item looks it: the page's ground, «مطفأ» inverted, «متاح» an outline — no dashed line any more", () => {
+  // Brief ل §4.6 replaced ي-ب-9 §4.1's dashed, see-through row: on
+  // purpose — without the dashes the row's ground is --bg, and its «شغّل»
+  // is inverted (the next test).
   // The row says it is off; its word is the view's («متاح» or «مطفأ»).
   assert.match(row, /data-off=\{item\.isAvailable \? undefined : ""\}/);
   assert.match(row, /className=\{styles\.status\}>\{view\.status\}</);
 
   const off = body(rowCss, ".row[data-off]");
-  assert.match(off, /background: transparent;/);
-  assert.match(off, /border-style: dashed;/);
-  assert.doesNotMatch(off, /border-color/, "the same colour: --border");
+  assert.match(off, /background: var\(--bg\);/);
+  assert.doesNotMatch(
+    rowCss.replace(/\/\*[\s\S]*?\*\//g, ""),
+    /dashed|transparent|opacity/,
+  );
   for (const part of [".name", ".price"])
     assert.match(
       body(rowCss, `.row[data-off] ${part}`),
@@ -298,4 +303,61 @@ test("a category's heading is 19/700, its spacing as before", () => {
   const category = body(css, ".category");
   assert.match(category, /gap: 8px;/);
   assert.match(category, /margin-block-start: 8px;/);
+});
+
+test("🔴 a card per category: the list is the card, its rows a line apart with nothing of their own around them — «المُزالة» too", () => {
+  // Brief ل §4.6 (note 9).
+  const css = read(`${C}menu-screen.module.css`);
+  const items = body(css, ".items");
+  for (const decl of [
+    "background: var(--surface);",
+    "border: 1px solid var(--border);",
+    "border-radius: 12px;",
+    "gap: 0;",
+    "overflow: hidden;",
+  ])
+    assert.ok(items.includes(decl), `.items: ${decl}`);
+  for (const file of ["menu-row.module.css", "removed-items.module.css"]) {
+    const css = read(`${C}${file}`);
+    const own = body(css, ".row");
+    assert.doesNotMatch(own, /background|border|radius/, file);
+    assert.match(
+      body(css, ".row + .row"),
+      /border-block-start: 1px solid var\(--border\);/,
+      file,
+    );
+  }
+  // The padding as before, in edit too: one .row for both.
+  assert.match(body(rowCss, ".row"), /padding: 10px 12px;/);
+  assert.match(body(rowCss, ".row", WIDE), /padding: 12px 14px;/);
+  assert.match(removed, /<ul className=\{screen\.items\}>/);
+});
+
+test("🔴 «شغّل» is inverted in a switched-off row alone — like «مطفأ» — with the inverse hover and press", () => {
+  // Brief ل §4.6 (addition 1). The toggle is the row's first button.
+  const actions = row.slice(row.indexOf("<div className={styles.actions}>"));
+  assert.ok(
+    actions.indexOf("{view.toggle.label}") < actions.indexOf("{M.edit}"),
+  );
+  const all = rules(rowCss);
+  const inverted = all.filter((r) =>
+    r.selectors.some((x) => /:first-child/.test(x)),
+  );
+  assert.ok(inverted.length >= 3);
+  for (const r of inverted)
+    for (const x of r.selectors.filter((x) => /:first-child/.test(x)))
+      assert.match(
+        x.replace(/\s+/g, " "),
+        /^\.row\[data-off\] \.actions > :first-child/,
+        "inverted in a switched-off row alone",
+      );
+  const plain = inverted.find((r) => !r.selectors.join().includes(":" + "not"));
+  assert.ok(plain);
+  assert.match(plain.body, /background: var\(--text-primary\);/);
+  assert.match(plain.body, /border-color: var\(--text-primary\);/);
+  assert.match(plain.body, /color: var\(--bg\);/);
+  assert.ok(inverted.some((r) => /--inverse-hover/.test(r.body)));
+  assert.ok(inverted.some((r) => /--inverse-press/.test(r.body)));
+  // The plain button stays the surface's.
+  assert.match(body(rowCss, ".button"), /background: var\(--surface\);/);
 });
