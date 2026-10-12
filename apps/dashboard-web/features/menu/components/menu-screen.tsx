@@ -35,11 +35,11 @@ type Asking =
   | { kind: "enableAll"; count: number };
 
 /**
- * «المنيو» (brief ي-ب §6): the pause box above the two tabs (brief ي-ب-9
- * §4.3), «أضف صنفا», «المطفأة» and «شغّل الكل» while any is off, and the
- * menu under its categories in the customer's order, an item switched off
- * keeping its place. No menu numbers: the bot's change with every
- * switch-off.
+ * «المنيو» (brief ي-ب §6): the pause bar under the header, outside the
+ * page (brief ل §4.1), the two tabs, «أضف صنفا», «المطفأة» and «شغّل الكل»
+ * while any is off, and the menu under its categories in the customer's
+ * order, an item switched off keeping its place. No menu numbers: the
+ * bot's change with every switch-off.
  */
 export function MenuScreen() {
   const { currency } = useLiveSettings();
@@ -80,117 +80,119 @@ export function MenuScreen() {
   const canAdd = !adding && categories.length > 0;
 
   return (
-    <main className={styles.page}>
-      <h1 className="visually-hidden">{T.tabs.menu}</h1>
+    <>
       <PauseBox />
-      <MenuTabs current="items" />
+      <main className={styles.page}>
+        <h1 className="visually-hidden">{T.tabs.menu}</h1>
+        <MenuTabs current="items" />
 
-      {ready && (canAdd || off > 0) && (
-        <div className={styles.tools}>
-          {canAdd && (
-            <button
-              type="button"
-              className={`${styles.primary} ${styles.add}`}
-              onClick={() => setAdding(true)}
-            >
-              {M.add}
-            </button>
-          )}
-          {off > 0 && (
-            <div className={styles.off}>
-              <span className={`num ${styles.offCount}`}>
-                {offCountAr(off)}
-              </span>
+        {ready && (canAdd || off > 0) && (
+          <div className={styles.tools}>
+            {canAdd && (
               <button
                 type="button"
-                className={styles.secondary}
-                onClick={() => {
-                  setAskLine(null);
-                  setAsking({ kind: "enableAll", count: off });
-                }}
+                className={`${styles.primary} ${styles.add}`}
+                onClick={() => setAdding(true)}
               >
-                {M.enableAll}
+                {M.add}
               </button>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+            {off > 0 && (
+              <div className={styles.off}>
+                <span className={`num ${styles.offCount}`}>
+                  {offCountAr(off)}
+                </span>
+                <button
+                  type="button"
+                  className={styles.secondary}
+                  onClick={() => {
+                    setAskLine(null);
+                    setAsking({ kind: "enableAll", count: off });
+                  }}
+                >
+                  {M.enableAll}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
-      {ready && adding && (
-        <AddItemForm
-          categories={categories}
-          onAdded={() => {
-            setAdding(false);
-            void reload();
-          }}
-          onCancel={() => setAdding(false)}
+        {ready && adding && (
+          <AddItemForm
+            categories={categories}
+            onAdded={() => {
+              setAdding(false);
+              void reload();
+            }}
+            onCancel={() => setAdding(false)}
+          />
+        )}
+
+        {(menu.state.kind === "loading" ||
+          (menu.state.kind === "ready" && currency === null)) && (
+          <Skeleton lines={5} />
+        )}
+
+        {menu.state.kind === "failed" && (
+          <div className={styles.failed}>
+            <p className={styles.notice}>{T.errors.loadFailed}</p>
+            <button
+              type="button"
+              className={styles.secondary}
+              onClick={() => void reload()}
+            >
+              {T.errors.retry}
+            </button>
+          </div>
+        )}
+
+        {ready && items.length === 0 && (
+          <p className={styles.empty}>{M.empty.items}</p>
+        )}
+
+        {ready &&
+          byCategory(items).map((group) => (
+            <section
+              key={group.id}
+              className={styles.category}
+              aria-labelledby={`category-${group.id}`}
+            >
+              <h2 id={`category-${group.id}`} className={styles.heading}>
+                {group.name}
+              </h2>
+              <ul className={styles.items}>
+                {group.items.map((item) => (
+                  <MenuRow
+                    key={item.id}
+                    item={item}
+                    currency={currency}
+                    onChanged={update}
+                    onRemove={askRemove}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))}
+
+        <ConfirmDialog
+          open={asking !== null}
+          title={
+            asking?.kind === "remove"
+              ? removeTitleAr(asking.item.name)
+              : M.enableAllTitle
+          }
+          body={
+            asking?.kind === "enableAll"
+              ? enableAllBodyAr(asking.count)
+              : M.removeBody
+          }
+          confirm={asking?.kind === "enableAll" ? M.enableAll : M.removeConfirm}
+          busy={confirming}
+          line={askLine}
+          onConfirm={() => void confirm()}
+          onClose={() => setAsking(null)}
         />
-      )}
-
-      {(menu.state.kind === "loading" ||
-        (menu.state.kind === "ready" && currency === null)) && (
-        <Skeleton lines={5} />
-      )}
-
-      {menu.state.kind === "failed" && (
-        <div className={styles.failed}>
-          <p className={styles.notice}>{T.errors.loadFailed}</p>
-          <button
-            type="button"
-            className={styles.secondary}
-            onClick={() => void reload()}
-          >
-            {T.errors.retry}
-          </button>
-        </div>
-      )}
-
-      {ready && items.length === 0 && (
-        <p className={styles.empty}>{M.empty.items}</p>
-      )}
-
-      {ready &&
-        byCategory(items).map((group) => (
-          <section
-            key={group.id}
-            className={styles.category}
-            aria-labelledby={`category-${group.id}`}
-          >
-            <h2 id={`category-${group.id}`} className={styles.heading}>
-              {group.name}
-            </h2>
-            <ul className={styles.items}>
-              {group.items.map((item) => (
-                <MenuRow
-                  key={item.id}
-                  item={item}
-                  currency={currency}
-                  onChanged={update}
-                  onRemove={askRemove}
-                />
-              ))}
-            </ul>
-          </section>
-        ))}
-
-      <ConfirmDialog
-        open={asking !== null}
-        title={
-          asking?.kind === "remove"
-            ? removeTitleAr(asking.item.name)
-            : M.enableAllTitle
-        }
-        body={
-          asking?.kind === "enableAll"
-            ? enableAllBodyAr(asking.count)
-            : M.removeBody
-        }
-        confirm={asking?.kind === "enableAll" ? M.enableAll : M.removeConfirm}
-        busy={confirming}
-        line={askLine}
-        onConfirm={() => void confirm()}
-        onClose={() => setAsking(null)}
-      />
-    </main>
+      </main>
+    </>
   );
 }

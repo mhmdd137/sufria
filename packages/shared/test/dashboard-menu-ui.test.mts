@@ -25,8 +25,8 @@ test("DASHBOARD_MENU_UI_AR is the brief's text, verbatim", () => {
     tabs: { items: "الأصناف", removed: "المُزالة" },
     add: "أضف صنفا",
     pause: "أوقف الطلبات مؤقتا",
-    pauseHint:
-      "يتلقى كل من يراسلك: «أوقفنا استقبال الطلبات مؤقتا. راسلنا لاحقا.»",
+    pauseHintLead: "يتلقى كل من يراسلك:",
+    pauseHintQuote: "«أوقفنا استقبال الطلبات مؤقتا. راسلنا لاحقا.»",
     offCount: "المطفأة: [العدد]",
     enableAll: "شغّل الكل",
     enableAllTitle: "شغّل الأصناف المطفأة؟",
@@ -74,10 +74,12 @@ test("no Arabic-Indic digit anywhere in the menu's dictionary", () => {
 });
 
 test("🔴 the line under «أوقف الطلبات مؤقتا» holds ORDERS_PAUSED_AR itself — what the customer really gets", () => {
-  assert.ok(DASHBOARD_MENU_UI_AR.pauseHint.includes(`«${ORDERS_PAUSED_AR}»`));
+  const M = DASHBOARD_MENU_UI_AR;
+  assert.equal(M.pauseHintQuote, `«${ORDERS_PAUSED_AR}»`);
+  // Split in two by brief ل §4.1 — the same letters as the one line before.
   assert.equal(
-    DASHBOARD_MENU_UI_AR.pauseHint,
-    `يتلقى كل من يراسلك: «${ORDERS_PAUSED_AR}»`,
+    `${M.pauseHintLead} ${M.pauseHintQuote}`,
+    "يتلقى كل من يراسلك: «أوقفنا استقبال الطلبات مؤقتا. راسلنا لاحقا.»",
   );
 });
 

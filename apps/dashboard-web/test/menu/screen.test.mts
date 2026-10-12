@@ -33,7 +33,8 @@ test("🔴 «أوقف الطلبات مؤقتا» and its line only while taking
   // the first read (`undefined`).
   assert.match(pauseBox, /if \(ordersPausedAt !== null\) return null;/);
   assert.match(pauseBox, /\{M\.pause\}/);
-  assert.match(pauseBox, /\{M\.pauseHint\}/);
+  assert.match(pauseBox, /\{M\.pauseHintLead\}/);
+  assert.match(pauseBox, /\{M\.pauseHintQuote\}/);
   // No dialog for it: the press sends, and the answer shows the strip.
   assert.match(pauseBox, /ordersPauseApi\.setPaused\(true\)/);
   assert.match(pauseBox, /pauseChanged\(res\.value\.ordersPausedAt\)/);

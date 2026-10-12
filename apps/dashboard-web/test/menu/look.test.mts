@@ -7,7 +7,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const read = (path: string) =>
@@ -126,17 +126,33 @@ test("🔴 the phone's row is two lines — name, its state, the price; then the
   assert.match(body(rowCss, ".row", WIDE), /padding: 12px 14px;/);
 });
 
-test("🔴 the pause box sits above the two tabs, in both, its sign before the words — and is gone while paused", () => {
+test("🔴 the pause bar is right under the header on the two menu pages — outside <main>, just before it — its sign before the words, gone while paused", () => {
+  // Brief ل §4.1 (decision 1) replaced brief ي-ب-9 §4.3's box inside the
+  // page, ~16px under the header's line: two lines close together.
   for (const [name, src] of [
     ["menu-screen.tsx", screen],
     ["removed-items.tsx", removed],
-  ] as const) {
-    const box = src.indexOf("<PauseBox />");
-    assert.ok(box !== -1 && box < src.indexOf("<MenuTabs "), name);
-  }
+  ] as const)
+    assert.match(src, /<>\s*<PauseBox \/>\s*<main className=/, name);
+  // On those two pages alone: no other file renders it.
+  const users = readdirSync(fileURLToPath(new URL("../../", import.meta.url)), {
+    recursive: true,
+    encoding: "utf8",
+  }).filter(
+    (f) =>
+      /^(app|features|shared)\//.test(f) &&
+      f.endsWith(".tsx") &&
+      read(f).includes("<PauseBox"),
+  );
+  assert.deepEqual(users.sort(), [
+    `${C}menu-screen.tsx`,
+    `${C}removed-items.tsx`,
+  ]);
   assert.match(pauseBox, /if \(ordersPausedAt !== null\) return null;/);
   // The button, then its line: the phone's reading order.
-  assert.ok(pauseBox.indexOf("<button") < pauseBox.indexOf("{M.pauseHint}"));
+  assert.ok(
+    pauseBox.indexOf("<button") < pauseBox.indexOf("{M.pauseHintLead}"),
+  );
 
   // The sign: CSS alone, two bars, hidden from screen readers.
   assert.match(pauseBox, /<PauseIcon \/>\s*\{M\.pause\}/);
@@ -147,14 +163,26 @@ test("🔴 the pause box sits above the two tabs, in both, its sign before the w
   assert.match(bars, /height: 12px;/);
   assert.match(bars, /border-inline: 3px solid currentColor;/);
 
-  // The box: a surface, its line, 12 radius, 12/14 padding.
+  // The bar: the screen's width, the surface, a line under it — no sides,
+  // no corners — its content the page's width and edges.
+  assert.match(
+    pauseBox,
+    /<div className=\{styles\.bar\}>\s*<div className=\{styles\.box\}>/,
+  );
+  const bar = body(boxCss, ".bar");
+  assert.match(bar, /background: var\(--surface\);/);
+  assert.match(bar, /border-block-end: 1px solid var\(--border\);/);
+  assert.match(bar, /padding-block: 10px;/);
+  assert.doesNotMatch(bar, /border(-inline)?:|radius|padding-inline|max-width/);
   const box = body(boxCss, ".box");
-  assert.match(box, /background: var\(--surface\);/);
-  assert.match(box, /border: 1px solid var\(--border\);/);
-  assert.match(box, /border-radius: 12px;/);
-  assert.match(box, /padding: 12px 14px;/);
+  assert.match(box, /max-width: var\(--page-width, none\);/);
+  assert.match(box, /margin-inline: auto;/);
+  assert.match(box, /padding-inline: 18px;/);
+  assert.doesNotMatch(box, /background|border|radius/);
   // Below 640 the button over its line; from 640 side by side, centred.
   assert.match(box, /grid-template-areas:\s*"button"\s*"hint";/);
+  assert.match(box, /justify-items: start;/);
+  assert.match(box, /gap: 8px 12px;/);
   const wide = body(boxCss, ".box", WIDE);
   assert.match(wide, /grid-template-areas: "button hint";/);
   assert.match(wide, /align-items: center;/);
@@ -165,6 +193,13 @@ test("🔴 the pause box sits above the two tabs, in both, its sign before the w
     /className=\{`\$\{screen\.secondary\} \$\{styles\.button\}`\}/,
   );
   assert.match(body(boxCss, ".box .button"), /background: var\(--bg\);/);
+
+  // The hint in two pieces: the customer's message whole, inline-block.
+  assert.match(
+    pauseBox,
+    /<p className=\{styles\.hint\}>\s*\{M\.pauseHintLead\} <span>\{M\.pauseHintQuote\}<\/span>\s*<\/p>/,
+  );
+  assert.match(body(boxCss, ".hint > span"), /display: inline-block;/);
 });
 
 test("🔴 «الأصناف»'s tools are one row at every width: «أضف صنفا» at the start, «المطفأة» and «شغّل الكل» at the end while any is off", () => {

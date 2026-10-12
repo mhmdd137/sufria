@@ -22,8 +22,8 @@ const T = DASHBOARD_UI_AR;
 const M = DASHBOARD_MENU_UI_AR;
 
 /**
- * «المُزالة» (brief ي-ب §7, decision 4): the pause box above the two tabs
- * (brief ي-ب-9 §4.3), then what was removed from the menu, the most recent
+ * «المُزالة» (brief ي-ب §7, decision 4): the pause bar under the header,
+ * outside the page (brief ل §4.1), the two tabs, then what was removed from the menu, the most recent
  * first — its name, price and category, and «إرجاع». An
  * item brought back leaves this list, switched off (decision 6), and the
  * line under the tabs says where it went and what is left to do.
@@ -46,52 +46,54 @@ export function RemovedItems() {
   const items = removed.state.kind === "ready" ? removed.state.items : [];
 
   return (
-    <main className={screen.page}>
-      <h1 className="visually-hidden">{T.tabs.menu}</h1>
+    <>
       <PauseBox />
-      <MenuTabs current="removed" />
+      <main className={screen.page}>
+        <h1 className="visually-hidden">{T.tabs.menu}</h1>
+        <MenuTabs current="removed" />
 
-      {restored && (
-        <p className={styles.restored} role="status" aria-live="polite">
-          {restored}
-        </p>
-      )}
+        {restored && (
+          <p className={styles.restored} role="status" aria-live="polite">
+            {restored}
+          </p>
+        )}
 
-      {(removed.state.kind === "loading" ||
-        (removed.state.kind === "ready" && currency === null)) && (
-        <Skeleton lines={5} />
-      )}
+        {(removed.state.kind === "loading" ||
+          (removed.state.kind === "ready" && currency === null)) && (
+          <Skeleton lines={5} />
+        )}
 
-      {removed.state.kind === "failed" && (
-        <div className={screen.failed}>
-          <p className={screen.notice}>{T.errors.loadFailed}</p>
-          <button
-            type="button"
-            className={screen.secondary}
-            onClick={() => void removed.reload()}
-          >
-            {T.errors.retry}
-          </button>
-        </div>
-      )}
+        {removed.state.kind === "failed" && (
+          <div className={screen.failed}>
+            <p className={screen.notice}>{T.errors.loadFailed}</p>
+            <button
+              type="button"
+              className={screen.secondary}
+              onClick={() => void removed.reload()}
+            >
+              {T.errors.retry}
+            </button>
+          </div>
+        )}
 
-      {ready && items.length === 0 && (
-        <p className={screen.empty}>{M.empty.removed}</p>
-      )}
+        {ready && items.length === 0 && (
+          <p className={screen.empty}>{M.empty.removed}</p>
+        )}
 
-      {ready && items.length > 0 && (
-        <ul className={screen.items}>
-          {items.map((item) => (
-            <RemovedRow
-              key={item.id}
-              item={item}
-              currency={currency}
-              onRestored={onRestored}
-            />
-          ))}
-        </ul>
-      )}
-    </main>
+        {ready && items.length > 0 && (
+          <ul className={screen.items}>
+            {items.map((item) => (
+              <RemovedRow
+                key={item.id}
+                item={item}
+                currency={currency}
+                onRestored={onRestored}
+              />
+            ))}
+          </ul>
+        )}
+      </main>
+    </>
   );
 }
 

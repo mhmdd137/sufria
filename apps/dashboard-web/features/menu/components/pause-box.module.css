@@ -1,9 +1,21 @@
-/* The pause box (brief ي-ب-9 §4.3): above the screen's two tabs, a surface
-   with its line and 12 radius. Below 640px the button, then the line under
-   it; from 640px up side by side — the button, then the line — centred.
-   Grid areas; a failed pause's line under both. Logical properties only. */
+/* The pause bar (brief ل §4.1, decision 1): right under the header on the
+   two menu pages, outside their <main> — the screen's width, the surface
+   and a line under it, no sides and no corners, as the header itself. Its
+   content keeps to the page's width and edges, as the amber strip's.
+   Below 640px the button, then the line under it; from 640px up side by
+   side — the button, then the line — centred. Grid areas; a failed
+   pause's line under both. Logical properties only. */
+
+.bar {
+  background: var(--surface);
+  border-block-end: 1px solid var(--border);
+  padding-block: 10px;
+}
 
 .box {
+  max-width: var(--page-width, none);
+  margin-inline: auto;
+  padding-inline: 18px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
@@ -11,10 +23,6 @@
     "hint";
   justify-items: start;
   gap: 8px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 14px;
 }
 
 @media (min-width: 640px) {
@@ -26,7 +34,7 @@
 }
 
 /* The screen's secondary button, on the page's ground to stand out on the
-   box; its pause sign before the words. */
+   bar; its pause sign before the words. */
 .box .button {
   grid-area: button;
   display: inline-flex;
@@ -48,11 +56,17 @@
   border-color: var(--bg-press);
 }
 
-/* What every customer gets while paused: a sentence, it wraps. */
+/* What every customer gets while paused: the lead, then the customer's
+   message in one piece — it drops whole to a line of its own when the two
+   do not fit (one line from 363px up). */
 .hint {
   grid-area: hint;
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.hint > span {
+  display: inline-block;
 }
 
 /* A row of its own only when it shows: no empty row, no gap for it. */
