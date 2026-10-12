@@ -129,3 +129,12 @@ test("«الطلبات»'s count: 15px on the tabs' baseline, line-height 1 — 
   assert.match(count, /line-height: 1;/);
   assert.match(count, /color: var\(--text-secondary\);/);
 });
+
+test("the header's tabs: the first tab's text on the mark's line — back by its own 14px padding, which stays", () => {
+  // Brief ل §5.3 (note 11).
+  const tabs = rule(header, ".tabs");
+  assert.match(tabs, /margin-inline-start: -14px;/);
+  assert.match(rule(header, ".tab"), /padding: 9px 14px;/);
+  // Inside the page's edge: 14 back of 18.
+  assert.match(rule(header, ".bounds"), /padding-inline: 18px;/);
+});

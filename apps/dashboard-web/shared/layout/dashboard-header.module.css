@@ -120,9 +120,13 @@
   }
 }
 
+/* The first tab's text on the line of the mark, the name and «أضف صنفا»
+   (brief ل §5.3): back by its 14px padding, which stays — its touch area
+   unchanged, inside the page's 18px edge. */
 .tabs {
   display: flex;
   gap: 4px;
+  margin-inline-start: -14px;
 }
 
 /* The current page's tab: its accent underline. Its text stays primary —
