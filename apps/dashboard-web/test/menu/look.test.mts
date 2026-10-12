@@ -81,10 +81,11 @@ test("🔴 a switched-off item looks it: «مطفأ» inverted, «متاح» an 
   assert.match(inverted, /border-color: var\(--text-primary\);/);
   assert.match(inverted, /color: var\(--bg\);/);
 
-  // From 640 up, one width for the two words: the price's column stays.
-  const wide = body(rowCss, ".status", WIDE);
-  assert.match(wide, /min-width: 4\.25rem;/);
-  assert.match(wide, /text-align: center;/);
+  // No fixed width for the two words any more (brief ل §4.4): the price
+  // is under the name, so no column to keep still.
+  assert.ok(
+    !rules(rowCss).some((r) => r.media && r.selectors.includes(".status")),
+  );
 });
 
 test("🔴 the phone's row is two lines — name, its state, the price; then the buttons — and the DOM reads in that order", () => {
@@ -117,12 +118,21 @@ test("🔴 the phone's row is two lines — name, its state, the price; then the
     /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
   );
 
-  // From 640 up, the one row as before; the box steps aside.
+  // From 640 up (brief ل §4.4): the price under the name, the buttons at
+  // the end beside both; the name's box stays a box.
+  const wide = body(rowCss, ".view", WIDE);
+  assert.match(wide, /grid-template-columns: minmax\(0, 1fr\) auto;/);
   assert.match(
-    body(rowCss, ".view", WIDE),
-    /grid-template-areas: "name price status actions";/,
+    wide,
+    /grid-template-areas:\s*"title actions"\s*"price actions";/,
   );
-  assert.match(body(rowCss, ".title", WIDE), /display: contents;/);
+  assert.match(wide, /row-gap: 0;/);
+  assert.match(wide, /align-items: center;/);
+  assert.match(body(rowCss, ".price"), /justify-self: start;/);
+  assert.ok(
+    !rules(rowCss).some((r) => r.media && r.selectors.includes(".title")),
+  );
+  assert.doesNotMatch(rowCss, /display: contents/);
   assert.match(body(rowCss, ".row", WIDE), /padding: 12px 14px;/);
 });
 

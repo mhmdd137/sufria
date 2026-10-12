@@ -4,9 +4,10 @@
 
    Below 640px, two rows (brief ي-ب-9 §4.2): the name, its state right
    after it and the price at the end · the two buttons, the row's width.
-   From 640px up, one row: name · price · state · buttons. The DOM is the
-   phone's reading order — name, state, price, buttons — and the change at
-   640 is grid areas, not flex-wrap. The grid follows dir="rtl" by itself. */
+   From 640px up (brief ل §4.4): the name and its state, the price under
+   them, the buttons at the end beside both. The DOM is the phone's reading
+   order — name, state, price, buttons — and the change at 640 is grid
+   areas, not flex-wrap. The grid follows dir="rtl" by itself. */
 
 .row {
   background: var(--surface);
@@ -33,18 +34,22 @@
   gap: 8px 12px;
 }
 
+/* The price right under the name, not across the row from it: no gap
+   between the two to read across (brief ل §4.4). */
 @media (min-width: 640px) {
   .view {
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
-    grid-template-areas: "name price status actions";
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title actions"
+      "price actions";
+    row-gap: 0;
     align-items: center;
   }
 }
 
 /* The name and its state. The state drops under a name too long to leave
    it room — on purpose (§4.2): a wrap by the name's length, inside this
-   box alone. From 640px up the box steps aside and its two take their own
-   areas. */
+   box alone, at every width. */
 .title {
   grid-area: title;
   min-width: 0;
@@ -54,15 +59,8 @@
   gap: 4px 8px;
 }
 
-@media (min-width: 640px) {
-  .title {
-    display: contents;
-  }
-}
-
 /* A long name wraps, on purpose; it never pushes the row wider. */
 .name {
-  grid-area: name;
   min-width: 0;
   font-size: 15px;
   font-weight: 600;
@@ -91,8 +89,6 @@
 }
 
 .status {
-  grid-area: status;
-  justify-self: start;
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 2px 10px;
@@ -108,14 +104,6 @@
   background: var(--text-primary);
   border-color: var(--text-primary);
   color: var(--bg);
-}
-
-/* One width for the two words, so the price's column never moves. */
-@media (min-width: 640px) {
-  .status {
-    min-width: 4.25rem;
-    text-align: center;
-  }
 }
 
 /* Two buttons (brief ل §4.3): «أطفئ»/«شغّل» and «تعديل»; «إزالة» is in
