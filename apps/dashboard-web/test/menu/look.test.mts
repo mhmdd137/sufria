@@ -116,7 +116,7 @@ test("🔴 the phone's row is two lines — name, its state, the price; then the
   );
   assert.match(narrow, /grid-template-columns: minmax\(0, 1fr\) auto;/);
   assert.match(body(rowCss, ".title"), /grid-area: title;/);
-  assert.match(body(rowCss, ".row"), /padding: 10px 12px;/);
+  assert.match(body(rowCss, ".row"), /padding: 16px 12px;/);
   // The two buttons in halves (brief ل §4.3).
   assert.match(
     body(rowCss, ".actions"),
@@ -327,8 +327,8 @@ test("🔴 a card per category: the list is the card, its rows a line apart with
       file,
     );
   }
-  // The padding as before, in edit too: one .row for both.
-  assert.match(body(rowCss, ".row"), /padding: 10px 12px;/);
+  // One .row padding for view and edit (16 below 640 since 13 October).
+  assert.match(body(rowCss, ".row"), /padding: 16px 12px;/);
   assert.match(body(rowCss, ".row", WIDE), /padding: 12px 14px;/);
   assert.match(removed, /<ul className=\{screen\.items\}>/);
 });
@@ -407,4 +407,15 @@ test("🔴 «المُزالة»: the menu row's structure — the name and its c
   const box = body(css, ".title");
   assert.match(box, /grid-area: title;/);
   assert.match(box, /flex-wrap: wrap;/);
+});
+
+test("🔴 each item reads as one on the phone: 16px above and under a row below 640 — the menu's and «المُزالة»'s — 12px from 640", () => {
+  // Mohammed, 13 October, after the design round's trial: at 10px the next
+  // name sat on the previous item's buttons. Between two items 16 + 1 + 16,
+  // over three times the 10px between a name and its own buttons.
+  assert.match(body(rowCss, ".row"), /padding: 16px 12px;/);
+  assert.match(body(rowCss, ".row", WIDE), /padding: 12px 14px;/);
+  const removedCss = read(`${C}removed-items.module.css`);
+  assert.match(body(removedCss, ".row"), /padding: 16px 14px;/);
+  assert.match(body(removedCss, ".row", WIDE), /padding: 12px 14px;/);
 });

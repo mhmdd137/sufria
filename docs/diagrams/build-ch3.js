@@ -123,12 +123,12 @@ add(tbl(['Field', 'Value'], [
   ['Supervisor', 'Eng. Hamza Abu Jarad'],
   ['Organization / Program', 'Taqat Program'],
   ['Document', 'Chapter 3 — System Design (companion to SRS Chapters 1–2, Version 1.3)'],
-  ['Version', 'Version 1.2 — brought in line with the code on the main branch on 10 October 2026'],
-  ['Date', '10 October 2026'],
+  ['Version', 'Version 1.2 — brought in line with the code on the main branch on 10 October 2026; statuses updated on 13 October 2026'],
+  ['Date', '13 October 2026'],
 ], [3000, 6300]));
 
 add(CALLOUT('What changed in version 1.2.',
-  'Version 1.1 (14 August 2026) described a design, much of it ahead of the code. Version 1.2 describes the system as built on 10 October 2026. Every diagram was regenerated or redrawn against the code, and every figure, story or statement about something not built says so: partially built, in progress, planned, deferred, or design only. FR-22 to FR-28, added in SRS version 1.3, are traced throughout. The sections that changed most are 3.3 (stories with their status), 3.4.2 (the deployment as it is today), 3.5 (fifteen tables after fifteen migrations), 3.7 (the cash order, the reorder and the pause as built), 3.9 (fifteen isolation assertions and four negative controls) and 3.10 (decisions made during construction); 3.12 and 3.13 are new.'));
+  'Version 1.1 (14 August 2026) described a design, much of it ahead of the code. Version 1.2 describes the system as built on 10 October 2026. Every diagram was regenerated or redrawn against the code, and every figure, story or statement about something not built says so: partially built, in progress, planned, deferred, or design only. FR-22 to FR-28, added in SRS version 1.3, are traced throughout. The sections that changed most are 3.3 (stories with their status), 3.4.2 (the deployment as it is today), 3.5 (fifteen tables after fifteen migrations), 3.7 (the cash order, the reorder and the pause as built), 3.9 (fifteen isolation assertions and four negative controls) and 3.10 (decisions made during construction); 3.12 and 3.13 are new. On 13 October 2026 the statuses were updated once the dashboard\'s menu screen and pause button were merged: FR-02 and FR-28 are built.'));
 
 add(CALLOUT('Method note.',
   'The diagrams in this chapter were not drawn ahead of implementation and then hoped to match it. The entity-relationship diagram in Section 3.5 is generated programmatically from the live database catalogue by scripts/generate-erd.mjs, after all fifteen migrations, so it cannot silently drift from the schema. The other diagrams were checked against the code on the main branch; where a figure shows something that is not built, the figure says so in its own text. Where the design deliberately departs from an earlier decision, the departure and its reason are recorded in Section 3.10 rather than quietly applied.'));
@@ -154,7 +154,7 @@ add(P('The chapter is organised so that each section answers one question:'));
   '3.13 — What is known to be missing or fragile in what is built?',
 ].forEach(t => add(BULLET(t)));
 add(CALLOUT('Reading the status of a figure.',
-  'In the use case and component diagrams, a teal outline means built, a brown outline partially built, a dashed amber box planned or in progress, and a dashed grey box deferred. A sequence diagram of something not built opens with the words DESIGN — NOT BUILT. Statuses are those of 10 October 2026.'));
+  'In the use case and component diagrams, a teal outline means built, a brown outline partially built, a dashed amber box planned or in progress, and a dashed grey box deferred. A sequence diagram of something not built opens with the words DESIGN — NOT BUILT. Statuses are those of 13 October 2026.'));
 
 // ============================== 3.2 ==========================================
 add(H('3.2 System Context', HeadingLevel.HEADING_1));
@@ -189,7 +189,7 @@ add(Rich([
 
 add(H('3.3.4 Restaurant Use Cases', HeadingLevel.HEADING_2));
 add(figure('03b-use-case-restaurant', 'Restaurant staff and owner use cases', FIT.landscape));
-add(P('The split between staff and owner is authorization, not architecture: both authenticate through the same account model, and both are subject to the same membership check on every request. A staff member of one branch has no visibility into a sibling branch of the same chain, even though a single account may legitimately hold membership in both (Section 3.9). Menu management and the pause switch have their API, covered by tests; their dashboard screen is being built.'));
+add(P('The split between staff and owner is authorization, not architecture: both authenticate through the same account model, and both are subject to the same membership check on every request. A staff member of one branch has no visibility into a sibling branch of the same chain, even though a single account may legitimately hold membership in both (Section 3.9). Menu management and the pause switch are built end to end: the API, covered by tests, and the dashboard\'s menu screen with its pause button, merged on 11 October 2026 and redesigned on 13 October 2026.'));
 
 add(H('3.3.5 System-Initiated Use Cases', HeadingLevel.HEADING_2));
 add(figure('03c-use-case-system', 'System-initiated behaviour — no human actor', FIT.landscape));
@@ -197,10 +197,10 @@ add(P('One of these behaviours runs today on a timer: the notifier, which every 
 
 section(PORTRAIT);
 add(H('3.3.6 Use Case to Requirement Traceability', HeadingLevel.HEADING_2));
-add(P('Of the 28 functional requirements, 11 are built, 5 partially built, 2 in progress, 1 not built and 9 deferred.'));
+add(P('Of the 28 functional requirements, 13 are built, 5 partially built, 1 not built and 9 deferred.'));
 add(tbl(['FR', 'Use case', 'Actor', 'Priority', 'Status'], [
   ['FR-01', 'Register and configure the restaurant', 'Sufria team / Owner', 'Must', 'Partially built'],
-  ['FR-02', 'Manage the menu', 'Owner / Staff', 'Must', 'In progress (API built)'],
+  ['FR-02', 'Manage the menu', 'Owner / Staff', 'Must', 'Built'],
   ['FR-03', 'WhatsApp number per restaurant', 'Platform', 'Must', 'Partially built'],
   ['FR-04', 'Customise message templates', 'Owner', 'Should', 'Deferred'],
   ['FR-05', 'Start a conversation and receive the menu', 'Customer', 'Must', 'Built'],
@@ -226,7 +226,7 @@ add(tbl(['FR', 'Use case', 'Actor', 'Priority', 'Status'], [
   ['FR-25', 'Start over after 60 minutes of silence', 'Customer', 'Must', 'Built'],
   ['FR-26', 'Order details with the conversation', 'Staff', 'Should', 'Built'],
   ['FR-27', 'Change hours, delivery fee and contact number', 'Owner', 'Should', 'Partially built'],
-  ['FR-28', 'Pause and resume ordering', 'Staff', 'Should', 'In progress (API built)'],
+  ['FR-28', 'Pause and resume ordering', 'Staff', 'Should', 'Built'],
 ], [800, 3300, 1800, 1500, 1900], { pad: 40 }));
 
 // ============================== 3.4 ==========================================
@@ -234,7 +234,7 @@ section(LANDSCAPE);
 add(H('3.4 Architectural Design', HeadingLevel.HEADING_1));
 add(H('3.4.1 Component Structure', HeadingLevel.HEADING_2));
 add(P('The system is one repository containing four workspace packages: the conversation engine, the dashboard API, the dashboard web application, and a shared package that all three import. The shared package is not a convenience — it is the mechanism by which a rule cannot be enforced differently in two places. The table of transitions staff may make is defined once and imported both by the API that refuses a request and by the dashboard that shows the button; the builder of the bot\'s menu message is imported both by the engine, which sends it, and by the API, which measures a menu change against WhatsApp\'s 4,096-character limit before saving it.'));
-add(figure('04-component', 'Component diagram — dashed amber: in progress', FIT.landscape));
+add(figure('04-component', 'Component diagram — dashed grey: deferred', FIT.landscape));
 
 section(PORTRAIT);
 add(P('Two paths into the database exist, and they are deliberately asymmetric. The Dashboard API reaches data only through TenantDbService, whose connection pool is private, so no service can issue a query without a tenant context. The Conversation Engine cannot use the same entry point, because when a webhook arrives there is no authenticated staff member and therefore no restaurant yet; it resolves one from the WhatsApp phone-number identifier through a narrowly scoped privileged function, and then operates under exactly the same row-level security as every other request. A second privileged function serves the notifier, which runs outside any request: it lists the restaurants that have a notification pending, as identifiers only. These two functions are the engine\'s entire privileged surface, and the isolation gate checks who may call the second and what it returns (Section 3.9.1).'));
@@ -476,14 +476,14 @@ add(tbl(['Record', 'Subject'], [
 
 add(H('3.12 Requirements Added Since Version 1.1', HeadingLevel.HEADING_1));
 add(P('Version 1.1 proposed three requirements that the scope implied and no requirement covered. SRS version 1.3 adopted them and added four more for capabilities built or decided since August.', { keepNext: true }));
-add(tbl(['FR', 'Requirement', 'Status (10 October 2026)', 'Where'], [
+add(tbl(['FR', 'Requirement', 'Status (13 October 2026)', 'Where'], [
   ['FR-22', 'Check the opening hours before starting an ordering conversation, and tell a customer the restaurant is closed instead of presenting the menu.', 'Built. Proposed in version 1.1 as not built.', 'US-23 · 3.7.3 · 3.7.5'],
   ['FR-23', 'Authenticate staff, and verify membership in the specific restaurant on every request.', 'Built; covered before only by NFR-02.', 'US-21 · 3.6.1 · 3.9'],
   ['FR-24', 'A searchable customer list with order count, spend and VIP status.', 'Deferred: depends on FR-14.', 'US-22'],
   ['FR-25', 'End a conversation silent for 60 minutes; the next message starts a new one.', 'Built. Prompted by a real failure on 29 September 2026.', 'US-24 · 3.7.2'],
   ['FR-26', 'Show an order\'s details with the conversation that led to it.', 'Built.', 'US-25'],
   ['FR-27', 'Change the opening hours, delivery fee and contact number.', 'Partially built: API built; screen planned.', 'US-26'],
-  ['FR-28', 'Pause and resume ordering; while paused, one fixed reply and no order.', 'In progress: engine and API built; screen in progress.', 'US-27 · 3.7.2 · 3.7.3'],
+  ['FR-28', 'Pause and resume ordering; while paused, one fixed reply and no order.', 'Built: engine, API, and the dashboard\'s button and banner.', 'US-27 · 3.7.2 · 3.7.3'],
 ], [800, 4000, 2800, 1700]));
 add(CALLOUT('FR-22 was the one proposal that was not a documentation gap.',
   'In August the business_hours field was collected, stored and read by nothing, so the first customer to message outside opening hours would have been taken through a normal order that a closed kitchen then had to cancel. It is now built and tested: the check runs in the restaurant\'s own timezone before the menu is sent, and a closed restaurant answers with the day\'s opening window.'));

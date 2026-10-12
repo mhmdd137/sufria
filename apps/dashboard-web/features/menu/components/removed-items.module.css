@@ -16,10 +16,17 @@
 }
 
 /* A row of the list's card (menu-screen.module.css .items, brief ل
-   §4.6): a line between two rows, nothing of its own around it. */
+   §4.6): a line between two rows, nothing of its own around it. Below
+   640px 16px above and under it, as the menu row's (13 October). */
 .row {
-  padding: 12px 14px;
+  padding: 16px 14px;
   line-height: 1.55;
+}
+
+@media (min-width: 640px) {
+  .row {
+    padding: 12px 14px;
+  }
 }
 
 .row + .row {

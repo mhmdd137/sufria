@@ -344,7 +344,9 @@ amber strip in its place, both 65px on a laptop); its hint is two pieces,
 Then one line: «الأصناف · المُزالة», a view switch (`menu-tabs.tsx`: one
 box, the chosen half `--bg-press`, never the accent), and «أضف صنفا» at its
 end; «المطفأة» and «شغّل الكل» on a line of their own under it. A card per
-category (`.items`), rows a line apart; a row is two buttons, «أطفئ»/«شغّل»
+category (`.items`), rows a line apart — below 640 with 16px above and under
+each (13 October: at 10 the next name sat on the previous item's buttons),
+so an item reads as one; a row is two buttons, «أطفئ»/«شغّل»
 and «تعديل», «إزالة» being the last button of edit; from 640 the price sits
 under the name. A switched-off row is on `--bg`, «مطفأ» inverted (`--bg` on
 `--text-primary`) and its «شغّل» inverted too, in that row alone.
