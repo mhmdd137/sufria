@@ -11,6 +11,7 @@ import {
   menuTooLongAr,
   normalizeMenuItemName,
   normalizeMenuPrice,
+  withoutZeroCents,
   type Currency,
   type MenuItemListItem,
   type UpdateMenuItemRequest,
@@ -89,6 +90,15 @@ function canonicalPrice(price: string): string {
 }
 
 export type Draft = { name: string; price: string };
+
+/**
+ * «تعديل»: the fields start as the row shows the item — «15», not «15.00»
+ * (brief ل §6). Saving it untouched sends nothing: `canonicalPrice` reads
+ * the two alike.
+ */
+export function editDraft(item: MenuItemListItem): Draft {
+  return { name: item.name, price: withoutZeroCents(item.price) };
+}
 
 /** What a field holds once checked: the value the API would store, or why not. */
 type Checked = { value: string } | { error: string };

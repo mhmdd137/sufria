@@ -8,6 +8,7 @@ import {
 } from "@sufria/shared";
 import { menuApi } from "../api/menu-api.ts";
 import {
+  editDraft,
   isUnsaved,
   itemErrorLine,
   rowView,
@@ -65,7 +66,7 @@ export const MenuRow = memo(function MenuRow({
   }
 
   function edit() {
-    setDraft({ name: item.name, price: item.price });
+    setDraft(editDraft(item));
     setLine(null);
     setErrors(NO_ERRORS);
   }

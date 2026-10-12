@@ -193,7 +193,7 @@ describe("«عدّل» — انتقال حالة حقيقي، و`fulfillment` ب
     expect(await s.state()).toBe("browsing");
     const reply = s.last() ?? "";
     expect(reply).toContain("سلّتك:");
-    expect(reply).toContain("1 · شاورما عربي ×2 — 12.00 د.أ");
+    expect(reply).toContain("1 · شاورما عربي ×2 — 12 د.أ");
     expect(reply).toContain("2 · حمص ×1 — 2.50 د.أ");
     expect(reply).toContain("المجموع 14.50 د.أ");
     // الذيل بيرجع: «شيل» بتشتغل بالتصفّح فعلا، فتعليمها هون صادق.
@@ -242,7 +242,7 @@ describe("«عدّل» — انتقال حالة حقيقي، و`fulfillment` ب
     expect(await s.state()).toBe("cart_review");
     const reply = s.last() ?? "";
     expect(reply).toContain("ملخّص طلبك:");
-    expect(reply).toContain("المجموع 12.00 د.أ");
+    expect(reply).toContain("المجموع 12 د.أ");
     expect(reply).not.toContain("حمص");
   });
 });

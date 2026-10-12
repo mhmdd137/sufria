@@ -17,6 +17,7 @@ import {
   addDecision,
   byCategory,
   checkName,
+  editDraft,
   checkPrice,
   isUnsaved,
   itemErrorLine,
@@ -205,4 +206,20 @@ test("🔴 409 menu_too_long is text 17 with its length; item_archived and a 404
   // 401: no line — the gate takes the page to login.
   assert.equal(itemErrorLine({ kind: "unauthorized" }), null);
   assert.equal(menuErrorLine({ kind: "unauthorized" }), null);
+});
+
+test("🔴 `.00` on the screen alone: the row shows «15 د.أ», edit starts at «15», and «حفظ» untouched sends nothing", () => {
+  // Brief ل §6. The API's «15.00» is the item; the screen drops `.00`.
+  const saved = item("a", { price: "15.00" });
+  assert.equal(rowView(saved, "JOD").amount, "15 د.أ");
+  assert.equal(
+    rowView(item("b", { price: "13.50" }), "ILS").amount,
+    "13.50 شيكل",
+  );
+  const draft = editDraft(saved);
+  assert.deepEqual(draft, { name: "شاورما دجاج", price: "15" });
+  assert.deepEqual(saveDecision(saved, draft), { kind: "nothing" });
+  assert.equal(isUnsaved(saved, draft), false);
+  // «13.50» starts as it is.
+  assert.equal(editDraft(item("b", { price: "13.50" })).price, "13.50");
 });

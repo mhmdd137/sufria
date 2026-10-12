@@ -21,6 +21,7 @@ import {
   ORDER_NUMBER_SLOT,
   PRICE_SLOT,
   QUANTITY_SLOT,
+  withoutZeroCents,
   type Currency,
   type OrderStatus,
 } from "./domain.js";
@@ -301,12 +302,13 @@ export function waLink(phone: string): string {
 }
 
 /**
- * «13.50 د.أ» — the amount **as the API returned it**, text, never through
- * `Number` (brief G §0).
+ * «13.50 د.أ», «15 د.أ» — the amount the API returned, `.00` dropped
+ * (`withoutZeroCents`, brief ل §6), text, never through `Number` (brief G
+ * §0). Every amount on the dashboard goes through here.
  */
 export function amountAr(amount: string, currency: Currency): string {
   return fill(DASHBOARD_UI_AR.amount, {
-    [PRICE_SLOT]: amount,
+    [PRICE_SLOT]: withoutZeroCents(amount),
     [CURRENCY_SLOT]: CURRENCY_LABEL_AR[currency],
   });
 }

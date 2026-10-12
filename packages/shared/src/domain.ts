@@ -450,7 +450,7 @@ export const FULFILLMENT_PROMPT_AR = "اكتب «استلام» أو «توصي�
 const FULFILLMENT_QUESTION_AR = "استلام من المطعم أو توصيل؟";
 /** سؤال الاستلام حين للمطعم رسوم توصيل: الرقم يُقال **قبل** أن يختار. */
 export const FULFILLMENT_ASK_WITH_FEE_AR = `${FULFILLMENT_QUESTION_AR} رسوم التوصيل ${FEE_SLOT} ${CURRENCY_SLOT}.\n${FULFILLMENT_PROMPT_AR}`;
-/** ورسوم صفر: لا سطر رسوم إطلاقا، لا «0.00 د.أ» — الصفر ليس معلومة هنا. */
+/** ورسوم صفر: لا سطر رسوم إطلاقا، لا «0 د.أ» — الصفر ليس معلومة هنا. */
 export const FULFILLMENT_ASK_NO_FEE_AR = `${FULFILLMENT_QUESTION_AR}\n${FULFILLMENT_PROMPT_AR}`;
 
 /** طلب العنوان — رسالة واحدة، والثلاثة المطلوبة مسمّاة فيها. */
@@ -591,11 +591,22 @@ export function priceToMinor(price: string): number {
 }
 
 /**
- * قروش → نص العرض بمنزلتين. **القسمة الوحيدة على 100 بالنظام كله.**
- * `toFixed` بترجّع أرقاما غربية دايما — لا `toLocaleString` (§11.5).
+ * مبلغ للعرض بلا `.00` (بريف ل §6، قرار محمد 12): «15.00» ← «15»، و«13.50»
+ * بتضل «13.50». **عملية على النص، مش تحويل لـnumber** (المال نص). المكانين
+ * الوحيدين اللي بيستعملوها: `formatMinor` (كل مبلغ بواتساب) و`amountAr` (كل
+ * مبلغ باللوحة). بيانات الـAPI ما بتمرق منها: الـJSON بيضل «15.00».
+ */
+export function withoutZeroCents(amount: string): string {
+  return amount.endsWith(".00") ? amount.slice(0, -3) : amount;
+}
+
+/**
+ * قروش → نص العرض بمنزلتين، و`.00` بتنشال (`withoutZeroCents`).
+ * **القسمة الوحيدة على 100 بالنظام كله.** `toFixed` بترجّع أرقاما غربية
+ * دايما — لا `toLocaleString` (§11.5).
  */
 export function formatMinor(minor: number): string {
-  return (minor / 100).toFixed(2);
+  return withoutZeroCents((minor / 100).toFixed(2));
 }
 
 const joinValues = (values: readonly (string | number)[]): string =>
@@ -856,7 +867,7 @@ export type SummaryFulfillment =
  *   — المنسّق القائم، ولا منسّق ثانيا (ج §6).
  * - **بلا ذيل «شيل»**: الأمر لا يعمل في `cart_review`، وتعليم أمر معطّل أسوأ
  *   من عدم تعليمه (ب §15.1).
- * - سطر الرسوم يظهر **للتوصيل برسوم > 0 وحده**: «التوصيل — 0.00 د.أ» تقول
+ * - سطر الرسوم يظهر **للتوصيل برسوم > 0 وحده**: «التوصيل — 0 د.أ» تقول
  *   للزبون إن هناك رسوما ثم تقول إنها صفر، وهي جملة بلا فائدة.
  */
 export function buildOrderSummary(

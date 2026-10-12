@@ -132,7 +132,7 @@ async function shop(opts: {
   };
 
   expect(await say("مرحبا")).toBe("greeted");
-  // صنف واحد بالسلّة: 1 ×2 = 12.00 د.أ.
+  // صنف واحد بالسلّة: 1 ×2 = 12 د.أ.
   await say("1 ×2");
   replies.reset();
 
@@ -208,7 +208,7 @@ describe("«تم» — الصفوف الأربعة الأولى من §3", () =>
     const reply = s.last() ?? "";
     expect(reply).toContain("ملخّص طلبك:");
     expect(reply).toContain("الاستلام من المطعم");
-    expect(reply).toContain("المجموع 12.00 د.أ");
+    expect(reply).toContain("المجموع 12 د.أ");
     // 🔴 ولا سؤال استلام: الاستلام هو الخيار الوحيد، فالسؤال عنه ضجيج.
     expect(reply).not.toContain("أو توصيل؟");
     // وبلا ذيل «شيل» — الأمر ما بيشتغل بـcart_review.
@@ -270,7 +270,7 @@ describe("خطوة العنوان", () => {
     expect(reply).toContain("الاستلام من المطعم");
     // 🔴 الرسوم بتختفي مع التبديل — ما عاد إلها معنى، والمجموع بيرجع 12.00.
     expect(reply).not.toContain("التوصيل —");
-    expect(reply).toContain("المجموع 12.00 د.أ");
+    expect(reply).toContain("المجموع 12 د.أ");
     expect((await s.context())["fulfillment"]).toEqual({ type: "pickup" });
   });
 
@@ -386,7 +386,7 @@ describe("snapshot الرسوم — وعد، لا قراءة حيّة", () => {
 
     const reply = s.last() ?? "";
     expect(reply).not.toContain("التوصيل —");
-    expect(reply).toContain("المجموع 12.00 د.أ");
+    expect(reply).toContain("المجموع 12 د.أ");
   });
 });
 
