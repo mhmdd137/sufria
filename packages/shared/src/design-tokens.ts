@@ -23,7 +23,15 @@ export type ColorToken =
   | "accent"
   | "on-accent"
   | "paused-bg"
-  | "paused-text";
+  | "paused-text"
+  | "surface-hover"
+  | "surface-press"
+  | "bg-hover"
+  | "bg-press"
+  | "accent-hover"
+  | "accent-press"
+  | "inverse-hover"
+  | "inverse-press";
 
 /**
  * `on-accent` is not in the brief's table: it is the white of the bench's
@@ -33,6 +41,14 @@ export type ColorToken =
  * `paused-bg` and `paused-text`: the pause strip, amber (brief ي-ب-9 §4.5,
  * Mohammed, 11 October). Today the values of «بانتظار القبول»'s badge,
  * under names of their own so that each can change alone.
+ *
+ * The eight `*-hover` and `*-press` (brief ل §2, Mohammed, 12 October): a
+ * control under the pointer, and pressed — each named by the ground it
+ * changes. Made by an sRGB mix: `surface` and `bg` toward `text-primary`
+ * (light 8% · 16%, dark 6% · 12%), the accent toward black (light 15% ·
+ * 30%, dark 10% · 18%), the inverted «شغّل» (`text-primary`) toward `bg`
+ * (light 5.5% · 11%, dark 8.5% · 16.5%). Hover ΔE≈4, press ΔE≈8 — the same
+ * strength in both modes. `bg-press` is also the view switch's chosen side.
  */
 export const COLOR_TOKENS: Record<ColorMode, Record<ColorToken, string>> = {
   light: {
@@ -46,6 +62,14 @@ export const COLOR_TOKENS: Record<ColorMode, Record<ColorToken, string>> = {
     "on-accent": "#FFFFFF",
     "paused-bg": "#FCE8D6",
     "paused-text": "#8A4A0A",
+    "surface-hover": "#ECECEC",
+    "surface-press": "#DADADA",
+    "bg-hover": "#E5E5E3",
+    "bg-press": "#D3D3D1",
+    "accent-hover": "#63223F",
+    "accent-press": "#521C34",
+    "inverse-hover": "#222221",
+    "inverse-press": "#2F2F2E",
   },
   dark: {
     bg: "#171715",
@@ -58,6 +82,14 @@ export const COLOR_TOKENS: Record<ColorMode, Record<ColorToken, string>> = {
     "on-accent": "#FFFFFF",
     "paused-bg": "#43290F",
     "paused-text": "#F2B577",
+    "surface-hover": "#2C2C29",
+    "surface-press": "#383835",
+    "bg-hover": "#242422",
+    "bg-press": "#31312F",
+    "accent-hover": "#A34168",
+    "accent-press": "#943B5F",
+    "inverse-hover": "#DFDEDC",
+    "inverse-press": "#CECDCA",
   },
 };
 
@@ -77,11 +109,29 @@ export const COLOR_TOKENS: Record<ColorMode, Record<ColorToken, string>> = {
 export const TEXT_ON_BACKGROUND: Readonly<
   Partial<Record<ColorToken, readonly ColorToken[]>>
 > = {
-  "text-primary": ["bg", "surface"],
-  "text-secondary": ["bg", "surface"],
-  "on-accent": ["accent"],
-  /** «مطفأ», inverted: the page's ground as text (brief ي-ب-9 §4.1). */
-  bg: ["text-primary"],
+  /** And on the four grounds a control takes under the pointer or pressed. */
+  "text-primary": [
+    "bg",
+    "surface",
+    "surface-hover",
+    "surface-press",
+    "bg-hover",
+    "bg-press",
+  ],
+  "text-secondary": [
+    "bg",
+    "surface",
+    "surface-hover",
+    "surface-press",
+    "bg-hover",
+    "bg-press",
+  ],
+  "on-accent": ["accent", "accent-hover", "accent-press"],
+  /**
+   * «مطفأ», inverted: the page's ground as text (brief ي-ب-9 §4.1) — and
+   * the switched-off row's inverted «شغّل» (brief ل §4.6).
+   */
+  bg: ["text-primary", "inverse-hover", "inverse-press"],
   /** The pause strip (brief ي-ب-9 §4.5). */
   "paused-text": ["paused-bg"],
 };
