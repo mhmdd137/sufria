@@ -35,6 +35,19 @@
   background: var(--bg);
 }
 
+/* On the page's ground, so the ground's hover and press (brief ل §3). */
+@media (hover: hover) and (pointer: fine) {
+  .box .button:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--bg-hover);
+    border-color: var(--bg-hover);
+  }
+}
+
+.box .button:not(:disabled, [aria-busy="true"]):active {
+  background: var(--bg-press);
+  border-color: var(--bg-press);
+}
+
 /* What every customer gets while paused: a sentence, it wraps. */
 .hint {
   grid-area: hint;

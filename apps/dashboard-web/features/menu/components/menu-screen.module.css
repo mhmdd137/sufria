@@ -73,6 +73,30 @@
   cursor: progress;
 }
 
+/* Under the pointer and pressed (brief ل §3): the accent a shade darker,
+   then two; never while disabled or working. */
+@media (hover: hover) and (pointer: fine) {
+  .primary:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--accent-hover);
+  }
+}
+
+.primary:not(:disabled, [aria-busy="true"]):active {
+  background: var(--accent-press);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .secondary:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.secondary:not(:disabled, [aria-busy="true"]):active {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
+}
+
 /* A category: its heading, then its items. */
 .category {
   display: flex;

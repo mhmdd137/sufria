@@ -66,6 +66,19 @@
   cursor: pointer;
 }
 
+/* Quiet: no fill until the pointer is on it (brief ل §3). */
+@media (hover: hover) and (pointer: fine) {
+  .logout:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.logout:not(:disabled, [aria-busy="true"]):active {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
+}
+
 /* The accent carries no status: the live dot and the card's pulse are the
    accent's two dots (G §2). */
 .liveDot {
@@ -131,6 +144,20 @@
 .tab[aria-current="page"] {
   color: var(--text-primary);
   border-block-end-color: var(--accent);
+}
+
+/* Another page's tab (brief ل §3): under the pointer its text primary and
+   a muted line where the accent's would be; pressed, the pressed surface.
+   The page's own tab never changes. */
+@media (hover: hover) and (pointer: fine) {
+  .tab:not([aria-current="page"]):hover {
+    color: var(--text-primary);
+    border-block-end-color: var(--text-muted);
+  }
+}
+
+.tab:not([aria-current="page"]):active {
+  background: var(--surface-press);
 }
 
 .count {

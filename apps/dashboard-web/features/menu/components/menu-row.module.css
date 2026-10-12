@@ -150,6 +150,20 @@
   cursor: progress;
 }
 
+/* Under the pointer and pressed (brief ل §3): the fill and its line take
+   the hover ground, then the pressed one; never while disabled or working. */
+@media (hover: hover) and (pointer: fine) {
+  .button:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.button:not(:disabled, [aria-busy="true"]):active {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
+}
+
 /* Under the row: why the last action did not go through. */
 .line {
   margin-block-start: 8px;
@@ -216,6 +230,14 @@
 .input:focus {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
+}
+
+/* A field under the pointer: its line muted (brief ل §3) — 3.47:1 light,
+   4.97:1 dark, over the 3:1 a control's line needs. Focus as before. */
+@media (hover: hover) and (pointer: fine) {
+  .input:hover {
+    border-color: var(--text-muted);
+  }
 }
 
 .fieldError {

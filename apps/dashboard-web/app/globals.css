@@ -26,6 +26,8 @@ body {
    jumps sideways as it does (a layout shift — I-9b #1). */
 html {
   scrollbar-gutter: stable;
+  /* The press is ours (brief ل §3): no flash of the browser's on a tap. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* viewport-fit=cover (layout.tsx, I-9 #8) lets the page under a phone's
@@ -59,6 +61,31 @@ dialog {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Under the pointer and pressed (brief ل §3, decision 2): each module
+   colours its own controls from the eight *-hover and *-press tokens —
+   :hover inside @media (hover: hover) and (pointer: fine) alone, so a phone
+   never keeps it after a tap; :active on every device; neither on a button
+   disabled or working. Here, the timing: 120ms ease-out to a state and
+   back, the press at once and its release in the 120ms; none under reduced
+   motion. */
+@media (prefers-reduced-motion: no-preference) {
+  a,
+  button,
+  input,
+  select,
+  textarea {
+    transition:
+      background-color 120ms ease-out,
+      border-color 120ms ease-out,
+      color 120ms ease-out;
+  }
+
+  a:active,
+  button:active {
+    transition-duration: 0s;
+  }
 }
 
 /* Every number: Plex Mono, tabular (brief G §2). Plex Mono has no Arabic
