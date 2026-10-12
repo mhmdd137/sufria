@@ -361,3 +361,50 @@ test("🔴 «شغّل» is inverted in a switched-off row alone — like «مط�
   // The plain button stays the surface's.
   assert.match(body(rowCss, ".button"), /background: var\(--surface\);/);
 });
+
+test("🔴 «المُزالة»: the menu row's structure — the name and its category's badge, the price, «إرجاع» — in that DOM order", () => {
+  // Brief ل §4.7 (note 15): on a laptop the price and the category sat in
+  // two columns side by side and read «20.75 شيكل وجبات».
+  const css = read(`${C}removed-items.module.css`);
+  const view = removed.slice(removed.indexOf("<div className={styles.view}>"));
+  const at = (s: string) => {
+    const i = view.indexOf(s);
+    assert.notEqual(i, -1, s);
+    return i;
+  };
+  assert.ok(at("styles.title") < at("styles.name"));
+  assert.ok(at("styles.name") < at("styles.category"));
+  assert.ok(at("styles.category") < at("styles.price"));
+  assert.ok(at("styles.price") < at("{M.restore}"));
+  // The name and the badge share the box; the price is outside it.
+  const title = view.slice(at("styles.title"), at("styles.price"));
+  assert.match(title, /styles\.name[\s\S]*styles\.category[\s\S]*<\/div>/);
+
+  const badge = body(css, ".category");
+  for (const decl of [
+    "border: 1px solid var(--border);",
+    "border-radius: 999px;",
+    "padding: 2px 10px;",
+    "font-size: 13px;",
+    "font-weight: 600;",
+    "color: var(--text-secondary);",
+    "white-space: nowrap;",
+  ])
+    assert.ok(badge.includes(decl), `.category: ${decl}`);
+
+  const narrow = body(css, ".view");
+  assert.match(narrow, /grid-template-columns: minmax\(0, 1fr\) auto;/);
+  assert.match(
+    narrow,
+    /grid-template-areas:\s*"title price"\s*"button button";/,
+  );
+  assert.match(narrow, /align-items: baseline;/);
+  const wide = body(css, ".view", WIDE);
+  assert.match(wide, /grid-template-areas:\s*"title button"\s*"price button";/);
+  assert.match(wide, /row-gap: 0;/);
+  assert.match(wide, /align-items: center;/);
+  assert.match(body(css, ".price"), /justify-self: start;/);
+  const box = body(css, ".title");
+  assert.match(box, /grid-area: title;/);
+  assert.match(box, /flex-wrap: wrap;/);
+});

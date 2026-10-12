@@ -125,11 +125,13 @@ const RemovedRow = memo(function RemovedRow({
   return (
     <li className={styles.row}>
       <div className={styles.view}>
-        <span className={styles.name} dir="auto">
-          {view.name}
-        </span>
+        <div className={styles.title}>
+          <span className={styles.name} dir="auto">
+            {view.name}
+          </span>
+          <span className={styles.category}>{view.category}</span>
+        </div>
         <span className={`num ${styles.price}`}>{view.amount}</span>
-        <span className={styles.category}>{view.category}</span>
         <button
           type="button"
           className={styles.button}
