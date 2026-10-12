@@ -287,3 +287,15 @@ test("🔴 the row is two buttons — «أطفئ»/«شغّل» and «تعديل
     /grid-template-columns: repeat\(2, minmax\(5rem, auto\)\);/,
   );
 });
+
+test("a category's heading is 19/700, its spacing as before", () => {
+  // Brief ل §4.5 (note 8); 15/700 before.
+  const css = read(`${C}menu-screen.module.css`);
+  const heading = body(css, ".heading");
+  assert.match(heading, /font-size: 19px;/);
+  assert.match(heading, /font-weight: 700;/);
+  assert.doesNotMatch(heading, /margin|padding/);
+  const category = body(css, ".category");
+  assert.match(category, /gap: 8px;/);
+  assert.match(category, /margin-block-start: 8px;/);
+});

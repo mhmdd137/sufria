@@ -107,8 +107,10 @@
   margin-block-start: 8px;
 }
 
+/* 19/700, the dashboard's second size (brief ل §4.5): the category reads
+   as a heading, not as one more row. */
 .heading {
-  font-size: 15px;
+  font-size: 19px;
   font-weight: 700;
 }
 
