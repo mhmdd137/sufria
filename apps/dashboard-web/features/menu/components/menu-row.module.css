@@ -3,7 +3,7 @@
    44px buttons, tokens only, logical properties only.
 
    Below 640px, two rows (brief ي-ب-9 §4.2): the name, its state right
-   after it and the price at the end · the three buttons, the row's width.
+   after it and the price at the end · the two buttons, the row's width.
    From 640px up, one row: name · price · state · buttons. The DOM is the
    phone's reading order — name, state, price, buttons — and the change at
    640 is grid areas, not flex-wrap. The grid follows dir="rtl" by itself. */
@@ -118,18 +118,19 @@
   }
 }
 
+/* Two buttons (brief ل §4.3): «أطفئ»/«شغّل» and «تعديل»; «إزالة» is in
+   edit. Halves below 640px; from 640px up one width for the two, whatever
+   the word — «أطفئ» and «شغّل» differ, and the row would move. */
 .actions {
   grid-area: actions;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-/* One width for the three, whatever the word: «أطفئ» and «شغّل» differ,
-   and the price and the state would move from row to row. */
 @media (min-width: 640px) {
   .actions {
-    grid-template-columns: repeat(3, minmax(5rem, auto));
+    grid-template-columns: repeat(2, minmax(5rem, auto));
   }
 }
 
@@ -246,11 +247,18 @@
   color: var(--text-primary);
 }
 
+/* «حفظ» · «إلغاء» · «لم يُحفظ», and «إزالة» last, pushed to the line's
+   end, away from the two (brief ل §4.3). The 8px gap keeps the four
+   inside 320px (258px of room). */
 .editButtons {
   grid-area: buttons;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+}
+
+.editButtons > :last-child {
+  margin-inline-start: auto;
 }
 
 /* «لم يُحفظ»: a word, beside the buttons, while the fields differ. */

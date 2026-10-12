@@ -111,10 +111,10 @@ test("🔴 the phone's row is two lines — name, its state, the price; then the
   assert.match(narrow, /grid-template-columns: minmax\(0, 1fr\) auto;/);
   assert.match(body(rowCss, ".title"), /grid-area: title;/);
   assert.match(body(rowCss, ".row"), /padding: 10px 12px;/);
-  // The three buttons in equal thirds, as before.
+  // The two buttons in halves (brief ل §4.3).
   assert.match(
     body(rowCss, ".actions"),
-    /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/,
+    /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
   );
 
   // From 640 up, the one row as before; the box steps aside.
@@ -239,4 +239,41 @@ test("🔴 one line above the list: the view switch at the start, «أضف صن�
     /<div className=\{screen\.tools\}>\s*<MenuTabs current="removed" \/>\s*<\/div>/,
   );
   assert.doesNotMatch(removed, /M\.add\b/);
+});
+
+test("🔴 the row is two buttons — «أطفئ»/«شغّل» and «تعديل» — and «إزالة» is the last button of edit, type=button, away from «حفظ» and «إلغاء»", () => {
+  // Brief ل §4.3 (note 6).
+  const view = row.slice(row.indexOf("<div className={styles.actions}>"));
+  const actions = view.slice(0, view.indexOf("</div>"));
+  const buttons = [...actions.matchAll(/<button\b[\s\S]*?<\/button>/g)].map(
+    (m) => m[0],
+  );
+  assert.equal(buttons.length, 2);
+  assert.match(buttons[0]!, /\{view\.toggle\.label\}/);
+  assert.match(buttons[1]!, /\{M\.edit\}/);
+  assert.doesNotMatch(actions, /M\.remove/);
+
+  const edit = row.slice(
+    row.indexOf("<div className={styles.editButtons}>"),
+    row.indexOf("</form>"),
+  );
+  const editButtons = [...edit.matchAll(/<button\b[\s\S]*?<\/button>/g)].map(
+    (m) => m[0],
+  );
+  assert.equal(editButtons.length, 3);
+  const remove = editButtons.at(-1)!;
+  assert.match(remove, /\{M\.remove\}/);
+  assert.match(remove, /type="button"/);
+  assert.match(remove, /onClick=\{\(\) => onRemove\(item\)\}/);
+  // Last of the line, «لم يُحفظ» included: pushed to its end.
+  assert.ok(edit.indexOf("{M.unsaved}") < edit.indexOf("{M.remove}"));
+  assert.match(
+    body(rowCss, ".editButtons > :last-child"),
+    /margin-inline-start: auto;/,
+  );
+  assert.match(body(rowCss, ".editButtons"), /gap: 8px;/);
+  assert.match(
+    body(rowCss, ".actions", WIDE),
+    /grid-template-columns: repeat\(2, minmax\(5rem, auto\)\);/,
+  );
 });
