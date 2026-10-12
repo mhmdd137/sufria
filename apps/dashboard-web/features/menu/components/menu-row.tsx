@@ -8,6 +8,7 @@ import {
 } from "@sufria/shared";
 import { menuApi } from "../api/menu-api.ts";
 import {
+  editDraft,
   isUnsaved,
   itemErrorLine,
   rowView,
@@ -32,11 +33,13 @@ const NO_ERRORS: FieldErrors = { name: null, price: null };
 
 /**
  * One item of the menu (brief ي-ب §6): its name, its price with the
- * currency, its state in a word, and «أطفئ»/«شغّل» · «تعديل» · «إزالة».
- * Nothing changes on the screen before the API answers. «تعديل» turns the
- * name and the price into fields in the row itself (decision 2), «حفظ» and
- * «إلغاء» always beside them; Enter saves and Esc cancels on a keyboard
- * that has them. Memoised: one row's change does not redraw a hundred.
+ * currency, its state in a word, and «أطفئ»/«شغّل» · «تعديل» (two buttons
+ * since brief ل §4.3). Nothing changes on the screen before the API
+ * answers. «تعديل» turns the name and the price into fields in the row
+ * itself (decision 2), «حفظ» and «إلغاء» always beside them, and «إزالة»
+ * at the end of their line — its dialog's «رجوع» leaves the row in edit,
+ * the draft as it was. Enter saves and Esc cancels on a keyboard that has
+ * them. Memoised: one row's change does not redraw a hundred.
  */
 export const MenuRow = memo(function MenuRow({
   item,
@@ -63,7 +66,7 @@ export const MenuRow = memo(function MenuRow({
   }
 
   function edit() {
-    setDraft({ name: item.name, price: item.price });
+    setDraft(editDraft(item));
     setLine(null);
     setErrors(NO_ERRORS);
   }
@@ -157,6 +160,14 @@ export const MenuRow = memo(function MenuRow({
               {M.cancel}
             </button>
             {unsaved && <span className={styles.unsaved}>{M.unsaved}</span>}
+            <button
+              type="button"
+              className={styles.button}
+              onClick={() => onRemove(item)}
+              disabled={busy !== null}
+            >
+              {M.remove}
+            </button>
           </div>
         </form>
         {line && (
@@ -195,14 +206,6 @@ export const MenuRow = memo(function MenuRow({
             disabled={busy !== null}
           >
             {M.edit}
-          </button>
-          <button
-            type="button"
-            className={styles.button}
-            onClick={() => onRemove(item)}
-            disabled={busy !== null}
-          >
-            {M.remove}
           </button>
         </div>
       </div>

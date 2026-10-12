@@ -55,6 +55,14 @@
   outline-offset: -1px;
 }
 
+/* A field under the pointer: its line muted (brief ل §3) — 3.47:1 light,
+   4.97:1 dark, over the 3:1 a control's line needs. Focus as before. */
+@media (hover: hover) and (pointer: fine) {
+  .input:hover {
+    border-color: var(--text-muted);
+  }
+}
+
 .error {
   font-size: 15px;
   font-weight: 600;
@@ -73,4 +81,16 @@
 
 .submit:disabled {
   cursor: progress;
+}
+
+/* Under the pointer and pressed (brief ل §3): the accent a shade darker,
+   then two; never while disabled or working. */
+@media (hover: hover) and (pointer: fine) {
+  .submit:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--accent-hover);
+  }
+}
+
+.submit:not(:disabled, [aria-busy="true"]):active {
+  background: var(--accent-press);
 }

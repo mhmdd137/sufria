@@ -73,3 +73,68 @@ for (const [page, file, selector, width] of [
     assert.match(main, /margin-inline: auto;/);
     assert.match(main, /padding: 14px 18px/);
   });
+
+test("🔴 the compact header: the mark, the restaurant's name, «مباشر» and logout on the first line; the tabs on the second — «سُفريا» gone from it", () => {
+  // Brief ل §5.1 (addition 2, Mohammed's decision of 12 October): 161px
+  // on a phone became 117. «سُفريا» stays on the login page and the tab.
+  const tsx = read("shared/layout/dashboard-header.tsx");
+  const top = tsx.slice(
+    tsx.indexOf("className={styles.topRow}"),
+    tsx.indexOf("<nav"),
+  );
+  const at = (s: string) => {
+    const i = top.indexOf(s);
+    assert.notEqual(i, -1, s);
+    return i;
+  };
+  assert.ok(at("<BrandMark />") < at("{restaurantName}"));
+  assert.ok(at("{restaurantName}") < at("{T.live}"));
+  assert.ok(at("{T.live}") < at("{T.logout}"));
+  assert.match(
+    top,
+    /<span className=\{styles\.title\}>\{restaurantName\}<\/span>/,
+  );
+  assert.doesNotMatch(tsx, /T\.brand/);
+  assert.equal((tsx.match(/\{restaurantName\}/g) ?? []).length, 1);
+  assert.doesNotMatch(
+    tsx.replace(/\/\*[\s\S]*?\*\//g, ""),
+    /<h1|<p\b/,
+    "the name is not the page's <h1>",
+  );
+  // «سُفريا» where it stays.
+  assert.match(read("features/auth/components/login-form.tsx"), /\{T\.brand\}/);
+  assert.match(read("app/layout.tsx"), /title: DASHBOARD_UI_AR\.brand/);
+
+  const name = rule(header, ".title");
+  for (const decl of [
+    "min-width: 0;",
+    "font-size: 19px;",
+    "font-weight: 700;",
+    "overflow: hidden;",
+    "text-overflow: ellipsis;",
+    "white-space: nowrap;",
+  ])
+    assert.ok(name.includes(decl), `.title: ${decl}`);
+  assert.doesNotMatch(header, /\.wordmark|26px/);
+});
+
+test("«الطلبات»'s count: 15px on the tabs' baseline, line-height 1 — the tab 46px as before", () => {
+  // Brief ل §5.2 (note 10): 13px centred looked dropped.
+  const tab = rule(header, ".tab");
+  assert.match(tab, /align-items: baseline;/);
+  assert.match(tab, /min-height: 44px;/);
+  assert.match(tab, /padding: 9px 14px;/);
+  const count = rule(header, ".count");
+  assert.match(count, /font-size: 15px;/);
+  assert.match(count, /line-height: 1;/);
+  assert.match(count, /color: var\(--text-secondary\);/);
+});
+
+test("the header's tabs: the first tab's text on the mark's line — back by its own 14px padding, which stays", () => {
+  // Brief ل §5.3 (note 11).
+  const tabs = rule(header, ".tabs");
+  assert.match(tabs, /margin-inline-start: -14px;/);
+  assert.match(rule(header, ".tab"), /padding: 9px 14px;/);
+  // Inside the page's edge: 14 back of 18.
+  assert.match(rule(header, ".bounds"), /padding-inline: 18px;/);
+});

@@ -18,14 +18,14 @@
   margin-inline: auto;
 }
 
-/* «الأصناف»'s tools, one row at every width (brief ي-ب-9 §4.4): «أضف
-   صنفا» at the start; «المطفأة» and «شغّل الكل» at the end, while any is
-   off. Grid areas: each keeps its place when the other is not there. The
-   8px gap (the row's buttons') keeps a three-digit count inside 360px. */
+/* The line above the list, one row at every width (brief ل §4.2): the
+   view switch at the start, «أضف صنفا» at the end while it shows — on
+   «المُزالة», the switch alone. Grid areas: each keeps its place when the
+   other is not there. 274px of 284 at 320 (169 + 8 + 97). */
 .tools {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-areas: "add . off";
+  grid-template-areas: "tabs . add";
   align-items: center;
   gap: 8px;
 }
@@ -34,8 +34,10 @@
   grid-area: add;
 }
 
+/* «المطفأة» and «شغّل الكل»: a line of their own under it, at its end,
+   while any is off. */
 .off {
-  grid-area: off;
+  align-self: flex-end;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -73,6 +75,30 @@
   cursor: progress;
 }
 
+/* Under the pointer and pressed (brief ل §3): the accent a shade darker,
+   then two; never while disabled or working. */
+@media (hover: hover) and (pointer: fine) {
+  .primary:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--accent-hover);
+  }
+}
+
+.primary:not(:disabled, [aria-busy="true"]):active {
+  background: var(--accent-press);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .secondary:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.secondary:not(:disabled, [aria-busy="true"]):active {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
+}
+
 /* A category: its heading, then its items. */
 .category {
   display: flex;
@@ -81,16 +107,24 @@
   margin-block-start: 8px;
 }
 
+/* 19/700, the dashboard's second size (brief ل §4.5): the category reads
+   as a heading, not as one more row. */
 .heading {
-  font-size: 15px;
+  font-size: 19px;
   font-weight: 700;
 }
 
+/* A category's items: one card, its rows a line apart (brief ل §4.6) —
+   «المُزالة»'s list too. */
 .items {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .empty {

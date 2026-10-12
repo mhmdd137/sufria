@@ -322,7 +322,12 @@ alone: `//host`, `https://…`, a backslash or whitespace → `/orders`) ·
 `/menu/removed`. The dashboard pages share `app/(dashboard)/layout.tsx`: the
 guard (no session, or a 401 the refresh could not cure — the session store
 tells its subscribers — → `/login?next=<page>`; `test/auth/session-end.test.mts`),
-the header, and **one** poll of «الطلبات» feeding both the count and the list
+the header — two lines since brief ل §5: the mark, the restaurant's name
+(19/700, cut with …; not the page's `<h1>`), «مباشر» and «خروج», then the
+tabs, the first tab's text on the mark's line (`margin-inline-start: -14px`)
+and «الطلبات»'s count 15px on their baseline; «سُفريا» (`T.brand`) stays on
+`/login` and the browser's tab alone — and **one** poll of «الطلبات» feeding
+both the count and the list
 (`features/orders/hooks/live-orders.tsx`). Each tick also reads `GET
 /restaurant/settings`, beside the list (brief ي-ب §4), into
 `shared/settings/live-settings.tsx`; «أوقف»/«استأنف» write their answer there
@@ -330,11 +335,20 @@ at once, and a read sent before that answer does not undo it. While paused,
 `features/menu/components/orders-paused-strip.tsx` shows under the header on
 every page, above «انقطع الاتصال» — amber since brief ي-ب-9 §4.5 (its own
 tokens `paused-bg`/`paused-text`, today «بانتظار القبول»'s values), 16px/700,
-the pause sign before its text and «استأنف» right after it. On the menu
-screen «أوقف الطلبات مؤقتا» is a box of its own above «الأصناف» and
-«المُزالة» (`pause-box.tsx`), gone while paused; a switched-off item's row is
-dashed, without its surface, and «مطفأ» is inverted (`--bg` on
-`--text-primary`) — brief ي-ب-9 §4.1, §4.3.
+the pause sign before its text and «استأنف» right after it. The menu screen
+(brief ل §4): on `/menu` and `/menu/removed` alone, «أوقف الطلبات مؤقتا» is
+a bar right under the header, outside `<main>` (`pause-box.tsx`: the
+surface, a line under it, the page's width inside; gone while paused, the
+amber strip in its place, both 65px on a laptop); its hint is two pieces,
+`pauseHintLead` and `pauseHintQuote`, the customer's message inline-block.
+Then one line: «الأصناف · المُزالة», a view switch (`menu-tabs.tsx`: one
+box, the chosen half `--bg-press`, never the accent), and «أضف صنفا» at its
+end; «المطفأة» and «شغّل الكل» on a line of their own under it. A card per
+category (`.items`), rows a line apart; a row is two buttons, «أطفئ»/«شغّل»
+and «تعديل», «إزالة» being the last button of edit; from 640 the price sits
+under the name. A switched-off row is on `--bg`, «مطفأ» inverted (`--bg` on
+`--text-primary`) and its «شغّل» inverted too, in that row alone.
+«المُزالة» rows have the same structure, the category a badge.
 
 **The RTL and width contract, on every file touched** — from 375px to 1440px,
 right to left by `dir="rtl"` on `<html>` alone, no horizontal scroll:
@@ -537,8 +551,9 @@ into the same `.next` that `next start` serves: restart a running one after.
   the leftovers by the killed run's id (`d5-<pid>-<time>` in their names), as
   the test's own `afterAll` would — and never the seed's (`both@`, `onlya@`,
   `onlyz@sufria.test`).
-- **`check:budget` is green again, by three decisions of Mohammed's (brief
-  ي-ب-9, 11 October).** 1A — `main`'s three dashboard budgets up by
+- **`check:budget` is green, by three decisions of Mohammed's (brief
+  ي-ب-9, 11 October) and brief ل's allowance (12 October: +100 per page,
+  +250 on the menu's two).** 1A — `main`'s three dashboard budgets up by
   exactly 396 (a Turbopack chunk split since ي-أ/ك, the same code). 2B —
   the menu's texts in `dashboard-menu-ui.ts`, off the pages that do not show
   them. A (§5) — the six budgets to the measure after the design round,
@@ -546,12 +561,38 @@ into the same `.next` that `next start` serves: restart a running one after.
   after 1A — 2B + design: `/login` +200 + 0 · `/orders` +851 + 107 ·
   `/history` +851 + 107 · `/orders/[id]` +879 + 107 · `/menu` +318 + 284 ·
   `/menu/removed` +290 + 405 (the pause sign on every page; the pause box,
-  on «المُزالة» too). The budgets now: JS `/login` 138799 · `/orders` 146089
-  · `/history` 146316 · `/orders/[id]` 149167 · `/menu` 150999 ·
-  `/menu/removed` 148876; fonts 123204 each.
-- **No `:hover` and no `:active` anywhere in the dashboard** (found 11
-  October): a button or a link looks the same under the pointer and while
-  pressed. Its own brief, after the menu screen's merge (decision 5A).
+  on «المُزالة» too). Brief ل, over those: `/login` +46 · `/orders`,
+  `/history`, `/orders/[id]` +19 · `/menu` +105 · `/menu/removed` +140
+  (`withoutZeroCents` on every page, the menu's new structure on its two,
+  −23 for the header's class gone). The budgets now: JS `/login` 138845 ·
+  `/orders` 146108 · `/history` 146335 · `/orders/[id]` 149186 · `/menu`
+  151104 · `/menu/removed` 149016; fonts 123204 each.
+- **Under the pointer and pressed (brief ل §3, decision 2).** Eight tokens
+  in `design-tokens.ts`, each named by the ground it changes:
+  `surface-hover`/`-press`, `bg-hover`/`-press` (`bg-press` is also the view
+  switch's chosen half), `accent-hover`/`-press`, `inverse-hover`/`-press`
+  (the inverted «شغّل») — an sRGB mix, recomputed by a test; 52 contrast
+  pairs, the weakest `text-secondary` on light `bg-press`, 4.62. `:hover`
+  only inside `@media (hover: hover) and (pointer: fine)` (a phone never
+  keeps it after a tap); `:active` on every device; every state of a button
+  is written `:not(:disabled, [aria-busy="true"])`, so neither a disabled
+  nor a working one changes; the line takes the fill's colour. The header's
+  tab under the pointer: primary text and a 2px `--text-muted` line; the
+  page's own tab never changes. The order card: `.card:hover:not(:has(.action:hover))`,
+  pressed through `.card:has(.open:active)` (`.card:active` never fires
+  for a press inside it). A field under the pointer: its line
+  `--text-muted`. Timing in `globals.css`: 120ms ease-out, the press at
+  once, none under reduced motion; `-webkit-tap-highlight-color:
+  transparent`. Held by `test/shared/interaction.test.mts`. A real
+  iPhone's `:active` is unverified (React's touch listener on the root
+  should cover it).
+- **`.00` is dropped from amounts on display alone (brief ل §6).**
+  `withoutZeroCents` (`packages/shared/src/domain.ts`, text, never a
+  number): «15.00» → «15», «13.50» stays. Two callers only: `formatMinor`
+  (every amount in WhatsApp — so the menu-snapshot fixtures carry «15») and
+  `amountAr` (every amount on the dashboard). The API's JSON keeps «15.00»;
+  the row's edit field starts at «15», and `canonicalPrice` reads the two
+  alike, so «حفظ» untouched sends nothing.
 - **The menu list is not polled.** Another device's change to an item shows
   when the screen is opened again; the pause alone is read every tick.
 - **A failed «استلمنا طلبك» is never retried.** It is logged, and the order is

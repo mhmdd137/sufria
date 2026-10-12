@@ -24,10 +24,14 @@ export const DASHBOARD_MENU_UI_AR = {
   add: "أضف صنفا",
   pause: "أوقف الطلبات مؤقتا",
   /**
-   * Under «أوقف الطلبات مؤقتا»: what every customer then receives — built
-   * from `ORDERS_PAUSED_AR` itself, never a copy of it.
+   * Beside «أوقف الطلبات مؤقتا»: what every customer then receives, in two
+   * pieces with the same letters (brief ل §4.1) — the lead, a space, and
+   * the customer's message, which the screen keeps whole on a line of its
+   * own when the two do not fit. The quote is built from `ORDERS_PAUSED_AR`
+   * itself, never a copy of it.
    */
-  pauseHint: `يتلقى كل من يراسلك: «${ORDERS_PAUSED_AR}»`,
+  pauseHintLead: "يتلقى كل من يراسلك:",
+  pauseHintQuote: `«${ORDERS_PAUSED_AR}»`,
   /** With «شغّل الكل», while the count is over 0. */
   offCount: `المطفأة: ${COUNT_SLOT}`,
   enableAll: "شغّل الكل",

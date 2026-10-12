@@ -1,32 +1,49 @@
-/* «الأصناف» and «المُزالة» — the header's tabs' look (decision 4;
-   shared/layout/dashboard-header.module.css .tab, held to it by
-   test/menu/screen.test.mts), on a line of their own. Logical properties
-   only. */
+/* «الأصناف · المُزالة» — a view switch, not tabs (brief ل §4.2, decision
+   5): one box with its line and 8 radius, two equal halves, a line between
+   them. The chosen half is the pressed ground with primary text — never
+   the accent: the accent's underline is the header's tab alone. Logical
+   properties only. */
 
+/* Its place on the line above the list (menu-screen.module.css .tools). */
 .tabs {
-  display: flex;
-  gap: 4px;
-  border-block-end: 1px solid var(--border);
+  grid-area: tabs;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-/* The current page's tab: its accent underline, over the line. Its text
-   stays primary — accent text on the dark surface is 3.26:1. */
 .tab {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 44px;
-  padding: 9px 14px;
-  border-block-end: 2px solid transparent;
-  border-start-start-radius: 8px;
-  border-start-end-radius: 8px;
+  padding-inline: 18px;
   font-size: 15px;
   font-weight: 600;
   color: var(--text-secondary);
   text-decoration: none;
-  margin-block-end: -1px;
+}
+
+.tab + .tab {
+  border-inline-start: 1px solid var(--border);
 }
 
 .tab[aria-current="page"] {
+  background: var(--bg-press);
   color: var(--text-primary);
-  border-block-end-color: var(--accent);
+}
+
+/* The other half (brief ل §3): the page's ground under the pointer, then
+   pressed. The chosen one never changes. */
+@media (hover: hover) and (pointer: fine) {
+  .tab:not([aria-current="page"]):hover {
+    background: var(--bg-hover);
+  }
+}
+
+.tab:not([aria-current="page"]):active {
+  background: var(--bg-press);
 }

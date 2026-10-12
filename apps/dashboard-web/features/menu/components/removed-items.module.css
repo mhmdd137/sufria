@@ -1,10 +1,12 @@
-/* «المُزالة» — brief ي-ب §7, in the menu rows' language
-   (menu-row.module.css): a surface, 12 radius, 15 text · 13 labels, a 44px
-   button; tokens only, logical properties only.
+/* «المُزالة» — brief ي-ب §7, in the menu row's structure since brief ل
+   §4.7 (note 15): 15 text · 13 labels, a 44px button; tokens only,
+   logical properties only.
 
-   Below 640px, three fixed rows: the name · the price at the start, the
-   category at the end · «إرجاع», the row's width. From 640px up, one row.
-   Grid areas, not flex-wrap. */
+   Below 640px, two rows: the name and its category's badge, the price at
+   the end · «إرجاع», the row's width. From 640px up: the name and its
+   badge, the price under them, «إرجاع» at the end beside both — no
+   «20.75 شيكل وجبات» to misread. The DOM is the phone's reading order —
+   name, category, price, button. Grid areas, not flex-wrap. */
 
 /* Where an item brought back went, under the tabs. */
 .restored {
@@ -13,34 +15,49 @@
   color: var(--text-primary);
 }
 
+/* A row of the list's card (menu-screen.module.css .items, brief ل
+   §4.6): a line between two rows, nothing of its own around it. */
 .row {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
   padding: 12px 14px;
   line-height: 1.55;
+}
+
+.row + .row {
+  border-block-start: 1px solid var(--border);
 }
 
 .view {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "name name"
-    "price category"
+    "title price"
     "button button";
-  align-items: center;
+  align-items: baseline;
   gap: 8px 12px;
 }
 
 @media (min-width: 640px) {
   .view {
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
-    grid-template-areas: "name price category button";
+    grid-template-areas:
+      "title button"
+      "price button";
+    row-gap: 0;
+    align-items: center;
   }
 }
 
+/* The name and its category. The badge drops under a name too long to
+   leave it room — a wrap by the name's length, inside this box alone. */
+.title {
+  grid-area: title;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
 .name {
-  grid-area: name;
   min-width: 0;
   font-size: 15px;
   font-weight: 600;
@@ -54,9 +71,11 @@
   white-space: nowrap;
 }
 
+/* The category, a badge — the menu row's «متاح» outline. */
 .category {
-  grid-area: category;
-  justify-self: end;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -79,6 +98,20 @@
 
 .button[aria-busy="true"] {
   cursor: progress;
+}
+
+/* Under the pointer and pressed (brief ل §3): the fill and its line take
+   the hover ground, then the pressed one; never while disabled or working. */
+@media (hover: hover) and (pointer: fine) {
+  .button:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.button:not(:disabled, [aria-busy="true"]):active {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
 }
 
 .line {

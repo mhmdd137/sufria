@@ -57,6 +57,20 @@
   cursor: progress;
 }
 
+/* Under the pointer and pressed (brief ل §3): the fill and its line take
+   the hover ground, then the pressed one; never while disabled or working. */
+@media (hover: hover) and (pointer: fine) {
+  .resume:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.resume:not(:disabled, [aria-busy="true"]):active {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
+}
+
 /* Under both, as before; a row of its own only when it shows. */
 .failed {
   grid-column: 1 / -1;

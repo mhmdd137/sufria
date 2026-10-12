@@ -369,7 +369,7 @@ describe("التوفّر الحيّ — الخطوة 1", () => {
     const sent = replies.forRestaurant(s.restaurantId).map((m) => m.body);
     expect(sent[0]).toBe(itemsRemovedUnavailableLineAr(["حمص"]));
     expect(sent[1]).toContain("ملخّص طلبك:");
-    expect(sent[1]).toContain("المجموع 6.00 د.أ");
+    expect(sent[1]).toContain("المجموع 6 د.أ");
     expect(sent[1]).not.toContain("حمص");
     // السلّة المقلَّمة انكتبت.
     expect((await s.context())["cart"]).toHaveLength(1);
@@ -824,7 +824,11 @@ describe("العملة — بريف د §2.2 و§8.4", () => {
 
   /** كل سطر فيه مبلغ (رقم بمنزلتين) لازم يحمل تسمية العملة. */
   const amountLines = (bodies: readonly string[]): string[] =>
-    bodies.flatMap((b) => b.split("\n")).filter((l) => /\d\.\d{2}\b/u.test(l));
+    // An amount where the texts put one — after «—», «المجموع» or «التوصيل» —
+    // with or without its decimals: `.00` is dropped since brief ل §6.
+    bodies
+      .flatMap((b) => b.split("\n"))
+      .filter((l) => /(?:—|المجموع|التوصيل) \d+(?:\.\d{2})?(?=\s|$)/u.test(l));
 
   it("🔴 مطعم ILS: المنيو والسلّة والملخّص وسؤال الرسوم كلها بـ«شيكل»، ولا «د.أ» بأي نص صادر", async () => {
     const { bodies } = await converse("cur-ils", "ILS");
@@ -837,16 +841,16 @@ describe("العملة — بريف د §2.2 و§8.4", () => {
 
     const all = bodies.join("\n").split("\n");
     // المنيو — الترحيب و«منيو».
-    expect(bodies[0]).toContain("1. شاورما دجاج — 12.00 شيكل\n");
+    expect(bodies[0]).toContain("1. شاورما دجاج — 12 شيكل\n");
     expect(bodies[1]).toContain("2. حمص — 8.50 شيكل\n");
     // الإضافة والسلّة.
-    expect(all).toContain("أضفت: شاورما دجاج ×2 — المجموع 24.00 شيكل");
-    expect(all).toContain("1 · شاورما دجاج ×2 — 24.00 شيكل");
+    expect(all).toContain("أضفت: شاورما دجاج ×2 — المجموع 24 شيكل");
+    expect(all).toContain("1 · شاورما دجاج ×2 — 24 شيكل");
     expect(all).toContain("المجموع 32.50 شيكل");
     // سؤال الرسوم، حرفيا.
     expect(bodies).toContain(fulfillmentAskAr(500, "ILS"));
     // الملخّص.
-    expect(all).toContain("التوصيل — 5.00 شيكل");
+    expect(all).toContain("التوصيل — 5 شيكل");
     expect(all).toContain("المجموع 37.50 شيكل");
     expect(all).toContain("الدفع نقدا.");
     expect(bodies.at(-1)).toBe(orderReceivedMessageAr(101));
@@ -859,7 +863,7 @@ describe("العملة — بريف د §2.2 و§8.4", () => {
     const lines = amountLines(bodies);
     expect(lines.length).toBeGreaterThanOrEqual(15);
     for (const line of lines) expect(line).toContain("د.أ");
-    expect(bodies[0]).toContain("1. شاورما دجاج — 12.00 د.أ\n");
+    expect(bodies[0]).toContain("1. شاورما دجاج — 12 د.أ\n");
     expect(bodies).toContain(fulfillmentAskAr(500, "JOD"));
   });
 

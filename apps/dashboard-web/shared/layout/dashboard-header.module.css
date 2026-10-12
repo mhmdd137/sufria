@@ -1,5 +1,5 @@
 /* The dashboard's header — docs/design/orders-bench.html, density «متوسطة».
-   Brief G §2: colours are token variables only; 26 title · 19 · 15 text ·
+   Brief G §2: colours are token variables only; 19 the name · 15 text ·
    13 labels; radius 8 controls; touch targets 44px. Logical properties only
    (RTL). */
 
@@ -33,9 +33,15 @@
   gap: 12px;
 }
 
-.wordmark {
+/* The restaurant's name, on the first line after the mark (brief ل §5.1):
+   cut with … rather than pushing «مباشر» and logout off the line. */
+.title {
+  min-width: 0;
   font-size: 19px;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .live {
@@ -48,12 +54,6 @@
   color: var(--text-secondary);
 }
 
-.title {
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
 .logout {
   min-height: 44px;
   padding-inline: 12px;
@@ -64,6 +64,19 @@
   font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
+}
+
+/* Quiet: no fill until the pointer is on it (brief ل §3). */
+@media (hover: hover) and (pointer: fine) {
+  .logout:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.logout:not(:disabled, [aria-busy="true"]):active {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
 }
 
 /* The accent carries no status: the live dot and the card's pulse are the
@@ -107,16 +120,22 @@
   }
 }
 
+/* The first tab's text on the line of the mark, the name and «أضف صنفا»
+   (brief ل §5.3): back by its 14px padding, which stays — its touch area
+   unchanged, inside the page's 18px edge. */
 .tabs {
   display: flex;
   gap: 4px;
+  margin-inline-start: -14px;
 }
 
 /* The current page's tab: its accent underline. Its text stays primary —
    accent text on the dark surface is 3.26:1 (design-tokens.ts). */
+/* On the baseline (brief ل §5.2): «الطلبات» and its count on the line
+   «السجل» and «المنيو» write on. */
 .tab {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   min-height: 44px;
   padding: 9px 14px;
   border-block-end: 2px solid transparent;
@@ -133,8 +152,26 @@
   border-block-end-color: var(--accent);
 }
 
+/* Another page's tab (brief ل §3): under the pointer its text primary and
+   a muted line where the accent's would be; pressed, the pressed surface.
+   The page's own tab never changes. */
+@media (hover: hover) and (pointer: fine) {
+  .tab:not([aria-current="page"]):hover {
+    color: var(--text-primary);
+    border-block-end-color: var(--text-muted);
+  }
+}
+
+.tab:not([aria-current="page"]):active {
+  background: var(--surface-press);
+}
+
+/* The text's size, so it no longer looks dropped (it sat 0.3px high, but
+   2px smaller); line-height 1 keeps the tab at 46px and «الطلبات» on
+   «السجل»'s line. */
 .count {
-  font-size: 13px;
+  font-size: 15px;
+  line-height: 1;
   color: var(--text-secondary);
   margin-inline-start: 6px;
 }

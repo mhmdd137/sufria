@@ -7,7 +7,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const read = (path: string) =>
@@ -56,15 +56,20 @@ const boxCss = read(`${C}pause-box.module.css`);
 const icon = read(`${C}pause-icon.tsx`);
 const iconCss = read(`${C}pause-icon.module.css`);
 
-test("🔴 a switched-off item looks it: «مطفأ» inverted, «متاح» an outline; the row dashed, without its surface", () => {
+test("🔴 a switched-off item looks it: the page's ground, «مطفأ» inverted, «متاح» an outline — no dashed line any more", () => {
+  // Brief ل §4.6 replaced ي-ب-9 §4.1's dashed, see-through row: on
+  // purpose — without the dashes the row's ground is --bg, and its «شغّل»
+  // is inverted (the next test).
   // The row says it is off; its word is the view's («متاح» or «مطفأ»).
   assert.match(row, /data-off=\{item\.isAvailable \? undefined : ""\}/);
   assert.match(row, /className=\{styles\.status\}>\{view\.status\}</);
 
   const off = body(rowCss, ".row[data-off]");
-  assert.match(off, /background: transparent;/);
-  assert.match(off, /border-style: dashed;/);
-  assert.doesNotMatch(off, /border-color/, "the same colour: --border");
+  assert.match(off, /background: var\(--bg\);/);
+  assert.doesNotMatch(
+    rowCss.replace(/\/\*[\s\S]*?\*\//g, ""),
+    /dashed|transparent|opacity/,
+  );
   for (const part of [".name", ".price"])
     assert.match(
       body(rowCss, `.row[data-off] ${part}`),
@@ -81,10 +86,11 @@ test("🔴 a switched-off item looks it: «مطفأ» inverted, «متاح» an 
   assert.match(inverted, /border-color: var\(--text-primary\);/);
   assert.match(inverted, /color: var\(--bg\);/);
 
-  // From 640 up, one width for the two words: the price's column stays.
-  const wide = body(rowCss, ".status", WIDE);
-  assert.match(wide, /min-width: 4\.25rem;/);
-  assert.match(wide, /text-align: center;/);
+  // No fixed width for the two words any more (brief ل §4.4): the price
+  // is under the name, so no column to keep still.
+  assert.ok(
+    !rules(rowCss).some((r) => r.media && r.selectors.includes(".status")),
+  );
 });
 
 test("🔴 the phone's row is two lines — name, its state, the price; then the buttons — and the DOM reads in that order", () => {
@@ -111,32 +117,57 @@ test("🔴 the phone's row is two lines — name, its state, the price; then the
   assert.match(narrow, /grid-template-columns: minmax\(0, 1fr\) auto;/);
   assert.match(body(rowCss, ".title"), /grid-area: title;/);
   assert.match(body(rowCss, ".row"), /padding: 10px 12px;/);
-  // The three buttons in equal thirds, as before.
+  // The two buttons in halves (brief ل §4.3).
   assert.match(
     body(rowCss, ".actions"),
-    /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/,
+    /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
   );
 
-  // From 640 up, the one row as before; the box steps aside.
+  // From 640 up (brief ل §4.4): the price under the name, the buttons at
+  // the end beside both; the name's box stays a box.
+  const wide = body(rowCss, ".view", WIDE);
+  assert.match(wide, /grid-template-columns: minmax\(0, 1fr\) auto;/);
   assert.match(
-    body(rowCss, ".view", WIDE),
-    /grid-template-areas: "name price status actions";/,
+    wide,
+    /grid-template-areas:\s*"title actions"\s*"price actions";/,
   );
-  assert.match(body(rowCss, ".title", WIDE), /display: contents;/);
+  assert.match(wide, /row-gap: 0;/);
+  assert.match(wide, /align-items: center;/);
+  assert.match(body(rowCss, ".price"), /justify-self: start;/);
+  assert.ok(
+    !rules(rowCss).some((r) => r.media && r.selectors.includes(".title")),
+  );
+  assert.doesNotMatch(rowCss, /display: contents/);
   assert.match(body(rowCss, ".row", WIDE), /padding: 12px 14px;/);
 });
 
-test("🔴 the pause box sits above the two tabs, in both, its sign before the words — and is gone while paused", () => {
+test("🔴 the pause bar is right under the header on the two menu pages — outside <main>, just before it — its sign before the words, gone while paused", () => {
+  // Brief ل §4.1 (decision 1) replaced brief ي-ب-9 §4.3's box inside the
+  // page, ~16px under the header's line: two lines close together.
   for (const [name, src] of [
     ["menu-screen.tsx", screen],
     ["removed-items.tsx", removed],
-  ] as const) {
-    const box = src.indexOf("<PauseBox />");
-    assert.ok(box !== -1 && box < src.indexOf("<MenuTabs "), name);
-  }
+  ] as const)
+    assert.match(src, /<>\s*<PauseBox \/>\s*<main className=/, name);
+  // On those two pages alone: no other file renders it.
+  const users = readdirSync(fileURLToPath(new URL("../../", import.meta.url)), {
+    recursive: true,
+    encoding: "utf8",
+  }).filter(
+    (f) =>
+      /^(app|features|shared)\//.test(f) &&
+      f.endsWith(".tsx") &&
+      read(f).includes("<PauseBox"),
+  );
+  assert.deepEqual(users.sort(), [
+    `${C}menu-screen.tsx`,
+    `${C}removed-items.tsx`,
+  ]);
   assert.match(pauseBox, /if \(ordersPausedAt !== null\) return null;/);
   // The button, then its line: the phone's reading order.
-  assert.ok(pauseBox.indexOf("<button") < pauseBox.indexOf("{M.pauseHint}"));
+  assert.ok(
+    pauseBox.indexOf("<button") < pauseBox.indexOf("{M.pauseHintLead}"),
+  );
 
   // The sign: CSS alone, two bars, hidden from screen readers.
   assert.match(pauseBox, /<PauseIcon \/>\s*\{M\.pause\}/);
@@ -147,14 +178,26 @@ test("🔴 the pause box sits above the two tabs, in both, its sign before the w
   assert.match(bars, /height: 12px;/);
   assert.match(bars, /border-inline: 3px solid currentColor;/);
 
-  // The box: a surface, its line, 12 radius, 12/14 padding.
+  // The bar: the screen's width, the surface, a line under it — no sides,
+  // no corners — its content the page's width and edges.
+  assert.match(
+    pauseBox,
+    /<div className=\{styles\.bar\}>\s*<div className=\{styles\.box\}>/,
+  );
+  const bar = body(boxCss, ".bar");
+  assert.match(bar, /background: var\(--surface\);/);
+  assert.match(bar, /border-block-end: 1px solid var\(--border\);/);
+  assert.match(bar, /padding-block: 10px;/);
+  assert.doesNotMatch(bar, /border(-inline)?:|radius|padding-inline|max-width/);
   const box = body(boxCss, ".box");
-  assert.match(box, /background: var\(--surface\);/);
-  assert.match(box, /border: 1px solid var\(--border\);/);
-  assert.match(box, /border-radius: 12px;/);
-  assert.match(box, /padding: 12px 14px;/);
+  assert.match(box, /max-width: var\(--page-width, none\);/);
+  assert.match(box, /margin-inline: auto;/);
+  assert.match(box, /padding-inline: 18px;/);
+  assert.doesNotMatch(box, /background|border|radius/);
   // Below 640 the button over its line; from 640 side by side, centred.
   assert.match(box, /grid-template-areas:\s*"button"\s*"hint";/);
+  assert.match(box, /justify-items: start;/);
+  assert.match(box, /gap: 8px 12px;/);
   const wide = body(boxCss, ".box", WIDE);
   assert.match(wide, /grid-template-areas: "button hint";/);
   assert.match(wide, /align-items: center;/);
@@ -165,25 +208,203 @@ test("🔴 the pause box sits above the two tabs, in both, its sign before the w
     /className=\{`\$\{screen\.secondary\} \$\{styles\.button\}`\}/,
   );
   assert.match(body(boxCss, ".box .button"), /background: var\(--bg\);/);
+
+  // The hint in two pieces: the customer's message whole, inline-block.
+  assert.match(
+    pauseBox,
+    /<p className=\{styles\.hint\}>\s*\{M\.pauseHintLead\} <span>\{M\.pauseHintQuote\}<\/span>\s*<\/p>/,
+  );
+  assert.match(body(boxCss, ".hint > span"), /display: inline-block;/);
 });
 
-test("🔴 «الأصناف»'s tools are one row at every width: «أضف صنفا» at the start, «المطفأة» and «شغّل الكل» at the end while any is off", () => {
+test("🔴 one line above the list: the view switch at the start, «أضف صنفا» at the end; «المطفأة» and «شغّل الكل» on a line of their own under it, while any is off", () => {
+  // Brief ل §4.2 (addition 3) replaced brief ي-ب-9 §4.4's "add . off" row.
   const css = read(`${C}menu-screen.module.css`);
   const tools = body(css, ".tools");
-  assert.match(tools, /grid-template-areas: "add \. off";/);
+  assert.match(tools, /grid-template-areas: "tabs \. add";/);
   assert.match(tools, /grid-template-columns: auto minmax\(0, 1fr\) auto;/);
+  assert.match(tools, /align-items: center;/);
+  assert.match(tools, /gap: 8px;/);
   // One row at every width: no rule for it under any media query.
   assert.ok(!rules(css).some((r) => r.media && r.selectors.includes(".tools")));
   assert.match(body(css, ".add"), /grid-area: add;/);
-  assert.match(body(css, ".off"), /grid-area: off;/);
+  assert.match(
+    body(read(`${C}menu-tabs.module.css`), ".tabs"),
+    /grid-area: tabs;/,
+  );
 
-  // On «الأصناف» alone; «أضف صنفا» first, the count and its button after,
-  // and only while the count is over 0.
-  assert.doesNotMatch(removed, /styles\.tools/);
-  const at = screen.indexOf("className={styles.tools}");
+  // «الأصناف»: the switch, then «أضف صنفا» in the line; the count after it.
+  const at = screen.indexOf("<div className={styles.tools}>");
   assert.notEqual(at, -1);
-  const row = screen.slice(at, screen.indexOf("{ready && adding", at));
-  assert.ok(row.indexOf("{M.add}") < row.indexOf("offCountAr(off)"));
-  assert.match(row, /\{off > 0 && \(\s*<div className=\{styles\.off\}>/);
-  assert.ok(row.indexOf("offCountAr(off)") < row.indexOf("{M.enableAll}"));
+  const line = screen.slice(at, screen.indexOf("</div>", at));
+  assert.match(line, /<MenuTabs current="items" \/>[\s\S]*\{M\.add\}/);
+  assert.doesNotMatch(line, /offCountAr/);
+  const after = screen.slice(screen.indexOf("</div>", at));
+  assert.match(
+    after,
+    /\{ready && off > 0 && \(\s*<div className=\{styles\.off\}>/,
+  );
+  assert.ok(after.indexOf("offCountAr(off)") < after.indexOf("{M.enableAll}"));
+  assert.match(body(css, ".off"), /align-self: flex-end;/);
+  assert.doesNotMatch(body(css, ".off"), /grid-area/);
+
+  // «المُزالة»: the same line, the switch alone.
+  assert.match(
+    removed,
+    /<div className=\{screen\.tools\}>\s*<MenuTabs current="removed" \/>\s*<\/div>/,
+  );
+  assert.doesNotMatch(removed, /M\.add\b/);
+});
+
+test("🔴 the row is two buttons — «أطفئ»/«شغّل» and «تعديل» — and «إزالة» is the last button of edit, type=button, away from «حفظ» and «إلغاء»", () => {
+  // Brief ل §4.3 (note 6).
+  const view = row.slice(row.indexOf("<div className={styles.actions}>"));
+  const actions = view.slice(0, view.indexOf("</div>"));
+  const buttons = [...actions.matchAll(/<button\b[\s\S]*?<\/button>/g)].map(
+    (m) => m[0],
+  );
+  assert.equal(buttons.length, 2);
+  assert.match(buttons[0]!, /\{view\.toggle\.label\}/);
+  assert.match(buttons[1]!, /\{M\.edit\}/);
+  assert.doesNotMatch(actions, /M\.remove/);
+
+  const edit = row.slice(
+    row.indexOf("<div className={styles.editButtons}>"),
+    row.indexOf("</form>"),
+  );
+  const editButtons = [...edit.matchAll(/<button\b[\s\S]*?<\/button>/g)].map(
+    (m) => m[0],
+  );
+  assert.equal(editButtons.length, 3);
+  const remove = editButtons.at(-1)!;
+  assert.match(remove, /\{M\.remove\}/);
+  assert.match(remove, /type="button"/);
+  assert.match(remove, /onClick=\{\(\) => onRemove\(item\)\}/);
+  // Last of the line, «لم يُحفظ» included: pushed to its end.
+  assert.ok(edit.indexOf("{M.unsaved}") < edit.indexOf("{M.remove}"));
+  assert.match(
+    body(rowCss, ".editButtons > :last-child"),
+    /margin-inline-start: auto;/,
+  );
+  assert.match(body(rowCss, ".editButtons"), /gap: 8px;/);
+  assert.match(
+    body(rowCss, ".actions", WIDE),
+    /grid-template-columns: repeat\(2, minmax\(5rem, auto\)\);/,
+  );
+});
+
+test("a category's heading is 19/700, its spacing as before", () => {
+  // Brief ل §4.5 (note 8); 15/700 before.
+  const css = read(`${C}menu-screen.module.css`);
+  const heading = body(css, ".heading");
+  assert.match(heading, /font-size: 19px;/);
+  assert.match(heading, /font-weight: 700;/);
+  assert.doesNotMatch(heading, /margin|padding/);
+  const category = body(css, ".category");
+  assert.match(category, /gap: 8px;/);
+  assert.match(category, /margin-block-start: 8px;/);
+});
+
+test("🔴 a card per category: the list is the card, its rows a line apart with nothing of their own around them — «المُزالة» too", () => {
+  // Brief ل §4.6 (note 9).
+  const css = read(`${C}menu-screen.module.css`);
+  const items = body(css, ".items");
+  for (const decl of [
+    "background: var(--surface);",
+    "border: 1px solid var(--border);",
+    "border-radius: 12px;",
+    "gap: 0;",
+    "overflow: hidden;",
+  ])
+    assert.ok(items.includes(decl), `.items: ${decl}`);
+  for (const file of ["menu-row.module.css", "removed-items.module.css"]) {
+    const css = read(`${C}${file}`);
+    const own = body(css, ".row");
+    assert.doesNotMatch(own, /background|border|radius/, file);
+    assert.match(
+      body(css, ".row + .row"),
+      /border-block-start: 1px solid var\(--border\);/,
+      file,
+    );
+  }
+  // The padding as before, in edit too: one .row for both.
+  assert.match(body(rowCss, ".row"), /padding: 10px 12px;/);
+  assert.match(body(rowCss, ".row", WIDE), /padding: 12px 14px;/);
+  assert.match(removed, /<ul className=\{screen\.items\}>/);
+});
+
+test("🔴 «شغّل» is inverted in a switched-off row alone — like «مطفأ» — with the inverse hover and press", () => {
+  // Brief ل §4.6 (addition 1). The toggle is the row's first button.
+  const actions = row.slice(row.indexOf("<div className={styles.actions}>"));
+  assert.ok(
+    actions.indexOf("{view.toggle.label}") < actions.indexOf("{M.edit}"),
+  );
+  const all = rules(rowCss);
+  const inverted = all.filter((r) =>
+    r.selectors.some((x) => /:first-child/.test(x)),
+  );
+  assert.ok(inverted.length >= 3);
+  for (const r of inverted)
+    for (const x of r.selectors.filter((x) => /:first-child/.test(x)))
+      assert.match(
+        x.replace(/\s+/g, " "),
+        /^\.row\[data-off\] \.actions > :first-child/,
+        "inverted in a switched-off row alone",
+      );
+  const plain = inverted.find((r) => !r.selectors.join().includes(":" + "not"));
+  assert.ok(plain);
+  assert.match(plain.body, /background: var\(--text-primary\);/);
+  assert.match(plain.body, /border-color: var\(--text-primary\);/);
+  assert.match(plain.body, /color: var\(--bg\);/);
+  assert.ok(inverted.some((r) => /--inverse-hover/.test(r.body)));
+  assert.ok(inverted.some((r) => /--inverse-press/.test(r.body)));
+  // The plain button stays the surface's.
+  assert.match(body(rowCss, ".button"), /background: var\(--surface\);/);
+});
+
+test("🔴 «المُزالة»: the menu row's structure — the name and its category's badge, the price, «إرجاع» — in that DOM order", () => {
+  // Brief ل §4.7 (note 15): on a laptop the price and the category sat in
+  // two columns side by side and read «20.75 شيكل وجبات».
+  const css = read(`${C}removed-items.module.css`);
+  const view = removed.slice(removed.indexOf("<div className={styles.view}>"));
+  const at = (s: string) => {
+    const i = view.indexOf(s);
+    assert.notEqual(i, -1, s);
+    return i;
+  };
+  assert.ok(at("styles.title") < at("styles.name"));
+  assert.ok(at("styles.name") < at("styles.category"));
+  assert.ok(at("styles.category") < at("styles.price"));
+  assert.ok(at("styles.price") < at("{M.restore}"));
+  // The name and the badge share the box; the price is outside it.
+  const title = view.slice(at("styles.title"), at("styles.price"));
+  assert.match(title, /styles\.name[\s\S]*styles\.category[\s\S]*<\/div>/);
+
+  const badge = body(css, ".category");
+  for (const decl of [
+    "border: 1px solid var(--border);",
+    "border-radius: 999px;",
+    "padding: 2px 10px;",
+    "font-size: 13px;",
+    "font-weight: 600;",
+    "color: var(--text-secondary);",
+    "white-space: nowrap;",
+  ])
+    assert.ok(badge.includes(decl), `.category: ${decl}`);
+
+  const narrow = body(css, ".view");
+  assert.match(narrow, /grid-template-columns: minmax\(0, 1fr\) auto;/);
+  assert.match(
+    narrow,
+    /grid-template-areas:\s*"title price"\s*"button button";/,
+  );
+  assert.match(narrow, /align-items: baseline;/);
+  const wide = body(css, ".view", WIDE);
+  assert.match(wide, /grid-template-areas:\s*"title button"\s*"price button";/);
+  assert.match(wide, /row-gap: 0;/);
+  assert.match(wide, /align-items: center;/);
+  assert.match(body(css, ".price"), /justify-self: start;/);
+  const box = body(css, ".title");
+  assert.match(box, /grid-area: title;/);
+  assert.match(box, /flex-wrap: wrap;/);
 });

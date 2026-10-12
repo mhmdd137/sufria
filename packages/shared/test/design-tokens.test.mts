@@ -26,13 +26,113 @@ test("contrastRatio: the WCAG endpoints", () => {
   assert.throws(() => contrastRatio("#FFF", "#000000"));
 });
 
-test("every locked pair passes 4.5:1, and the weakest is 5.00 (expired, light)", () => {
+test("every locked pair passes 4.5:1, and the weakest is 4.62 (text-secondary on bg-press, light)", () => {
+  // Brief ل §2: 52 pairs — the 28 before it and 12 more in each mode. The
+  // weakest was «expired» (light, 5.00) until the pressed grounds came.
   const pairs = contrastPairs();
+  assert.equal(pairs.length, 52);
   for (const p of pairs)
     assert.ok(p.ratio >= MIN_TEXT_CONTRAST, `${p.name}: ${p.ratio.toFixed(2)}`);
   const weakest = pairs.reduce((a, b) => (b.ratio < a.ratio ? b : a));
-  assert.equal(weakest.name, "light · badge expired");
-  assert.equal(weakest.ratio.toFixed(2), "5.00");
+  assert.equal(weakest.name, "light · text-secondary on bg-press");
+  assert.equal(weakest.ratio.toFixed(2), "4.62");
+});
+
+test("🔴 the eight hover and press grounds: their values, each the brief's sRGB mix, and every text that falls on them in the gate", () => {
+  // Brief ل §2 (Mohammed, 12 October). The values, then the method that
+  // made them: a value edited by hand stops being its mix.
+  const expected = {
+    light: {
+      "surface-hover": "#ECECEC",
+      "surface-press": "#DADADA",
+      "bg-hover": "#E5E5E3",
+      "bg-press": "#D3D3D1",
+      "accent-hover": "#63223F",
+      "accent-press": "#521C34",
+      "inverse-hover": "#222221",
+      "inverse-press": "#2F2F2E",
+    },
+    dark: {
+      "surface-hover": "#2C2C29",
+      "surface-press": "#383835",
+      "bg-hover": "#242422",
+      "bg-press": "#31312F",
+      "accent-hover": "#A34168",
+      "accent-press": "#943B5F",
+      "inverse-hover": "#DFDEDC",
+      "inverse-press": "#CECDCA",
+    },
+  } as const;
+  const rgb = (hex: string) =>
+    [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const mix = (from: string, to: string, share: number) =>
+    "#" +
+    rgb(from)
+      .map((c, i) => Math.round(c + (rgb(to)[i]! - c) * share))
+      .map((c) => c.toString(16).padStart(2, "0").toUpperCase())
+      .join("");
+  const shares = {
+    light: {
+      ground: [0.08, 0.16],
+      accent: [0.15, 0.3],
+      inverse: [0.055, 0.11],
+    },
+    dark: {
+      ground: [0.06, 0.12],
+      accent: [0.1, 0.18],
+      inverse: [0.085, 0.165],
+    },
+  } as const;
+  for (const mode of COLOR_MODES) {
+    const c = COLOR_TOKENS[mode];
+    const s = shares[mode];
+    for (const [token, value] of Object.entries(expected[mode]))
+      assert.equal(c[token as keyof typeof c], value, `${mode} ${token}`);
+    assert.equal(
+      c["surface-hover"],
+      mix(c.surface, c["text-primary"], s.ground[0]),
+    );
+    assert.equal(
+      c["surface-press"],
+      mix(c.surface, c["text-primary"], s.ground[1]),
+    );
+    assert.equal(c["bg-hover"], mix(c.bg, c["text-primary"], s.ground[0]));
+    assert.equal(c["bg-press"], mix(c.bg, c["text-primary"], s.ground[1]));
+    assert.equal(c["accent-hover"], mix(c.accent, "#000000", s.accent[0]));
+    assert.equal(c["accent-press"], mix(c.accent, "#000000", s.accent[1]));
+    assert.equal(
+      c["inverse-hover"],
+      mix(c["text-primary"], c.bg, s.inverse[0]),
+    );
+    assert.equal(
+      c["inverse-press"],
+      mix(c["text-primary"], c.bg, s.inverse[1]),
+    );
+  }
+
+  const names = new Set(contrastPairs().map((p) => p.name));
+  for (const mode of COLOR_MODES) {
+    for (const text of ["text-primary", "text-secondary"])
+      for (const ground of [
+        "surface-hover",
+        "surface-press",
+        "bg-hover",
+        "bg-press",
+      ])
+        assert.ok(
+          names.has(`${mode} · ${text} on ${ground}`),
+          `${mode} ${text} ${ground}`,
+        );
+    for (const ground of ["accent-hover", "accent-press"])
+      assert.ok(
+        names.has(`${mode} · on-accent on ${ground}`),
+        `${mode} ${ground}`,
+      );
+    for (const ground of ["inverse-hover", "inverse-press"])
+      assert.ok(names.has(`${mode} · bg on ${ground}`), `${mode} ${ground}`);
+  }
+  // text-muted is a line's colour under the pointer, never a text (§3).
+  assert.ok(!("text-muted" in TEXT_ON_BACKGROUND));
 });
 
 test("the pairs are enumerated from the source: every badge × both modes", () => {

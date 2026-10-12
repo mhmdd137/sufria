@@ -240,7 +240,9 @@ test("customerLabelAr: the name, or the phone's last four digits alone", () => {
 test("orderNumberLabel and amountAr: text as given, never through Number", () => {
   assert.equal(orderNumberLabel(102), "#102");
   assert.equal(amountAr("13.50", "JOD"), "13.50 د.أ");
-  assert.equal(amountAr("5.00", "ILS"), "5.00 شيكل");
+  // `.00` dropped on the screen alone (brief ل §6); the API keeps «5.00».
+  assert.equal(amountAr("5.00", "ILS"), "5 شيكل");
+  assert.equal(amountAr("20.75", "ILS"), "20.75 شيكل");
 });
 
 /** An ISO time at `h:m` on the device's clock — the zone the test runs in. */

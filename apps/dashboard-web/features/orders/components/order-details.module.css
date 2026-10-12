@@ -32,6 +32,17 @@
   text-decoration: none;
 }
 
+/* A text link (brief ل §3): its text primary under the pointer and pressed. */
+@media (hover: hover) and (pointer: fine) {
+  .back:hover {
+    color: var(--text-primary);
+  }
+}
+
+.back:active {
+  color: var(--text-primary);
+}
+
 .notice {
   font-size: 15px;
   font-weight: 600;
@@ -344,6 +355,18 @@
   cursor: progress;
 }
 
+/* Under the pointer and pressed (brief ل §3): the accent a shade darker,
+   then two; never while disabled or working. */
+@media (hover: hover) and (pointer: fine) {
+  .step:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--accent-hover);
+  }
+}
+
+.step:not(:disabled, [aria-busy="true"]):active {
+  background: var(--accent-press);
+}
+
 /* ---- while it works: start (I-9b #6) ----
    From the press until the server's answer the button shows it is working
    (Mohammed's decision): a shade darker, a thin line of the tokens running
@@ -410,6 +433,20 @@
   color: var(--text-primary);
   text-decoration: none;
   cursor: pointer;
+}
+
+/* Under the pointer and pressed (brief ل §3): the fill and its line take
+   the hover ground, then the pressed one; never while disabled or working. */
+@media (hover: hover) and (pointer: fine) {
+  .secondary:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.secondary:not(:disabled, [aria-busy="true"]):active {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
 }
 
 /* 24px from what is above it: 12 of gap, and 12 more. */

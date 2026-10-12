@@ -12,12 +12,13 @@ const T = DASHBOARD_UI_AR;
 const M = DASHBOARD_MENU_UI_AR;
 
 /**
- * «أوقف الطلبات مؤقتا» and what every customer then gets, in a box of its
- * own above «الأصناف» and «المُزالة» (brief ي-ب-9 §4.3): it stops the whole
- * restaurant, so it is not one of the menu's tools. Gone while paused
- * (decision 3: the strip's «استأنف» is then the one button), and before
- * the first read. No dialog: the press sends, and the answer shows the
- * strip.
+ * «أوقف الطلبات مؤقتا» and what every customer then gets, a bar of its own
+ * right under the header on the two menu pages (brief ل §4.1, decision 1;
+ * a box above the tabs since brief ي-ب-9 §4.3): it stops the whole
+ * restaurant, so it is not one of the menu's tools. Gone while paused —
+ * the amber strip shows in its place (decision 3: its «استأنف» is then
+ * the one button) — and before the first read. No dialog: the press
+ * sends, and the answer shows the strip.
  */
 export function PauseBox() {
   const { ordersPausedAt, pauseChanged } = useLiveSettings();
@@ -37,23 +38,28 @@ export function PauseBox() {
   }
 
   return (
-    <div className={styles.box}>
-      <button
-        type="button"
-        className={`${screen.secondary} ${styles.button}`}
-        onClick={pause}
-        disabled={pausing}
-        aria-busy={pausing}
-      >
-        <PauseIcon />
-        {M.pause}
-      </button>
-      <p className={styles.hint}>{M.pauseHint}</p>
-      {failed && (
-        <p className={styles.line} role="status">
-          {T.errors.stepFailed}
+    <div className={styles.bar}>
+      <div className={styles.box}>
+        <button
+          type="button"
+          className={`${screen.secondary} ${styles.button}`}
+          onClick={pause}
+          disabled={pausing}
+          aria-busy={pausing}
+        >
+          <PauseIcon />
+          {M.pause}
+        </button>
+        {/* The customer's message drops whole to a line of its own. */}
+        <p className={styles.hint}>
+          {M.pauseHintLead} <span>{M.pauseHintQuote}</span>
         </p>
-      )}
+        {failed && (
+          <p className={styles.line} role="status">
+            {T.errors.stepFailed}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

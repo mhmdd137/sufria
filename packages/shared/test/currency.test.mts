@@ -20,6 +20,8 @@ import {
   CURRENCIES,
   CURRENCY_LABEL_AR,
   CURRENCY_SLOT,
+  formatMinor,
+  withoutZeroCents,
   FULFILLMENT_ASK_WITH_FEE_AR,
   ITEM_ADDED_AR,
   MENU_LINE_AR,
@@ -132,13 +134,13 @@ test("🔴 مطعم ILS: كل نص فيه مبلغ بـ«شيكل»، ولا «�
     "استلام من المطعم أو توصيل؟ رسوم التوصيل 1.50 شيكل.\nاكتب «استلام» أو «توصيل».",
   );
   const summary = buildOrderSummary(LINES, 750, DELIVERY, "ILS").split("\n");
-  assert.ok(summary.includes("2 · شاورما دجاج ×2 — 5.00 شيكل"));
+  assert.ok(summary.includes("2 · شاورما دجاج ×2 — 5 شيكل"));
   assert.ok(summary.includes("حمص ×1 — 2.50 شيكل"));
   assert.ok(summary.includes("التوصيل — 1.50 شيكل"));
-  assert.ok(summary.includes("المجموع 9.00 شيكل"));
+  assert.ok(summary.includes("المجموع 9 شيكل"));
   assert.deepEqual(
     itemsAddedLinesAr([{ name: "شاورما دجاج", qty: 2 }], 500, "ILS"),
-    ["أضفت: شاورما دجاج ×2 — المجموع 5.00 شيكل"],
+    ["أضفت: شاورما دجاج ×2 — المجموع 5 شيكل"],
   );
 });
 
@@ -173,11 +175,12 @@ test("سطر المنيو بالعملة، وبنفس شكل السطر القا
   assert.ok(ALL_CUSTOMER_TEXTS_AR.includes(MENU_LINE_AR), "برّا الحراسة");
 });
 
-test("🔴 سطر المنيو بيمرق بـformatMinor: منزلتين دايما، وبلا float", () => {
-  // "3" من القاعدة ← 300 قرش ← "3.00". و6.30 ما بتصير 6.3 ولا 6.29.
+test("🔴 سطر المنيو بيمرق بـformatMinor: منزلتين، و`.00` بتنشال، وبلا float", () => {
+  // "3" من القاعدة ← 300 قرش ← "3" (`.00` بتنشال، بريف ل §6). و6.30 ما
+  // بتصير 6.3 ولا 6.29.
   assert.equal(
     menuLineAr({ number: 2, name: "متبل", priceMinor: 300 }, "JOD"),
-    "2. متبل — 3.00 د.أ",
+    "2. متبل — 3 د.أ",
   );
   assert.equal(
     menuLineAr({ number: 3, name: "منسف", priceMinor: 630 }, "JOD"),
@@ -188,7 +191,7 @@ test("🔴 سطر المنيو بيمرق بـformatMinor: منزلتين داي
 test("🔴 اسم صنف فيه خانة أو $& بينطبع حرفيا بسطر المنيو", () => {
   assert.equal(
     menuLineAr({ number: 1, name: "طبق [العملة] $&", priceMinor: 500 }, "ILS"),
-    "1. طبق [العملة] $& — 5.00 شيكل",
+    "1. طبق [العملة] $& — 5 شيكل",
   );
 });
 
@@ -211,4 +214,19 @@ test("الملخّص: «الدفع نقدا.» للاستلام والتوصيل
     pickup[pickup.indexOf(SUMMARY_PICKUP_LINE_AR) + 1],
     SUMMARY_PAYMENT_LINE_AR,
   );
+});
+
+test("🔴 `.00` بتنشال بس — نص، مش number (بريف ل §6)", () => {
+  // «15.00» ← «15»، و«13.50» بتضل «13.50»: ولا «13.5».
+  assert.equal(withoutZeroCents("15.00"), "15");
+  assert.equal(withoutZeroCents("13.50"), "13.50");
+  assert.equal(withoutZeroCents("10.05"), "10.05");
+  assert.equal(withoutZeroCents("0.00"), "0");
+  assert.equal(withoutZeroCents("100.00"), "100");
+  assert.equal(withoutZeroCents("100"), "100");
+  // كل مبلغ بواتساب بيمرق من formatMinor.
+  assert.equal(formatMinor(1500), "15");
+  assert.equal(formatMinor(1350), "13.50");
+  assert.equal(formatMinor(5), "0.05");
+  assert.equal(formatMinor(0), "0");
 });

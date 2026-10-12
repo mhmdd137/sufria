@@ -36,6 +36,34 @@
   outline-offset: 2px;
 }
 
+/* Under the pointer and pressed (brief ل §3), the whole card — but not
+   while the pointer is on its button: then the button alone changes. The
+   press is its link's: a press on an element inside never makes the card
+   :active. The fill's timing is globals.css's, here for the card. */
+@media (hover: hover) and (pointer: fine) {
+  .card:hover:not(:has(.action:hover)) {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.card:has(.open:active) {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card {
+    transition:
+      background-color 120ms ease-out,
+      border-color 120ms ease-out;
+  }
+
+  .card:has(.open:active) {
+    transition-duration: 0s;
+  }
+}
+
 /* Below 640px, three fixed rows (brief I §4, I-2): who, with the details
    line under it · the badge at the start, the amount and «منذ…» at the end ·
    the next-step button, the card's width. A card without a button (history)
@@ -202,6 +230,18 @@
 
 .action[aria-busy="true"] {
   cursor: progress;
+}
+
+/* Under the pointer and pressed (brief ل §3): the accent a shade darker,
+   then two; never while disabled or working. */
+@media (hover: hover) and (pointer: fine) {
+  .action:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--accent-hover);
+  }
+}
+
+.action:not(:disabled, [aria-busy="true"]):active {
+  background: var(--accent-press);
 }
 
 /* ---- while it works: start (I-9b #6) ----
