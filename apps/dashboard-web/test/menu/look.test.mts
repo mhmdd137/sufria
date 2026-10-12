@@ -202,23 +202,41 @@ test("🔴 the pause bar is right under the header on the two menu pages — out
   assert.match(body(boxCss, ".hint > span"), /display: inline-block;/);
 });
 
-test("🔴 «الأصناف»'s tools are one row at every width: «أضف صنفا» at the start, «المطفأة» and «شغّل الكل» at the end while any is off", () => {
+test("🔴 one line above the list: the view switch at the start, «أضف صنفا» at the end; «المطفأة» and «شغّل الكل» on a line of their own under it, while any is off", () => {
+  // Brief ل §4.2 (addition 3) replaced brief ي-ب-9 §4.4's "add . off" row.
   const css = read(`${C}menu-screen.module.css`);
   const tools = body(css, ".tools");
-  assert.match(tools, /grid-template-areas: "add \. off";/);
+  assert.match(tools, /grid-template-areas: "tabs \. add";/);
   assert.match(tools, /grid-template-columns: auto minmax\(0, 1fr\) auto;/);
+  assert.match(tools, /align-items: center;/);
+  assert.match(tools, /gap: 8px;/);
   // One row at every width: no rule for it under any media query.
   assert.ok(!rules(css).some((r) => r.media && r.selectors.includes(".tools")));
   assert.match(body(css, ".add"), /grid-area: add;/);
-  assert.match(body(css, ".off"), /grid-area: off;/);
+  assert.match(
+    body(read(`${C}menu-tabs.module.css`), ".tabs"),
+    /grid-area: tabs;/,
+  );
 
-  // On «الأصناف» alone; «أضف صنفا» first, the count and its button after,
-  // and only while the count is over 0.
-  assert.doesNotMatch(removed, /styles\.tools/);
-  const at = screen.indexOf("className={styles.tools}");
+  // «الأصناف»: the switch, then «أضف صنفا» in the line; the count after it.
+  const at = screen.indexOf("<div className={styles.tools}>");
   assert.notEqual(at, -1);
-  const row = screen.slice(at, screen.indexOf("{ready && adding", at));
-  assert.ok(row.indexOf("{M.add}") < row.indexOf("offCountAr(off)"));
-  assert.match(row, /\{off > 0 && \(\s*<div className=\{styles\.off\}>/);
-  assert.ok(row.indexOf("offCountAr(off)") < row.indexOf("{M.enableAll}"));
+  const line = screen.slice(at, screen.indexOf("</div>", at));
+  assert.match(line, /<MenuTabs current="items" \/>[\s\S]*\{M\.add\}/);
+  assert.doesNotMatch(line, /offCountAr/);
+  const after = screen.slice(screen.indexOf("</div>", at));
+  assert.match(
+    after,
+    /\{ready && off > 0 && \(\s*<div className=\{styles\.off\}>/,
+  );
+  assert.ok(after.indexOf("offCountAr(off)") < after.indexOf("{M.enableAll}"));
+  assert.match(body(css, ".off"), /align-self: flex-end;/);
+  assert.doesNotMatch(body(css, ".off"), /grid-area/);
+
+  // «المُزالة»: the same line, the switch alone.
+  assert.match(
+    removed,
+    /<div className=\{screen\.tools\}>\s*<MenuTabs current="removed" \/>\s*<\/div>/,
+  );
+  assert.doesNotMatch(removed, /M\.add\b/);
 });

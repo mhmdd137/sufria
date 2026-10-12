@@ -36,8 +36,8 @@ type Asking =
 
 /**
  * «المنيو» (brief ي-ب §6): the pause bar under the header, outside the
- * page (brief ل §4.1), the two tabs, «أضف صنفا», «المطفأة» and «شغّل الكل»
- * while any is off, and the menu under its categories in the customer's
+ * page (brief ل §4.1), the view switch and «أضف صنفا» on one line (§4.2),
+ * «المطفأة» and «شغّل الكل» under it while any is off, and the menu under its categories in the customer's
  * order, an item switched off keeping its place. No menu numbers: the
  * bot's change with every switch-off.
  */
@@ -84,36 +84,32 @@ export function MenuScreen() {
       <PauseBox />
       <main className={styles.page}>
         <h1 className="visually-hidden">{T.tabs.menu}</h1>
-        <MenuTabs current="items" />
+        <div className={styles.tools}>
+          <MenuTabs current="items" />
+          {ready && canAdd && (
+            <button
+              type="button"
+              className={`${styles.primary} ${styles.add}`}
+              onClick={() => setAdding(true)}
+            >
+              {M.add}
+            </button>
+          )}
+        </div>
 
-        {ready && (canAdd || off > 0) && (
-          <div className={styles.tools}>
-            {canAdd && (
-              <button
-                type="button"
-                className={`${styles.primary} ${styles.add}`}
-                onClick={() => setAdding(true)}
-              >
-                {M.add}
-              </button>
-            )}
-            {off > 0 && (
-              <div className={styles.off}>
-                <span className={`num ${styles.offCount}`}>
-                  {offCountAr(off)}
-                </span>
-                <button
-                  type="button"
-                  className={styles.secondary}
-                  onClick={() => {
-                    setAskLine(null);
-                    setAsking({ kind: "enableAll", count: off });
-                  }}
-                >
-                  {M.enableAll}
-                </button>
-              </div>
-            )}
+        {ready && off > 0 && (
+          <div className={styles.off}>
+            <span className={`num ${styles.offCount}`}>{offCountAr(off)}</span>
+            <button
+              type="button"
+              className={styles.secondary}
+              onClick={() => {
+                setAskLine(null);
+                setAsking({ kind: "enableAll", count: off });
+              }}
+            >
+              {M.enableAll}
+            </button>
           </div>
         )}
 

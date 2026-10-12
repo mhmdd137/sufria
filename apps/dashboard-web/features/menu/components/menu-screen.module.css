@@ -18,14 +18,14 @@
   margin-inline: auto;
 }
 
-/* «الأصناف»'s tools, one row at every width (brief ي-ب-9 §4.4): «أضف
-   صنفا» at the start; «المطفأة» and «شغّل الكل» at the end, while any is
-   off. Grid areas: each keeps its place when the other is not there. The
-   8px gap (the row's buttons') keeps a three-digit count inside 360px. */
+/* The line above the list, one row at every width (brief ل §4.2): the
+   view switch at the start, «أضف صنفا» at the end while it shows — on
+   «المُزالة», the switch alone. Grid areas: each keeps its place when the
+   other is not there. 274px of 284 at 320 (169 + 8 + 97). */
 .tools {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-areas: "add . off";
+  grid-template-areas: "tabs . add";
   align-items: center;
   gap: 8px;
 }
@@ -34,8 +34,10 @@
   grid-area: add;
 }
 
+/* «المطفأة» and «شغّل الكل»: a line of their own under it, at its end,
+   while any is off. */
 .off {
-  grid-area: off;
+  align-self: flex-end;
   display: flex;
   align-items: center;
   gap: 12px;

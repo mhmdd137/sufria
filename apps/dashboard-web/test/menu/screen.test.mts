@@ -44,22 +44,60 @@ test("🔴 «أوقف الطلبات مؤقتا» and its line only while taking
 });
 
 test("«المطفأة» and «شغّل الكل» only while an item is off; «شغّل الكل» asks first, with the count", () => {
-  assert.match(screen, /\{off > 0 && \(/);
+  assert.match(screen, /\{ready && off > 0 && \(/);
   assert.match(screen, /enableAllBodyAr\(asking\.count\)/);
   assert.match(screen, /menuApi\.enableAll\(\)/);
 });
 
-test("the screen's tabs look like the header's", () => {
-  const header = code(read("shared/layout/dashboard-header.module.css"));
+test("🔴 «الأصناف · المُزالة» is a view switch, not the header's tabs: one box, two equal halves, the chosen one the pressed ground — never the accent", () => {
+  // Brief ل §4.2 (decision 5) replaced «the screen's tabs look like the
+  // header's» (brief ي-ب, decision 4): on purpose, by Mohammed's decision —
+  // a copy of the header's tabs made neither look the main one.
   const tabs = code(read(`${C}menu-tabs.module.css`));
-  const own = rule(tabs, ".tab");
-  for (const decl of rule(header, ".tab")
-    .split("\n")
-    .map((d) => d.trim()))
-    assert.ok(own.includes(decl), `.tab: ${decl}`);
-  assert.equal(
-    rule(tabs, '.tab[aria-current="page"]'),
-    rule(header, '.tab[aria-current="page"]'),
+  const box = rule(tabs, ".tabs");
+  for (const decl of [
+    "display: inline-grid;",
+    "grid-auto-flow: column;",
+    "grid-auto-columns: 1fr;",
+    "border: 1px solid var(--border);",
+    "border-radius: 8px;",
+    "overflow: hidden;",
+  ])
+    assert.ok(box.includes(decl), `.tabs: ${decl}`);
+  assert.doesNotMatch(box, /border-block-end/, "no line under the two");
+  const tab = rule(tabs, ".tab");
+  for (const decl of [
+    "min-height: 44px;",
+    "padding-inline: 18px;",
+    "font-size: 15px;",
+    "font-weight: 600;",
+    "color: var(--text-secondary);",
+    "justify-content: center;",
+  ])
+    assert.ok(tab.includes(decl), `.tab: ${decl}`);
+  assert.match(
+    rule(tabs, ".tab + .tab"),
+    /border-inline-start: 1px solid var\(--border\);/,
+  );
+  const chosen = rule(tabs, '.tab[aria-current="page"]');
+  assert.match(chosen, /background: var\(--bg-press\);/);
+  assert.match(chosen, /color: var\(--text-primary\);/);
+  assert.doesNotMatch(tabs, /--accent/, "the accent is the header's tab alone");
+  // Still links, the chosen one aria-current.
+  const tsx = read(`${C}menu-tabs.tsx`);
+  assert.equal((tsx.match(/<Link\b/g) ?? []).length, 2);
+  assert.match(
+    tsx,
+    /aria-current=\{current === "items" \? "page" : undefined\}/,
+  );
+  // The other half: the page's ground under the pointer and pressed.
+  assert.match(
+    tabs,
+    /\.tab:not\(\[aria-current="page"\]\):hover \{\s*background: var\(--bg-hover\);/,
+  );
+  assert.match(
+    tabs,
+    /\n\.tab:not\(\[aria-current="page"\]\):active \{\s*background: var\(--bg-press\);/,
   );
 });
 

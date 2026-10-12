@@ -23,7 +23,8 @@ const M = DASHBOARD_MENU_UI_AR;
 
 /**
  * «المُزالة» (brief ي-ب §7, decision 4): the pause bar under the header,
- * outside the page (brief ل §4.1), the two tabs, then what was removed from the menu, the most recent
+ * outside the page (brief ل §4.1), the view switch on its line (§4.2), then
+ * what was removed from the menu, the most recent
  * first — its name, price and category, and «إرجاع». An
  * item brought back leaves this list, switched off (decision 6), and the
  * line under the tabs says where it went and what is left to do.
@@ -50,7 +51,9 @@ export function RemovedItems() {
       <PauseBox />
       <main className={screen.page}>
         <h1 className="visually-hidden">{T.tabs.menu}</h1>
-        <MenuTabs current="removed" />
+        <div className={screen.tools}>
+          <MenuTabs current="removed" />
+        </div>
 
         {restored && (
           <p className={styles.restored} role="status" aria-live="polite">
