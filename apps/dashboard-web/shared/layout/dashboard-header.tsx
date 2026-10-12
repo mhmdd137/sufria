@@ -26,8 +26,9 @@ type Props = {
 
 /**
  * The dashboard's header on every page behind login (brief G §3 G-4, brief I
- * §4 I-3): the mark and «سُفريا», «مباشر», logout, the restaurant's name, the
- * three tabs — links, the current one marked `aria-current="page"`
+ * §4 I-3), two lines since brief ل §5.1 (addition 2): the mark, the
+ * restaurant's name, «مباشر» and logout — «سُفريا» stays on the login page
+ * and the browser's tab — then the three tabs — links, the current one marked `aria-current="page"`
  * (`isCurrentTab`: «المنيو» on /menu and /menu/removed, brief ي-ب §5) — then
  * the pause strip, and the strip while the connection is down.
  *
@@ -52,7 +53,7 @@ export function DashboardHeader({
         <div className={`${styles.bounds} ${styles.content}`}>
           <div className={styles.topRow}>
             <BrandMark />
-            <span className={styles.wordmark}>{T.brand}</span>
+            <span className={styles.title}>{restaurantName}</span>
             <span className={styles.live}>
               <span className={styles.liveDot} aria-hidden="true" />
               {T.live}
@@ -61,7 +62,6 @@ export function DashboardHeader({
               {T.logout}
             </button>
           </div>
-          <p className={styles.title}>{restaurantName}</p>
           <nav className={styles.tabs}>
             <Link
               href="/orders"

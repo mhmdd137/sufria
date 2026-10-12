@@ -1,5 +1,5 @@
 /* The dashboard's header — docs/design/orders-bench.html, density «متوسطة».
-   Brief G §2: colours are token variables only; 26 title · 19 · 15 text ·
+   Brief G §2: colours are token variables only; 19 the name · 15 text ·
    13 labels; radius 8 controls; touch targets 44px. Logical properties only
    (RTL). */
 
@@ -33,9 +33,15 @@
   gap: 12px;
 }
 
-.wordmark {
+/* The restaurant's name, on the first line after the mark (brief ل §5.1):
+   cut with … rather than pushing «مباشر» and logout off the line. */
+.title {
+  min-width: 0;
   font-size: 19px;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .live {
@@ -46,12 +52,6 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
-}
-
-.title {
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.25;
 }
 
 .logout {
