@@ -10,8 +10,13 @@
    order — name, state, price, buttons — and the change at 640 is grid
    areas, not flex-wrap. The grid follows dir="rtl" by itself. */
 
+/* Below 640px 16px above and under each row (Mohammed, 13 October, after
+   the design round's trial): the space between two items, 34px with the
+   line, is over three times the 10px between a name and its own buttons,
+   so each item reads as one — at 10px the next name sat on the previous
+   buttons. The first screen keeps its 2 · 3 · 4 items (360 · 375 · 390). */
 .row {
-  padding: 10px 12px;
+  padding: 16px 12px;
   line-height: 1.55;
 }
 
