@@ -587,8 +587,8 @@ into the same `.next` that `next start` serves: restart a running one after.
   the test's own `afterAll` would — and never the seed's (`both@`, `onlya@`,
   `onlyz@sufria.test`).
 - **`check:budget` is green, by three decisions of Mohammed's (brief
-  ي-ب-9, 11 October) and brief ل's allowance (12 October: +100 per page,
-  +250 on the menu's two).** 1A — `main`'s three dashboard budgets up by
+  ي-ب-9, 11 October), brief ل's allowance (12 October: +100 per page,
+  +250 on the menu's two) and brief م-أ's decision ج (13 October).** 1A — `main`'s three dashboard budgets up by
   exactly 396 (a Turbopack chunk split since ي-أ/ك, the same code). 2B —
   the menu's texts in `dashboard-menu-ui.ts`, off the pages that do not show
   them. A (§5) — the six budgets to the measure after the design round,
@@ -599,9 +599,20 @@ into the same `.next` that `next start` serves: restart a running one after.
   on «المُزالة» too). Brief ل, over those: `/login` +46 · `/orders`,
   `/history`, `/orders/[id]` +19 · `/menu` +105 · `/menu/removed` +140
   (`withoutZeroCents` on every page, the menu's new structure on its two,
-  −23 for the header's class gone). The budgets now: JS `/login` 138845 ·
-  `/orders` 146108 · `/history` 146335 · `/orders/[id]` 149186 · `/menu`
-  151104 · `/menu/removed` 149016; fonts 123204 each.
+  −23 for the header's class gone). Brief م-أ, decision ج: the relay
+  line's texts and `relayLineAr`, with `ALL_CUSTOMER_TEXTS_AR`, in
+  `packages/shared/src/relay-line.ts`, off `domain.ts` (which imports
+  nothing from it) — every budget down to the measure: `/login` −85, the
+  five others −96, the numbered status messages included. What the chunks
+  showed: the minifier drops a list of templates nobody reads, but keeps
+  each property read in it (`ORDER_STATUS_MESSAGE_AR.accepted`…) as a bare
+  expression — it cannot prove a property read pure — so the object read
+  stays on every page; and before ج, unused slot constants and the two
+  pickup-or-delivery prompts stayed beside them. `ORDER_STATUS_TEXTS_AR`,
+  still in `domain.ts`, keeps `ORDER_STATUS_MESSAGE_AR` on every page that
+  way. The budgets now: JS `/login` 138760 · `/orders` 146012 · `/history`
+  146239 · `/orders/[id]` 149090 · `/menu` 151008 · `/menu/removed` 148920;
+  fonts 123204 each.
 - **Under the pointer and pressed (brief ل §3, decision 2).** Eight tokens
   in `design-tokens.ts`, each named by the ground it changes:
   `surface-hover`/`-press`, `bg-hover`/`-press` (`bg-press` is also the view
@@ -750,7 +761,8 @@ into the same `.next` that `next start` serves: restart a running one after.
 - **Per-restaurant message text (`message_templates`) is deferred, not rejected.**
   The table exists since 0001 with `restaurant_id NULL` meaning a platform
   default, but nothing reads it. Customer-facing Arabic lives in
-  `packages/shared/src/domain.ts` instead. Letting each restaurant edit its own
+  `packages/shared/src/domain.ts` instead (the relay line's in
+  `relay-line.ts`, brief م-أ). Letting each restaurant edit its own
   wording is not needed in Sprint 1 or 2, costs a read per message and a
   migration per wording change, and works against the decision that the
   templates keep one voice that suits both an upmarket restaurant and a shawarma

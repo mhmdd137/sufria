@@ -7,6 +7,7 @@
  */
 export * from "./schema.js";
 export * from "./domain.js";
+export * from "./relay-line.js";
 export * from "./normalize.js";
 export * from "./item-parser.js";
 export * from "./menu-message.js";
