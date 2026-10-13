@@ -66,6 +66,8 @@ interface Order {
   id: string;
   /** رقم الزبون — كل طلب بزبون لحاله. */
   to: string;
+  /** `orders.order_number` — in every status message since brief م-أ. */
+  number: number;
 }
 
 let orderNumber = 101;
@@ -92,6 +94,7 @@ async function order(
   );
   const fulfillment = spec.fulfillment ?? "pickup";
   const fee = fulfillment === "delivery" ? "1.50" : "0";
+  const number = orderNumber++;
   const { rows } = await audit.query<{ id: string }>(
     `INSERT INTO orders (restaurant_id, customer_id, order_number, fulfillment_type,
                          payment_method, status, payment_status, cancelled_by,
@@ -108,7 +111,7 @@ async function order(
     [
       s.id,
       customer.rows[0]?.id,
-      orderNumber++,
+      number,
       fulfillment,
       spec.status,
       spec.reason ?? null,
@@ -117,7 +120,7 @@ async function order(
       spec.ageHours ?? 0,
     ],
   );
-  return { id: rows[0]?.id ?? "", to };
+  return { id: rows[0]?.id ?? "", to, number };
 }
 
 /** نفس ما يفعله `PATCH /orders/:id/status`: الحالة، و`notified = false`. */
@@ -225,14 +228,16 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 describe("جدول الرسائل (§1.1)", () => {
-  it("1. accepted ← رسالة واحدة «أكّدنا طلبك.»، و notified = true، و updated_at ما انلمس", async () => {
+  it("1. accepted ← رسالة واحدة «أكّدنا طلبك رقم …» برقمه، و notified = true، و updated_at ما انلمس", async () => {
     const s = await shop("accepted");
     const o = await order(s, { status: "accepted" });
     const before = await stateOf(o.id);
 
     await notifier([s]).tick();
 
-    expect(sentTo(o.to).map((m) => m.body)).toEqual(["أكّدنا طلبك."]);
+    expect(sentTo(o.to).map((m) => m.body)).toEqual([
+      `أكّدنا طلبك رقم ${o.number}.`,
+    ]);
     const after = await stateOf(o.id);
     expect(after.notified).toBe(true);
     // 🔴 الإشعار مش تغيير بالطلب (§1.2).
@@ -249,7 +254,7 @@ describe("جدول الرسائل (§1.1)", () => {
     expect((await stateOf(o.id)).notified).toBe(true);
   });
 
-  it("3. ready ← استلام «طلبك جاهز للاستلام.» · توصيل «طلبك خرج للتوصيل.»", async () => {
+  it("3. ready ← استلام «طلبك رقم … جاهز للاستلام.» · توصيل «طلبك رقم … خرج للتوصيل.»", async () => {
     const s = await shop("ready");
     const pickup = await order(s, { status: "ready", fulfillment: "pickup" });
     const delivery = await order(s, {
@@ -260,10 +265,10 @@ describe("جدول الرسائل (§1.1)", () => {
     await notifier([s]).tick();
 
     expect(sentTo(pickup.to).map((m) => m.body)).toEqual([
-      "طلبك جاهز للاستلام.",
+      `طلبك رقم ${pickup.number} جاهز للاستلام.`,
     ]);
     expect(sentTo(delivery.to).map((m) => m.body)).toEqual([
-      "طلبك خرج للتوصيل.",
+      `طلبك رقم ${delivery.number} خرج للتوصيل.`,
     ]);
   });
 
@@ -277,7 +282,7 @@ describe("جدول الرسائل (§1.1)", () => {
     expect((await stateOf(o.id)).notified).toBe(true);
   });
 
-  it("5. cancelled ← بسبب: النص بالسبب حرفيا · بلا سبب: «ألغينا طلبك.»", async () => {
+  it("5. cancelled ← بسبب: النص بالسبب حرفيا · بلا سبب: «ألغينا طلبك رقم ….»", async () => {
     const s = await shop("cancelled");
     const withReason = await order(s, {
       status: "cancelled",
@@ -289,10 +294,14 @@ describe("جدول الرسائل (§1.1)", () => {
     await notifier([s]).tick();
 
     expect(sentTo(withReason.to).map((m) => m.body)).toEqual([
-      "ألغينا طلبك — نفد الخبز.",
+      `ألغينا طلبك رقم ${withReason.number} — نفد الخبز.`,
     ]);
-    expect(sentTo(noReason.to).map((m) => m.body)).toEqual(["ألغينا طلبك."]);
-    expect(sentTo(blank.to).map((m) => m.body)).toEqual(["ألغينا طلبك."]);
+    expect(sentTo(noReason.to).map((m) => m.body)).toEqual([
+      `ألغينا طلبك رقم ${noReason.number}.`,
+    ]);
+    expect(sentTo(blank.to).map((m) => m.body)).toEqual([
+      `ألغينا طلبك رقم ${blank.number}.`,
+    ]);
   });
 
   it("6. 🔴 pending_acceptance بـ notified = false ← صفر رسائل، و notified = true", async () => {
@@ -325,7 +334,7 @@ describe("الالتقاط الذرّي (§1.2)", () => {
     }).tick();
 
     expect(sentTo(o.to).map((m) => m.body)).toEqual([
-      "ألغينا طلبك — نفد الخبز.",
+      `ألغينا طلبك رقم ${o.number} — نفد الخبز.`,
     ]);
     expect((await stateOf(o.id)).notified).toBe(true);
   });
@@ -353,7 +362,9 @@ describe("الالتقاط الذرّي (§1.2)", () => {
     const [ra, rb] = await Promise.all([a.tick(), b.tick()]);
 
     expect(arrived).toBe(2);
-    expect(sentTo(o.to).map((m) => m.body)).toEqual(["أكّدنا طلبك."]);
+    expect(sentTo(o.to).map((m) => m.body)).toEqual([
+      `أكّدنا طلبك رقم ${o.number}.`,
+    ]);
     expect(
       [...ra.outcomes, ...rb.outcomes].map((x) => x.outcome).sort(),
     ).toEqual(["already_claimed", "sent"]);
@@ -383,8 +394,8 @@ describe("الالتقاط الذرّي (§1.2)", () => {
     await n.tick();
 
     expect(sentTo(o.to).map((m) => m.body)).toEqual([
-      "أكّدنا طلبك.",
-      "طلبك جاهز للاستلام.",
+      `أكّدنا طلبك رقم ${o.number}.`,
+      `طلبك رقم ${o.number} جاهز للاستلام.`,
     ]);
   });
 });
@@ -432,7 +443,9 @@ describe("الإرسال (§1.3 و§1.4)", () => {
     // 🔴 مرة على الأكثر: الاستسلام ما بيرجّع notified = false.
     expect((await stateOf(failing.id)).notified).toBe(true);
     expect((await stateOf(failing.id)).outbound_msg_count).toBe(0);
-    expect(sentTo(other.to).map((m) => m.body)).toEqual(["أكّدنا طلبك."]);
+    expect(sentTo(other.to).map((m) => m.body)).toEqual([
+      `أكّدنا طلبك رقم ${other.number}.`,
+    ]);
     expect(result.outcomes).toEqual([
       { orderId: failing.id, outcome: "send_failed" },
       { orderId: other.id, outcome: "sent" },
@@ -472,7 +485,9 @@ describe("الإرسال (§1.3 و§1.4)", () => {
 
     await notifier([s]).tick();
 
-    expect(sentTo(o.to).map((m) => m.body)).toEqual(["أكّدنا طلبك."]);
+    expect(sentTo(o.to).map((m) => m.body)).toEqual([
+      `أكّدنا طلبك رقم ${o.number}.`,
+    ]);
   });
 
   it("12. 🔴 العزل: طلب مطعم أ يُرسَل من رقم مطعم أ، لا من رقم مطعم ب", async () => {
@@ -488,7 +503,7 @@ describe("الإرسال (§1.3 و§1.4)", () => {
         restaurantId: a.id,
         phoneNumberId: a.phoneNumberId,
         to: oa.to,
-        body: "أكّدنا طلبك.",
+        body: `أكّدنا طلبك رقم ${oa.number}.`,
         // Brief I (I-4): a status message names its order, for outbound_messages.
         orderId: oa.id,
       },
@@ -498,7 +513,7 @@ describe("الإرسال (§1.3 و§1.4)", () => {
         restaurantId: b.id,
         phoneNumberId: b.phoneNumberId,
         to: ob.to,
-        body: "طلبك جاهز للاستلام.",
+        body: `طلبك رقم ${ob.number} جاهز للاستلام.`,
         orderId: ob.id,
       },
     ]);

@@ -7,7 +7,8 @@
 // a constraint nobody has watched reject anything is a comment, not a net.
 // Section 7 does the same for 0011's order number and currency, and section 8
 // for 0014's «an archived item is never available».
-// Section 9 checks 0015's partial index for the reorder suggestion.
+// Section 9 checks 0015's partial index for the reorder suggestion, and
+// section 10 0016's columns for a customer's message after an order.
 //
 // Every order inserted here carries an explicit order_number (0011: NOT NULL,
 // no default), and no two orders of the same restaurant in one section share
@@ -694,6 +695,138 @@ async function main() {
     "9. idx_orders_customer_recent: (customer_id, created_at DESC), partial on status NOT IN ('cancelled', 'expired')",
     recentDef === expectedRecentDef,
     recentDef === expectedRecentDef ? "" : `${recentDef ?? "—"}`,
+  );
+
+  // --- 10. 0016 a customer's message after an order (brief م-أ §2) --------
+  // inbound_messages.order_id names the order the engine relayed a message
+  // to; customers.relay_replied_at keeps the relay line's quiet minutes.
+  const columns = await pool.query<{
+    table_name: string;
+    column_name: string;
+    data_type: string;
+    is_nullable: string;
+  }>(
+    `SELECT table_name, column_name, data_type, is_nullable
+       FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND (table_name, column_name) IN (('inbound_messages', 'order_id'),
+                                          ('customers', 'relay_replied_at'))`,
+  );
+  const column = (table: string, name: string) =>
+    columns.rows.find((c) => c.table_name === table && c.column_name === name);
+  const orderIdColumn = column("inbound_messages", "order_id");
+  check(
+    "10. inbound_messages.order_id: uuid, NULL allowed",
+    orderIdColumn?.data_type === "uuid" && orderIdColumn.is_nullable === "YES",
+    orderIdColumn === undefined
+      ? "missing"
+      : `${orderIdColumn.data_type}, nullable ${orderIdColumn.is_nullable}`,
+  );
+  const repliedColumn = column("customers", "relay_replied_at");
+  check(
+    "10. customers.relay_replied_at: timestamptz, NULL allowed",
+    repliedColumn?.data_type === "timestamp with time zone" &&
+      repliedColumn.is_nullable === "YES",
+    repliedColumn === undefined
+      ? "missing"
+      : `${repliedColumn.data_type}, nullable ${repliedColumn.is_nullable}`,
+  );
+
+  // The tenant key: a message of restaurant A cannot name restaurant B's
+  // order. Both statements are rolled back (`attempt`), accepted or not.
+  const ORDER_A = "f0000000-0000-4000-8000-00000000000a";
+  const ORDER_B = "f0000000-0000-4000-8000-00000000000b";
+  const relayedTo = (orderId: string) =>
+    sql.raw(`
+    INSERT INTO inbound_messages (restaurant_id, wa_message_id, phone_number_id,
+                                  from_phone, message_type, body, payload, order_id)
+    VALUES ('${RID}', 'wamid.0016.fk', 'PHONE_A', '962790000001', 'text',
+            'وين طلبي؟', '{}'::jsonb, '${orderId}')`);
+  const otherRestaurant = await attempt(relayedTo(ORDER_B));
+  check(
+    "10. inbound_messages_order_fk: a message of A naming B's order (23503)",
+    !otherRestaurant.accepted &&
+      otherRestaurant.code === "23503" &&
+      otherRestaurant.constraint === "inbound_messages_order_fk",
+    otherRestaurant.accepted
+      ? "ACCEPTED — the tenant key did not fire"
+      : `${otherRestaurant.constraint ?? "nothing nameable"} (${otherRestaurant.code ?? "?"})`,
+  );
+  // 🔴 The control: a key that refused everything would pass the case above.
+  const ownRestaurant = await attempt(relayedTo(ORDER_A));
+  check(
+    "10. control: a message of A naming A's own order is accepted",
+    ownRestaurant.accepted,
+    ownRestaurant.accepted ? "" : `rejected (${ownRestaurant.code ?? "?"})`,
+  );
+
+  // An order going never takes the customer's words with it: deleting it
+  // empties order_id alone — restaurant_id, in the same key, stays. As the
+  // migration role (it owns the tables), on an order of this section's own.
+  const admin = new Pool({
+    connectionString: process.env.MIGRATION_DATABASE_URL,
+  });
+  const ORDER_GOING = "f0000000-0016-4000-8000-00000000000a";
+  const kept = await (async () => {
+    try {
+      await admin.query(
+        `INSERT INTO orders (id, restaurant_id, customer_id, order_number, fulfillment_type,
+                             payment_method, status, payment_status, subtotal, total)
+         VALUES ($1, $2, 'c0000000-0000-4000-8000-00000000000a', 9601, 'pickup',
+                 'cash', 'completed', 'collected', 5.00, 5.00)`,
+        [ORDER_GOING, RID],
+      );
+      const { rows } = await admin.query<{ id: string }>(
+        `INSERT INTO inbound_messages (restaurant_id, wa_message_id, phone_number_id,
+                                       from_phone, message_type, body, payload, order_id)
+         VALUES ($1, 'wamid.0016.delete', 'PHONE_A', '962790000001', 'text',
+                 'الطلب ناقص', '{}'::jsonb, $2)
+         RETURNING id`,
+        [RID, ORDER_GOING],
+      );
+      await admin.query(`DELETE FROM orders WHERE id = $1`, [ORDER_GOING]);
+      const after = await admin.query<{
+        restaurant_id: string;
+        order_id: string | null;
+        body: string;
+      }>(
+        `SELECT restaurant_id, order_id, body FROM inbound_messages WHERE id = $1`,
+        [rows[0]?.id],
+      );
+      return after.rows[0] ?? null;
+    } finally {
+      await admin.query(
+        `DELETE FROM inbound_messages WHERE wa_message_id = 'wamid.0016.delete'`,
+      );
+      await admin.query(`DELETE FROM orders WHERE id = $1`, [ORDER_GOING]);
+      await admin.end();
+    }
+  })();
+  check(
+    "10. deleting the order keeps the message: order_id NULL, restaurant_id and the text as they were",
+    kept !== null &&
+      kept.order_id === null &&
+      kept.restaurant_id === RID &&
+      kept.body === "الطلب ناقص",
+    kept === null
+      ? "the message went with the order"
+      : `order_id ${kept.order_id ?? "NULL"}, restaurant_id ${kept.restaurant_id}`,
+  );
+
+  const relayIndex = await pool.query<{ def: string | null }>(
+    `SELECT pg_get_indexdef(i.indexrelid) AS def
+       FROM pg_index i
+       JOIN pg_class c ON c.oid = i.indexrelid
+      WHERE c.relname = 'idx_inbound_messages_order'`,
+  );
+  const relayIndexDef = relayIndex.rows[0]?.def ?? null;
+  const expectedRelayIndexDef =
+    "CREATE INDEX idx_inbound_messages_order ON public.inbound_messages USING btree (order_id, received_at) " +
+    "WHERE (order_id IS NOT NULL)";
+  check(
+    "10. idx_inbound_messages_order: (order_id, received_at), partial on order_id IS NOT NULL",
+    relayIndexDef === expectedRelayIndexDef,
+    relayIndexDef === expectedRelayIndexDef ? "" : `${relayIndexDef ?? "—"}`,
   );
 
   console.log(

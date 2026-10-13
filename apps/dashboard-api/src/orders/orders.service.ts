@@ -273,16 +273,20 @@ export class OrdersService {
    * number is the very digits of `from_phone` and `to_phone` (I-0 #7):
    *   1. a bot message naming this order (`order_id`) is its;
    *   2. one naming another order is not, whatever its time;
-   *   3. a customer message belongs to the first order of the same customer
-   *      at the same restaurant made after it or at its moment — so from just
-   *      after the order before, up to this one — and none older than 24
-   *      hours before the order (`inWindow`). `received_at`: the database's
-   *      clock, as `created_at` is — the «أكّد» that made the order is
-   *      received in the very transaction that writes it, at its moment;
+   *   2b. a customer message the engine relayed to an order (its `order_id`,
+   *      brief م-أ) is that order's, whatever its time — and never another's;
+   *   3. a customer message relayed to none belongs to the first order of the
+   *      same customer at the same restaurant made after it or at its moment —
+   *      so from just after the order before, up to this one — and none older
+   *      than 24 hours before the order (`inWindow`). `received_at`: the
+   *      database's clock, as `created_at` is — the «أكّد» that made the
+   *      order is received in the very transaction that writes it, at its
+   *      moment;
    *   4. a bot message naming no order belongs where the customer's last
-   *      message before it belongs (3) — any message, an image too: the reply
-   *      answered it;
-   *   5. what comes after the customer's last order is no order's yet.
+   *      message before it belongs (2b, else 3) — any message, an image too:
+   *      the reply answered it;
+   *   5. what comes after the customer's last order, relayed to none, is no
+   *      order's yet.
    * Text messages alone; the latest 200, in time order then `id`. One
    * statement, so the order and its messages are one moment's.
    *
@@ -316,7 +320,8 @@ export class OrdersService {
               ON i.restaurant_id = o.restaurant_id
              AND i.from_phone = o.phone
            WHERE i.body IS NOT NULL
-             AND ${inWindow("i.received_at")}
+             AND (i.order_id = o.id
+                  OR (i.order_id IS NULL AND ${inWindow("i.received_at")}))
           UNION ALL
           SELECT m.id, 'outbound', m.body, m.sent_at
             FROM o
@@ -324,7 +329,7 @@ export class OrdersService {
               ON m.restaurant_id = o.restaurant_id
              AND m.to_phone = o.phone
             LEFT JOIN LATERAL (
-              SELECT a.received_at
+              SELECT a.received_at, a.order_id
                 FROM inbound_messages a
                WHERE a.restaurant_id = o.restaurant_id
                  AND a.from_phone = o.phone
@@ -332,7 +337,10 @@ export class OrdersService {
                ORDER BY a.received_at DESC, a.id DESC
                LIMIT 1) last ON true
            WHERE m.order_id = o.id
-              OR (m.order_id IS NULL AND ${inWindow("last.received_at")})
+              OR (m.order_id IS NULL
+                  AND (last.order_id = o.id
+                       OR (last.order_id IS NULL
+                           AND ${inWindow("last.received_at")})))
         )
         SELECT EXISTS (SELECT 1 FROM o) AS found,
                COALESCE(

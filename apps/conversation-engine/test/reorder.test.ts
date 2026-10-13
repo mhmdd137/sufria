@@ -262,6 +262,8 @@ function customer(
           from,
           body,
           deferred,
+          messageType: body === null ? "image" : "text",
+          relayed: { orderId: null },
         }),
       );
       await flushDeferred(svc.sender, deferred);
@@ -440,7 +442,9 @@ describe("«آخر طلب لك» in the first message", () => {
       lines: [{ item: "شاورما لحمة", qty: 1 }],
     });
 
-    await c.say("مرحبا");
+    // «منيو», not «مرحبا»: any other first message, with an order finished
+    // less than an hour ago, is relayed to it (brief م-أ).
+    await c.say("منيو");
     expect(c.reply()).toBe(
       withBlock(
         plain,
@@ -485,7 +489,8 @@ describe("«آخر طلب لك» in the first message", () => {
       lines: [{ item: "بطاطا", qty: 1 }],
     });
 
-    await c.say("مرحبا");
+    // «منيو»: any other message, with an order on its way, is relayed (م-أ).
+    await c.say("منيو");
     expect(c.reply()).toBe(plain);
     expect((await c.context())["reorder"]).toBeUndefined();
   });
@@ -505,7 +510,8 @@ describe("«آخر طلب لك» in the first message", () => {
       lines: [{ item: "بطاطا", qty: 1 }],
     });
 
-    await c.say("مرحبا");
+    // «منيو»: any other message, with an order on its way, is relayed (م-أ).
+    await c.say("منيو");
     expect(c.reply()).toBe(plain);
   });
 
@@ -929,7 +935,8 @@ describe("past the table", () => {
       lines: [{ item: "فلافل", qty: 1 }],
     });
 
-    await c.say("مرحبا");
+    // «منيو»: any other message, with an order on its way, is relayed (م-أ).
+    await c.say("منيو");
     expect(c.reply()).toBe(plain);
   });
 
@@ -962,7 +969,8 @@ describe("past the table", () => {
       lines: [{ item: "فلافل", qty: 1 }],
     });
 
-    await c.say("مرحبا");
+    // «منيو»: any other message, with an order on its way, is relayed (م-أ).
+    await c.say("منيو");
     expect(c.reply()).toContain("آخر طلب لك:");
   });
 

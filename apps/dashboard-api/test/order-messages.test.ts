@@ -18,6 +18,15 @@
  *      12 «شكرا» and its reply — after the last order: no order's yet
  * Another customer of A writes at minute 2; restaurant B has a customer with
  * the very same digits, who writes at minute 2 too.
+ *
+ * A third customer of A, for the messages the engine relays to an order
+ * (brief م-أ, `inbound_messages.order_id`):
+ *     100 «أكّد» — order A · 100.2 «استلمنا A»
+ *     130 «وين طلبي؟» relayed to A · 130.1 the relay line, naming A
+ *   130.5 a reply naming no order · 131 a voice note relayed to A (no text)
+ *     150 «منيو», relayed to none · 150.2 the menu
+ *     155 «أكّد» — order B · 155.2 «استلمنا B»
+ *     170 «شكرا», relayed to none — after the last order: no order's yet
  */
 import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import type { INestApplication } from "@nestjs/common";
@@ -39,6 +48,7 @@ const NO_SUCH_ORDER = "f0000000-0000-4000-8000-0000000000fe";
 
 const PHONE_1 = `9627${String(process.pid).padStart(8, "0").slice(-8)}`;
 const PHONE_2 = `9707${String(process.pid).padStart(8, "0").slice(-8)}`;
+const PHONE_3 = `9625${String(process.pid).padStart(8, "0").slice(-8)}`;
 
 let app: INestApplication;
 let baseUrl: string;
@@ -55,6 +65,8 @@ let staffBoth = "";
 let order101 = "";
 let order102 = "";
 let orderQuiet = "";
+let relayA = "";
+let relayB = "";
 let nextNumber = 101;
 let wamid = 0;
 
@@ -120,27 +132,32 @@ async function createOrder(
   return rows[0]!.id;
 }
 
-/** A customer's message, received at minute `m`; `text: null` is an image. */
+/**
+ * A customer's message, received at minute `m`; `text: null` is an image (or
+ * `type`). `orderId`: the order the engine relayed it to (brief م-أ), or none.
+ */
 async function inbound(
   name: string,
   restaurant: string,
   phone: string,
   m: number,
   text: string | null,
+  relay: { orderId?: string; type?: string } = {},
 ): Promise<void> {
   const { rows } = await audit.query<{ id: string }>(
     `INSERT INTO inbound_messages (restaurant_id, wa_message_id, phone_number_id,
                                    from_phone, message_type, body, payload,
-                                   sent_at, received_at)
-     VALUES ($1, $2, 'PHONE_TEST', $3, $4, $5, '{}'::jsonb, $6::timestamptz, $6::timestamptz)
+                                   sent_at, received_at, order_id)
+     VALUES ($1, $2, 'PHONE_TEST', $3, $4, $5, '{}'::jsonb, $6::timestamptz, $6::timestamptz, $7)
      RETURNING id`,
     [
       restaurant,
       `wamid.${RUN}.${++wamid}`,
       phone,
-      text === null ? "image" : "text",
+      relay.type ?? (text === null ? "image" : "text"),
       text,
       at(m),
+      relay.orderId ?? null,
     ],
   );
   msg[name] = { id: rows[0]!.id, at: at(m) };
@@ -313,6 +330,34 @@ beforeAll(async () => {
 
   const quiet = await createCustomer(restaurantA, `${PHONE_2}9`);
   orderQuiet = await createOrder(restaurantA, quiet, 20);
+
+  // The third customer: messages relayed to an order (brief م-أ).
+  const relayed = await createCustomer(restaurantA, PHONE_3);
+  await inbound("r-confirm-100", restaurantA, PHONE_3, 100, "أكّد");
+  relayA = await createOrder(restaurantA, relayed, 100);
+  await outbound("r-received-a", restaurantA, PHONE_3, 100.2, "استلمنا طلبك");
+  await inbound("r-where-130", restaurantA, PHONE_3, 130, "وين طلبي؟", {
+    orderId: relayA,
+  });
+  await outbound(
+    "r-line-130.1",
+    restaurantA,
+    PHONE_3,
+    130.1,
+    "وصلت رسالتك للمطعم.",
+    relayA,
+  );
+  await outbound("r-unnamed-130.5", restaurantA, PHONE_3, 130.5, "رد بلا طلب");
+  await inbound("r-voice-131", restaurantA, PHONE_3, 131, null, {
+    orderId: relayA,
+    type: "audio",
+  });
+  await inbound("r-menu-150", restaurantA, PHONE_3, 150, "منيو");
+  await outbound("r-menu-reply-150.2", restaurantA, PHONE_3, 150.2, "القائمة");
+  await inbound("r-confirm-155", restaurantA, PHONE_3, 155, "أكّد");
+  relayB = await createOrder(restaurantA, relayed, 155);
+  await outbound("r-received-b", restaurantA, PHONE_3, 155.2, "استلمنا طلبك");
+  await inbound("r-thanks-170", restaurantA, PHONE_3, 170, "شكرا");
 });
 
 afterAll(async () => {
@@ -443,5 +488,47 @@ describe("GET /orders/:id/messages — the reply", () => {
     });
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual(NOT_FOUND_BODY);
+  });
+});
+
+describe("GET /orders/:id/messages — a customer's message the engine relayed (brief م-أ)", () => {
+  it("a message relayed to order A after it was made is A's", async () => {
+    expect(named(await messagesOk(relayA))).toEqual([
+      "r-confirm-100",
+      "r-received-a",
+      "r-where-130",
+      "r-line-130.1",
+      "r-unnamed-130.5",
+    ]);
+  });
+
+  it("🔴 the same message, and order B made within 24 hours after it: not B's — rule 3 would have given it to B", async () => {
+    expect(named(await messagesOk(relayB))).toEqual([
+      "r-menu-150",
+      "r-menu-reply-150.2",
+      "r-confirm-155",
+      "r-received-b",
+    ]);
+  });
+
+  it("a message after the last order, relayed to none, is still no order's (rule 5 unchanged)", async () => {
+    const all = [
+      ...named(await messagesOk(relayA)),
+      ...named(await messagesOk(relayB)),
+    ];
+    expect(all).not.toContain("r-thanks-170");
+  });
+
+  it("a bot message naming no order, after a message relayed to A, is A's (rule 4 follows the link)", async () => {
+    expect(named(await messagesOk(relayA))).toContain("r-unnamed-130.5");
+    expect(named(await messagesOk(relayB))).not.toContain("r-unnamed-130.5");
+  });
+
+  it("a relayed message with no text (a voice note) is not shown — text messages alone, until brief م-ب", async () => {
+    const all = [
+      ...named(await messagesOk(relayA)),
+      ...named(await messagesOk(relayB)),
+    ];
+    expect(all).not.toContain("r-voice-131");
   });
 });

@@ -116,6 +116,8 @@ async function atCartReview(opts: {
         from,
         body,
         deferred,
+        messageType: body === null ? "image" : "text",
+        relayed: { orderId: null },
       }),
     );
     await flushDeferred(conversation.sender, deferred);

@@ -140,6 +140,8 @@ async function shop(opts: {
         from,
         body,
         deferred,
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
     await flushDeferred(conversation.sender, deferred);

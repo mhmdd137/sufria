@@ -95,11 +95,22 @@ export const ORDER_NUMBER_SLOT = "[رقم الطلب]";
  *
  * 🔴 `preparing` و `completed` بلا رسالة، وهاد قرار مش سهو:
  *   - `preparing` — المطعم بيضغط "قبول" و"قيد التحضير" ورا بعض بثواني.
- *     رسالة عليه بتوصل الزبون كإشعار تاني بلا معلومة جديدة بعد «أكّدنا طلبك.».
+ *     رسالة عليه بتوصل الزبون كإشعار تاني بلا معلومة جديدة بعد «أكّدنا طلبك
+ *     رقم …».
  *   - `completed` — الزبون ماسك طلبه بإيده وقت ما بتنضغط. رسالة "طلبك مكتمل"
  *     بتوصله وهو طالع من المحل.
  *   الاتنين ضجيج على قناة الزبون الشخصية، وكل رسالة زيادة بتقرّب حظر الرقم.
  *   **ما بينضاف إلهم نص لاحقا بلا قرار منتج مكتوب يلغي هالتعليق.**
+ *
+ *   The relay line (brief م-أ, Mohammed's written decision 3, 13 October)
+ *   names a `preparing` order in reply to the customer's own message —
+ *   `RELAY_STATUS_LINE_AR` in `relay-line.ts`, not here: the notification
+ *   stays silent.
+ *
+ * 🔴 Every message but «استلمنا» carries its number since brief م-أ
+ *    (decision 10): a customer with two orders cannot tell which one was
+ *    confirmed. `[رقم الطلب]`, filled by `statusNotificationAr` and
+ *    `readyMessageAr` with `String(n)`, as `orderReceivedMessageAr` does.
  *
  * `system` (ثالث قيم `cancelled_by`، بيطلع من مهمة B-2 لطلبات الدفع العالقة)
  * لسا بلا نص معتمد — البحث عنه لازم يكون صريح، ما بينحل بقيمة افتراضية.
@@ -112,27 +123,27 @@ export const ORDER_STATUS_MESSAGE_AR = {
    *    فيه الخانة.
    */
   pending_acceptance: `استلمنا طلبك رقم ${ORDER_NUMBER_SLOT} — التأكيد خلال دقائق.`,
-  accepted: "أكّدنا طلبك.",
+  accepted: `أكّدنا طلبك رقم ${ORDER_NUMBER_SLOT}.`,
   /**
    * 🔴 يتفرّع حسب `fulfillment_type` (ج §2.7) — و**الشكل المتفرّع هو الحارس**:
-   *    النوع نفسه يمنع إرسال «طلبك جاهز للاستلام.» لطلب توصيل. ثابت شقيق
-   *    بجانبه كان سيسمح بذلك ويمرّ في الترجمة بلا شكوى.
+   *    النوع نفسه يمنع إرسال «طلبك رقم … جاهز للاستلام.» لطلب توصيل. ثابت
+   *    شقيق بجانبه كان سيسمح بذلك ويمرّ في الترجمة بلا شكوى.
    *
    *    و«طلبك جاهز» وحدها ممنوعة: **الرسالة لا تعيد كلمة الشارة.**
    */
   ready: {
-    pickup: "طلبك جاهز للاستلام.",
-    delivery: "طلبك خرج للتوصيل.",
+    pickup: `طلبك رقم ${ORDER_NUMBER_SLOT} جاهز للاستلام.`,
+    delivery: `طلبك رقم ${ORDER_NUMBER_SLOT} خرج للتوصيل.`,
   },
   /** بيتفرّع حسب `cancelled_by` — مين ألغى بيغيّر الجملة، مش بس السبب. */
   cancelled: {
-    restaurant: `ألغينا طلبك — ${ORDER_CANCELLATION_REASON_SLOT}.`,
+    restaurant: `ألغينا طلبك رقم ${ORDER_NUMBER_SLOT} — ${ORDER_CANCELLATION_REASON_SLOT}.`,
     /**
      * إلغاء المطعم **بلا سبب** (بريف و §1.1، قرار 26 سبتمبر). `restaurant`
-     * بخانة فارغة كانت بتطلع «ألغينا طلبك — .» أو الخانة نفسها للزبون.
+     * بخانة فارغة كانت بتطلع «ألغينا طلبك رقم … — .» أو الخانة نفسها للزبون.
      */
-    restaurant_no_reason: "ألغينا طلبك.",
-    customer: "ألغينا الطلب حسب طلبك.",
+    restaurant_no_reason: `ألغينا طلبك رقم ${ORDER_NUMBER_SLOT}.`,
+    customer: `ألغينا الطلب رقم ${ORDER_NUMBER_SLOT} حسب طلبك.`,
   },
 } as const;
 
@@ -267,8 +278,14 @@ export const MENU_COMMANDS_TAIL_AR =
  *
  * والقيمتان اللي بتيجيا من برّا حقيقيتان: اسم المطعم بيكتبه المطعم، واسم
  * الصنف كذلك — ولا واحد فيهم ثابت بالكود.
+ *
+ * Exported for `relay-line.ts` (brief م-أ), which fills its slots with the
+ * very same pass.
  */
-function fillSlots(template: string, values: Record<string, string>): string {
+export function fillSlots(
+  template: string,
+  values: Record<string, string>,
+): string {
   return template.replace(/\[[^\]]+\]/gu, (slot) => values[slot] ?? slot);
 }
 
@@ -561,23 +578,6 @@ export const ORDER_STATUS_TEXTS_AR: readonly string[] = [
   ORDER_STATUS_MESSAGE_AR.cancelled.restaurant,
   ORDER_STATUS_MESSAGE_AR.cancelled.restaurant_no_reason,
   ORDER_STATUS_MESSAGE_AR.cancelled.customer,
-];
-
-/**
- * **كل نص يصل الزبون**، وهو ما تمشي عليه الحراسة فعلا (ج §15.6).
- *
- * 🔴 §0 من بريف ج ادّعى أن القاموس المحروس يورّث «حراسات الأرقام والممنوعات».
- *    الواقع حارسان اثنان: الأرقام العربية-الهندية، واسم الصنف ليس فاعلا.
- *    **لا حارس للممنوعات اللهجية** — فحصها يدوي، وبوابته مهمة مستقلة بعد ج.
- *    ولا تُقرأ هذه القائمة على أنها تحرس أكثر مما تحرس.
- *
- *    و`ORDER_STATUS_MESSAGE_AR` كانت خارج الحراسة كليا حتى الآن: «استلمنا
- *    طلبك» شُحنت بلا أن يفحصها شيء.
- */
-export const ALL_CUSTOMER_TEXTS_AR: readonly string[] = [
-  ...CART_TEXT_TEMPLATES_AR,
-  ...ORDER_TEXT_TEMPLATES_AR,
-  ...ORDER_STATUS_TEXTS_AR,
 ];
 
 // --- المال: قروش أعدادا صحيحة، والقسمة على 100 عند العرض وبس (§11.6-أ) -----
@@ -932,9 +932,17 @@ export function fulfillmentAskAr(feeMinor: number, currency: Currency): string {
  *    على الزبون، ولا كود يستطيع كشف ذلك.
  *
  * الإرسال نفسه مهمة المُراقِب (FR-11) وهي خارج ج — هذا الثابت وحده.
+ *
+ * With the order's number since brief م-أ (decision 10), and the relay line
+ * names a ready order with this very text.
  */
-export function readyMessageAr(fulfillmentType: "pickup" | "delivery"): string {
-  return ORDER_STATUS_MESSAGE_AR.ready[fulfillmentType];
+export function readyMessageAr(
+  fulfillmentType: "pickup" | "delivery",
+  orderNumber: number,
+): string {
+  return fillSlots(ORDER_STATUS_MESSAGE_AR.ready[fulfillmentType], {
+    [ORDER_NUMBER_SLOT]: String(orderNumber),
+  });
 }
 
 /** ما يحتاجه اختيار رسالة الحالة من صف الطلب — لا أكثر (بريف و §3). */
@@ -943,6 +951,8 @@ export interface StatusNotificationInput {
   fulfillmentType: "pickup" | "delivery";
   /** `orders.cancellation_reason` كما خزّنه الموظف. فارغ أو مسافات = بلا سبب. */
   cancellationReason: string | null;
+  /** `orders.order_number` — in every message since brief م-أ (decision 10). */
+  orderNumber: number;
 }
 
 /**
@@ -962,6 +972,7 @@ export interface StatusNotificationInput {
 export function statusNotificationAr(
   order: StatusNotificationInput,
 ): string | null {
+  const orderNumber = { [ORDER_NUMBER_SLOT]: String(order.orderNumber) };
   switch (order.status) {
     case "pending_acceptance":
     case "preparing":
@@ -969,14 +980,18 @@ export function statusNotificationAr(
     case "expired":
       return null;
     case "accepted":
-      return ORDER_STATUS_MESSAGE_AR.accepted;
+      return fillSlots(ORDER_STATUS_MESSAGE_AR.accepted, orderNumber);
     case "ready":
-      return readyMessageAr(order.fulfillmentType);
+      return readyMessageAr(order.fulfillmentType, order.orderNumber);
     case "cancelled": {
       const reason = order.cancellationReason?.trim() ?? "";
       return reason === ""
-        ? ORDER_STATUS_MESSAGE_AR.cancelled.restaurant_no_reason
+        ? fillSlots(
+            ORDER_STATUS_MESSAGE_AR.cancelled.restaurant_no_reason,
+            orderNumber,
+          )
         : fillSlots(ORDER_STATUS_MESSAGE_AR.cancelled.restaurant, {
+            ...orderNumber,
             [ORDER_CANCELLATION_REASON_SLOT]: reason,
           });
     }

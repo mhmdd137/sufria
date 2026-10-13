@@ -9,6 +9,7 @@ import {
   setTenantContext,
   type TenantDb,
 } from "../db/tenant-db.js";
+import { eq } from "drizzle-orm";
 import { inboundMessages } from "@sufria/shared";
 import { logger, maskPhone } from "../logger.js";
 import type { InboundMessage, ParsedWebhook } from "./payload.js";
@@ -152,16 +153,20 @@ export class WebhookService {
         // ---------------------------------------------------------------
         await setTenantContext(tx, restaurantId);
 
-        await tx.insert(inboundMessages).values({
-          restaurantId,
-          waMessageId: message.waMessageId,
-          phoneNumberId: message.phoneNumberId,
-          fromPhone: message.from,
-          messageType: message.type,
-          body: message.body,
-          payload: message.raw,
-          sentAt: message.sentAt,
-        });
+        const [stored] = await tx
+          .insert(inboundMessages)
+          .values({
+            restaurantId,
+            waMessageId: message.waMessageId,
+            phoneNumberId: message.phoneNumberId,
+            fromPhone: message.from,
+            messageType: message.type,
+            body: message.body,
+            payload: message.raw,
+            sentAt: message.sentAt,
+          })
+          .returning({ id: inboundMessages.id });
+        if (stored === undefined) throw new Error("ما انكتب صف رسالة واردة");
 
         logger.info(
           {
@@ -185,23 +190,39 @@ export class WebhookService {
         //    الفشل العابر الوحيد — إرسال ما نجح — بيطلع كاستثناء وبيوصل
         //    catch تحت فبيصير "failed" و500، وهاد المطلوب بالضبط.
         // ---------------------------------------------------------------
+        const relayed: { orderId: string | null } = { orderId: null };
         const conversation = await this.conversation.handleInbound(tx, {
           restaurantId,
           phoneNumberId: message.phoneNumberId,
           from: message.from,
           body: message.body,
           deferred,
+          messageType: message.type,
+          relayed,
         });
         logger.debug(
           { restaurantId, waMessageId: message.waMessageId, conversation },
           "خطوة المحادثة خلصت",
         );
 
+        // -------------------------------------------------------------
+        // ٥. The order the message was relayed to (brief م-أ) — on its own
+        //    row, in this very transaction: the engine decides the order,
+        //    and this file, which wrote the row, writes its `order_id`. A
+        //    failure here rolls the message back like any other step.
+        // -------------------------------------------------------------
+        if (relayed.orderId !== null) {
+          await tx
+            .update(inboundMessages)
+            .set({ orderId: relayed.orderId })
+            .where(eq(inboundMessages.id, stored.id));
+        }
+
         return "stored";
       });
 
       // ---------------------------------------------------------------
-      // ٥. 🔴 **بعد الـCOMMIT.** رسالة «استلمنا طلبك» بتنبعت من هون وبس
+      // ٦. 🔴 **بعد الـCOMMIT.** رسالة «استلمنا طلبك» بتنبعت من هون وبس
       //    (ج §8، الخطوة 7): قبل الـCOMMIT بتخلّي الزبون ماسك تأكيدا عن
       //    طلب ممكن ما ينكتب، و**الرسالة ما بتنسحب** مع المعاملة.
       //    وفشلها بينسجّل وبس — الطلب مكتوب ومقفول وما بينمسّ.

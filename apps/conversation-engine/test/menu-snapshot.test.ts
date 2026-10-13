@@ -126,6 +126,8 @@ async function restaurant(
         from,
         body,
         deferred: [],
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
     const sent = replies.forRestaurant(restaurantId);

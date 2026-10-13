@@ -141,6 +141,8 @@ async function shop(opts: {
         from,
         body,
         deferred,
+        messageType: body === null ? "image" : "text",
+        relayed: { orderId: null },
       }),
     );
     await flushDeferred(conversation.sender, deferred);
@@ -786,6 +788,8 @@ describe("العدّاد والاستسلام", () => {
       from: s.from,
       // سباق على `browsing`؛ ولا واحد من الفرعين بيخلق طلبا.
       deferred: [],
+      messageType: "text",
+      relayed: { orderId: null },
     };
     const winnerDb = new TenantDb();
     let releaseWinner = (): void => {};
@@ -931,6 +935,8 @@ describe("ب-5 · «تم» → cart_review", () => {
       body: "تم",
       // «تم» مرتين بنفس اللحظة — الفائز بيوصل `cart_review`، ولا طلب بينخلق.
       deferred: [],
+      messageType: "text",
+      relayed: { orderId: null },
     };
     const winnerDb = new TenantDb();
     let releaseWinner = (): void => {};
