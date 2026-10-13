@@ -22,7 +22,7 @@ with `ERR_PNPM_BAD_PM_VERSION`).
 |---|---|---|
 | `packages/shared` | `@sufria/shared` | Drizzle schema mirror + domain logic shared by every app |
 | `apps/dashboard-api` | `@sufria/dashboard-api` | NestJS REST API for the restaurant dashboard: orders and their status, restaurant settings (task D); the menu — `GET`/`POST /menu-items`, `PATCH /menu-items/:id` (name, price, availability, archive and bring back), `POST /menu-items/enable-all`, `GET /menu-categories` — and `PATCH /restaurant/orders-pause`, all under the 4096 guard where they can lengthen the menu (brief ي-أ, `docs/brief-ja-menu-backend.md`). Contracts as built: `docs/13-dashboard-api-brief.md` §9 (§9.10 for ي-أ) |
-| `apps/conversation-engine` | `@sufria/conversation-engine` | WhatsApp webhooks, business-hours gate, session, browsing cart, pickup-or-delivery, address, and order creation (task C); the customer-notification poller (task F, `src/notify/`); the 60-minute session timeout (task H, `docs/17-session-timeout-brief.md`); orders paused and the empty menu (brief ي-أ §4, `src/conversation/orders-paused.ts`); «آخر طلب لك» in a returning customer's first message, and «نفسه» (FR-08, brief ك, `docs/brief-ka-reorder.md`, `src/conversation/reorder.ts`) |
+| `apps/conversation-engine` | `@sufria/conversation-engine` | WhatsApp webhooks, business-hours gate, session, browsing cart, pickup-or-delivery, address, and order creation (task C); the customer-notification poller (task F, `src/notify/`); the 60-minute session timeout (task H, `docs/17-session-timeout-brief.md`); orders paused and the empty menu (brief ي-أ §4, `src/conversation/orders-paused.ts`); «آخر طلب لك» in a returning customer's first message, and «نفسه» (FR-08, brief ك, `docs/brief-ka-reorder.md`, `src/conversation/reorder.ts`); a customer's message after an order reaches the restaurant — the relay line instead of the menu, the message linked to the order, a reaction stored and nothing else (brief م-أ, `docs/brief-ma-customer-messages.md`, `src/conversation/customer-relay.ts`) |
 | `apps/dashboard-web` | `@sufria/dashboard-web` | Next.js staff UI: login, the orders screen (task G, `docs/16-orders-screen-brief.md`), an order's details with its conversation (task I, `docs/brief-i-order-details.md`), and the menu screen with the orders pause — `/menu`, `/menu/removed`, the pause strip on every page (brief ي-ب, `docs/brief-jb-menu-screen.md`). Feature-based: `app/` (routes) · `features/<x>/` · `shared/` — see *Dashboard structure*. Talks to `dashboard-api` at `NEXT_PUBLIC_API_URL` |
 | `db/migrations` | — | Raw SQL. The single source of truth for the schema |
 | `db/seed` | — | Dev-only fixtures |
@@ -479,11 +479,42 @@ into the same `.next` that `next start` serves: restart a running one after.
   behaviour on a row that really carries a legacy `timezone` key is unverified.
   No production database exists, so nothing is at risk today. If a legacy database
   ever appears, check it by hand before migrating.
-- **`order_placed` is a closed state, so the next message opens a brand-new
-  session and the customer gets the whole menu again.** There is no "your order
-  is on its way" reply and no way to ask about an order that was just placed.
-  Deliberate for now — recorded as a product decision for Mohammed before the
-  pilot (`docs/12-after-cart-brief.md` §16.8), not as a bug to fix in code.
+- **`order_placed` is a closed state — and since brief م-أ (Mohammed, 13
+  October) a customer's message after an order reaches the restaurant**
+  (`conversation/customer-relay.ts`). With no active session, a customer who
+  has an order on its way (`pending_acceptance` · `accepted` · `preparing` ·
+  `ready`) made less than `RELAY_OPEN_ORDER_MAX_MINUTES` (180) ago, or one
+  `completed`/`cancelled` less than `RELAY_CLOSED_ORDER_MINUTES` (60) ago — its
+  last history row, else `created_at`, as `status_changed_at` — gets one line
+  instead of the menu: a status line per order on its way, oldest first,
+  «وصلت رسالتك للمطعم.», «للتواصل مباشرة: …» (none when `contact_phone` is
+  NULL) and «لطلب جديد، اكتب «منيو».»; a finished order alone gets «وصلت
+  رسالتك للمطعم بخصوص طلبك رقم …» instead of the status and «وصلت». The
+  message is linked to the newest order on its way, else the finished one: the
+  webhook writes `inbound_messages.order_id` (0016) on its row in the same
+  transaction, and the order's conversation shows it (`docs/13` §9.9, rule
+  2b). The
+  line is not repeated within `RELAY_REPLY_QUIET_MINUTES` (10), whatever the
+  statuses do — `customers.relay_replied_at`, read and written under `FOR
+  UPDATE` on the customer's row, so two messages at once send one line; the
+  messages in between are linked with no reply. It is sent inside the
+  message's transaction (a failed send rolls it back) and names its order,
+  so `outbound_messages` keeps it under that order. Where it runs: after an
+  active session's routing (a customer mid-order carries on as before) and
+  **before the hours gate and the pause** — the line, not the closing or the
+  paused text. Every time is the database's clock. No session is opened, no
+  customer written. One `info` line: restaurant, number masked, order, sent
+  or quiet. **Still the menu:** «منيو» (always a new order — `matchCommand`'s
+  `menu`) · an order on its way older than 3 hours (forgotten orders are real,
+  and FR-13's auto-cancel is not built) · a finished order more than an hour
+  ago · a message before any order · `expired`. **A reaction**
+  (`message_type = 'reaction'`) is stored and nothing else, first thing in
+  `handleInbound`, in every state: no read, no reply, no link, no session or
+  `last_message_at` touched, no «not understood» counted. The three
+  variables are pinned to their defaults in `setup-env.ts`; the laptop trial
+  sets minutes on the command line. `test/customer-relay.test.ts` holds the
+  brief's tests 1–22; eight breaks were each predicted before they ran
+  (`docs/brief-ma-customer-messages.md`, «كما انبنى»).
 - **An active session silent for `SESSION_IDLE_MINUTES` (default 60) or more
   expires lazily, when the next message arrives** (brief H). `handleInbound`
   reads the idle time with the session (`now() - last_message_at`, the
@@ -532,11 +563,13 @@ into the same `.next` that `next start` serves: restart a running one after.
   transaction, which holds a connection of the engine's pool), with
   `lock_timeout` and `statement_timeout` at 2 s; a failed save is an `error`
   line with the number masked, never a failed reply. `orderId` is set by the
-  status notifier alone: no message sent while a transaction is open carries
-  one — that transaction's rows are not there for the wrapper's connection —
-  and «استلمنا…», sent after COMMIT, carries none either, by Mohammed's
-  decision (5 October). `GET /orders/:id/messages` attributes such messages by
-  the customer's last message before them. The rules, as built:
+  status notifier, and by the relay line (brief م-أ), which names an order
+  committed long before the message's transaction. Never an order the open
+  transaction writes itself — its rows are not there for the wrapper's
+  connection — and «استلمنا…», sent after COMMIT, carries none either, by
+  Mohammed's decision (5 October). `GET /orders/:id/messages` attributes such
+  messages by the customer's last message before them — its `order_id` when
+  the engine relayed it, else its time. The rules, as built:
   `docs/13-dashboard-api-brief.md` §9.9.
 - **The security gate's negative control 2 alters an application role.**
   `tests/security/negative-controls.sh` runs `ALTER ROLE sufria_dashboard
@@ -601,9 +634,11 @@ into the same `.next` that `next start` serves: restart a running one after.
   already in the dashboard, so the restaurant still sees it — but the customer
   gets silence after «أكّد». The notify poller does not retry it either: the
   order is written `notified = true`, so the poller never sees it.
-- **A closed restaurant answers every message with the closing text.** No session
-  is opened by design, so nothing remembers that the customer was already told.
-  Rate-limiting that repeat belongs with the state machine.
+- **A closed restaurant answers every message with the closing text** — but a
+  customer with an order on its way, or one just finished, gets the relay line
+  (brief م-أ, decision 7). No session is opened by design, so nothing
+  remembers that the customer was already told. Rate-limiting that repeat
+  belongs with the state machine.
 - **The menu is sent whole, in one message.** A menu that exceeds WhatsApp's
   4096-character limit is detected, logged as an error and *not* sent — never
   truncated — and no session is opened, so it recovers by itself once the menu
@@ -623,11 +658,14 @@ into the same `.next` that `next start` serves: restart a running one after.
   commit.
 - **Orders can be paused** (`restaurants.orders_paused_at`, 0014; brief ي-أ,
   Mohammed's decisions 1–3). While set, every message gets
-  `ORDERS_PAUSED_AR`, the one text, and nothing is written. The order in
-  `handleInbound`: the session timeout (H) → **an active session while
-  paused: the text, before any routing** — «أكّد» included, so no order; the
-  session untouched, not even `last_message_at` → routing → the hours gate
-  (closed beats paused for a new conversation: its text carries the hours) →
+  `ORDERS_PAUSED_AR`, the one text, and nothing is written — but a customer
+  with no active session and an order on its way, or one just finished, gets
+  the relay line (brief م-أ). The order in `handleInbound`: a reaction (stored,
+  nothing else, brief م-أ) → the session timeout (H) → **an active session
+  while paused: the text, before any routing** — «أكّد» included, so no order;
+  the session untouched, not even `last_message_at` → routing → **the relay
+  (brief م-أ)** → the hours gate (closed beats paused for a new
+  conversation: its text carries the hours) →
   **a new conversation while paused: the text, no session** → `prepareMenu`.
   One `info` line per such reply: restaurant, `reason` (`paused` or
   `empty_menu`), number masked. Written by `PATCH /restaurant/orders-pause`
@@ -676,7 +714,8 @@ into the same `.next` that `next start` serves: restart a running one after.
   — the cart stays in that row — and, once orders resume, starts over with
   the menu. Both rules are the briefs'; this is what they add up to.
 - **«آخر طلب لك» — the reorder suggestion (FR-08, brief ك).** A new
-  conversation, past the hours and pause gates, reads the customer's last
+  conversation, past the relay (brief م-أ) and the hours and pause gates —
+  «منيو» as a first message is one — reads the customer's last
   order the restaurant accepted (`accepted` · `preparing` · `ready` ·
   `completed`) and puts it between the welcome and the menu, at today's
   names and prices, in today's menu order; an item off today is named on
