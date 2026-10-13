@@ -383,6 +383,8 @@ describe("بوابة ساعات الدوام — FR-22", () => {
         from,
         body: GREETING,
         deferred: [],
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
 
@@ -453,6 +455,8 @@ describe("أول رسالة من زبون بلا جلسة", () => {
         from,
         body: GREETING,
         deferred: [],
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
 
@@ -496,6 +500,8 @@ describe("أول رسالة من زبون بلا جلسة", () => {
         from,
         body: GREETING,
         deferred: [],
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
 
@@ -527,6 +533,8 @@ describe("أول رسالة من زبون بلا جلسة", () => {
         from,
         body: GREETING,
         deferred: [],
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
     const second = await db.runInTenant(restaurantId, (tx) =>
@@ -536,6 +544,8 @@ describe("أول رسالة من زبون بلا جلسة", () => {
         from,
         body: GREETING,
         deferred: [],
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
 
@@ -595,6 +605,8 @@ describe("رسالتين بفارق ميلي ثانية", () => {
       body: GREETING,
       // ولا مسار هون بيوصل `cart_review`، فالطابور دايما فاضي (ج §8).
       deferred: [],
+      messageType: "text",
+      relayed: { orderId: null },
     };
 
     const { rows } = await audit.query<{ id: string }>(
@@ -663,6 +675,8 @@ describe("رسالتين بفارق ميلي ثانية", () => {
         body: GREETING,
         // ولا مسار هون بيوصل `cart_review`، فالطابور دايما فاضي (ج §8).
         deferred: [],
+        messageType: "text",
+        relayed: { orderId: null },
       };
       const outcomes = await Promise.all([
         dbA.runInTenant(restaurantId, (tx) =>
@@ -715,6 +729,8 @@ describe("الفروع اللي ما كان عليها اختبار", () => {
       body: GREETING,
       // ولا مسار هون بيوصل `cart_review`، فالطابور دايما فاضي (ج §8).
       deferred: [],
+      messageType: "text",
+      relayed: { orderId: null },
     };
 
     expect(
@@ -836,6 +852,8 @@ describe("الفروع اللي ما كان عليها اختبار", () => {
         from: nextCustomer(),
         body: GREETING,
         deferred: [],
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
     const utcOutcome = await db.runInTenant(utcId, (tx) =>
@@ -845,6 +863,8 @@ describe("الفروع اللي ما كان عليها اختبار", () => {
         from: nextCustomer(),
         body: GREETING,
         deferred: [],
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
 
@@ -870,6 +890,8 @@ describe("الفروع اللي ما كان عليها اختبار", () => {
       body: GREETING,
       // ولا مسار هون بيوصل `cart_review`، فالطابور دايما فاضي (ج §8).
       deferred: [],
+      messageType: "text",
+      relayed: { orderId: null },
     };
 
     // الاثنين 01:00 بعمّان = الأحد 22:00 UTC. ذيل نافذة الأحد.
@@ -962,6 +984,8 @@ describe("سقف نص واتساب", () => {
         from,
         body: GREETING,
         deferred: [],
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
 
@@ -992,6 +1016,8 @@ describe("سقف نص واتساب", () => {
       body: GREETING,
       // ولا مسار هون بيوصل `cart_review`، فالطابور دايما فاضي (ج §8).
       deferred: [],
+      messageType: "text",
+      relayed: { orderId: null },
     };
 
     expect(
@@ -1288,6 +1314,8 @@ describe("ب-2 · menu_map وذيل الأوامر", () => {
         from,
         body: GREETING,
         deferred: [],
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
     const sessions = await sessionsOf(restaurantId);
@@ -1455,6 +1483,8 @@ describe("ب-2 · menu_map وذيل الأوامر", () => {
         from,
         body: GREETING,
         deferred: [],
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
 

@@ -91,3 +91,12 @@ process.env["SESSION_IDLE_MINUTES"] = "60";
  *    would see a suggestion where decision 3 says none.
  */
 process.env["REORDER_MIN_AGE_MINUTES"] = "180";
+
+/**
+ * 🔴 The relay's three (brief م-أ) pinned to their defaults, for the same
+ *    reason: the laptop trial sets them to minutes on the command line, and
+ *    a suite reading them would relay where decision 1 says the menu.
+ */
+process.env["RELAY_OPEN_ORDER_MAX_MINUTES"] = "180";
+process.env["RELAY_CLOSED_ORDER_MINUTES"] = "60";
+process.env["RELAY_REPLY_QUIET_MINUTES"] = "10";

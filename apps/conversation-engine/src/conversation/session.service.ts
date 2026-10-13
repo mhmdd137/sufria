@@ -19,6 +19,7 @@ import {
 import type { WhatsAppSender } from "../whatsapp/sender.js";
 import { handleBrowsingMessage } from "./browsing.js";
 import { handleCartReviewMessage } from "./cart-review.js";
+import { relayToRestaurant, type RelayMinutes } from "./customer-relay.js";
 import { handleFulfillmentMessage } from "./fulfillment.js";
 import { deliverMenu, prepareMenu } from "./menu-delivery.js";
 import { replyOrdersPaused } from "./orders-paused.js";
@@ -42,6 +43,12 @@ import { isSessionExpired } from "./session-idle.js";
  * any routing; a new conversation's right after the hours gate — and nothing
  * is written. A menu with no item to show gets the same text, instead of an
  * empty menu.
+ *
+ * A customer's message after an order (brief م-أ): with no active session, a
+ * customer who has an order on its way, or one finished a moment ago, gets
+ * one line about it instead of the menu, and the message is linked to that
+ * order (`customer-relay.ts`) — before the hours gate and the pause. A
+ * reaction is stored and nothing else, first of all.
  */
 
 /** الحالات اللي معناها "الجلسة خلصت". نفس تعريف 0002 و0007 بالضبط. */
@@ -81,7 +88,18 @@ export type ConversationOutcome =
    * The menu has no item to show (decision 3): ORDERS_PAUSED_AR instead of an
    * empty menu, and no session opened.
    */
-  | "empty_menu";
+  | "empty_menu"
+  /**
+   * The message was relayed to the customer's order (brief م-أ):
+   * `ctx.relayed.orderId` names it, and the relay line went out — or the
+   * quiet minutes kept it. No session opened, none touched.
+   */
+  | "relayed"
+  /**
+   * A reaction (👍 on a message): stored by the webhook, and nothing else —
+   * no read, no reply, no link, no session touched (brief م-أ, decision 9).
+   */
+  | "reaction_ignored";
 
 /**
  * رسالة بتنبعت **بعد** ما تُقفل معاملة الرسالة بنجاح — ج §8، الخطوة 7.
@@ -144,6 +162,22 @@ export interface ConversationContext {
    * هو اللي بيفرّغه بـ`flushDeferred` بعد ما تنجح.
    */
   deferred: DeferredSend[];
+  /**
+   * Meta's `type` — `text`, `audio`, `image`, `reaction`… (brief م-أ).
+   *
+   * 🔴 Mandatory, for the reason of `body`: an optional field is forgotten
+   *    silently, and every 👍 then answers with the menu again — or, in
+   *    browsing, counts as «not understood».
+   */
+  messageType: string;
+  /**
+   * An out slot (brief م-أ): the caller gives `{ orderId: null }`, and
+   * `handleInbound` fills it when it relays the message to an order. The
+   * caller owns the message's row — the webhook — and writes `order_id` on
+   * it in the same transaction, so the engine never needs the row's id.
+   * Mandatory, as `deferred`: forgotten, the message reaches no order.
+   */
+  relayed: { orderId: string | null };
 }
 
 export class ConversationService {
@@ -166,6 +200,12 @@ export class ConversationService {
     /** «آخر طلب لك»: no suggestion with an order younger than this (brief ك). */
     private readonly reorderMinAgeMinutes: number = env()
       .REORDER_MIN_AGE_MINUTES,
+    /** A customer's message after an order: the relay's windows (brief م-أ). */
+    private readonly relayMinutes: RelayMinutes = {
+      openOrderMax: env().RELAY_OPEN_ORDER_MAX_MINUTES,
+      closedOrder: env().RELAY_CLOSED_ORDER_MINUTES,
+      replyQuiet: env().RELAY_REPLY_QUIET_MINUTES,
+    },
   ) {}
 
   /**
@@ -182,6 +222,15 @@ export class ConversationService {
     tx: TenantTx,
     ctx: ConversationContext,
   ): Promise<ConversationOutcome> {
+    // ---------------------------------------------------------------------
+    // 🔴 A reaction is stored, and nothing else — brief م-أ, decision 9. The
+    //    webhook already kept it; here nothing is read or sent, no session
+    //    touched, not `last_message_at`, not the «not understood» streak.
+    //    First of all, so in every state alike: a 👍 on «طلبك رقم … جاهز»
+    //    used to bring the whole menu back.
+    // ---------------------------------------------------------------------
+    if (ctx.messageType === "reaction") return "reaction_ignored";
+
     const restaurant = await this.readRestaurant(tx, ctx.restaurantId);
 
     // ---------------------------------------------------------------------
@@ -274,6 +323,28 @@ export class ConversationService {
         .set({ lastMessageAt: this.now() })
         .where(eq(conversationSessions.id, existing.id));
       return "active_session";
+    }
+
+    // ---------------------------------------------------------------------
+    // 🔴 A customer's message after an order — brief م-أ. No active session
+    //    here (an order under way carries on above, decision 6). A customer
+    //    with an order on its way younger than the limit, or one completed
+    //    or cancelled a moment ago, gets one line about it instead of the
+    //    menu, and the message is linked to it; «منيو» always takes the path
+    //    below. Before the hours gate and the pause on purpose (decision 7):
+    //    the line, not the closing or the paused text.
+    // ---------------------------------------------------------------------
+    const relayed = await relayToRestaurant(tx, this.sender, {
+      restaurantId: ctx.restaurantId,
+      phoneNumberId: ctx.phoneNumberId,
+      from: ctx.from,
+      body: ctx.body,
+      contactPhone: restaurant.contactPhone,
+      minutes: this.relayMinutes,
+    });
+    if (relayed !== null) {
+      ctx.relayed.orderId = relayed.orderId;
+      return "relayed";
     }
 
     // ---------------------------------------------------------------------

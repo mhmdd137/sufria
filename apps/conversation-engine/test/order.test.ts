@@ -140,6 +140,8 @@ async function shop(opts: {
         from,
         body,
         deferred,
+        messageType: body === null ? "image" : "text",
+        relayed: { orderId: null },
       }),
     );
     await flushDeferred(conversation.sender, deferred);
@@ -456,6 +458,8 @@ describe("الذرّية والعزل", () => {
       from: "", // بينتعبّى تحت
       body: "أكّد",
       deferred: [] as DeferredSend[],
+      messageType: "text",
+      relayed: { orderId: null },
     };
     const { rows: who } = await audit.query<{ phone_number: string }>(
       `SELECT phone_number FROM customers WHERE restaurant_id = $1`,
@@ -616,6 +620,8 @@ describe("رقم الطلب — بريف د §2.1", () => {
           from,
           body,
           deferred,
+          messageType: "text",
+          relayed: { orderId: null },
         }),
       );
       await flushDeferred(conversation.sender, deferred);
@@ -635,8 +641,9 @@ describe("رقم الطلب — بريف د §2.1", () => {
     await s.say("أكّد");
     expect(await numbersOf(s)).toEqual([101]);
 
-    // `order_placed` حالة مغلقة، فالرسالة الجاية بتفتح جلسة جديدة (§16.8).
-    expect(await s.say("مرحبا")).toBe("greeted");
+    // `order_placed` حالة مغلقة، و«منيو» بعدها بتفتح جلسة جديدة (§16.8) —
+    // أي رسالة تانية، والطلب 101 لسا ماشي، بتروح للمطعم (بريف م-أ).
+    expect(await s.say("منيو")).toBe("greeted");
     await s.say("2");
     await s.say("تم");
     await s.say("أكّد");
@@ -708,6 +715,8 @@ describe("رقم الطلب — بريف د §2.1", () => {
       from,
       body: "أكّد",
       deferred,
+      messageType: "text",
+      relayed: { orderId: null },
     });
     const winnerSends: DeferredSend[] = [];
     const loserSends: DeferredSend[] = [];
@@ -822,7 +831,7 @@ describe("العملة — بريف د §2.2 و§8.4", () => {
     };
   }
 
-  /** كل سطر فيه مبلغ (رقم بمنزلتين) لازم يحمل تسمية العملة. */
+  /** Every line with an amount in it must carry the currency's label. */
   const amountLines = (bodies: readonly string[]): string[] =>
     // An amount where the texts put one — after «—», «المجموع» or «التوصيل» —
     // with or without its decimals: `.00` is dropped since brief ل §6.

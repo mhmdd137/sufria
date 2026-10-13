@@ -128,6 +128,8 @@ async function shop(opts: {
         from,
         body,
         deferred,
+        messageType: "text",
+        relayed: { orderId: null },
       }),
     );
     await flushDeferred(service.sender, deferred);
@@ -350,13 +352,14 @@ describe("الانتهاء — بريف ح §3", () => {
     expect(ordersBefore).toHaveLength(1);
     expect(ordersBefore[0]?.["status"]).toBe("pending_acceptance");
 
-    // الرسالة بعد الطلب بتفتح جلسة جديدة (السلوك القائم)، وهاي اللي بتنتهي.
-    expect(await s.say("مرحبا")).toBe("greeted");
+    // «منيو» بعد الطلب بتفتح جلسة جديدة، وهاي اللي بتنتهي. أي رسالة تانية،
+    // والطلب لسا ماشي، كانت رح تروح للمطعم بلا جلسة (بريف م-أ).
+    expect(await s.say("منيو")).toBe("greeted");
     const browsing = await s.active();
     await age(placed?.id ?? "", "2 hours");
     await age(browsing.id, "2 hours");
 
-    expect(await s.say("مرحبا")).toBe("greeted");
+    expect(await s.say("منيو")).toBe("greeted");
 
     expect(await orderRow()).toEqual(ordersBefore);
     const states = (await s.sessions()).map((x) => x.state);
@@ -379,6 +382,8 @@ describe("الانتهاء — بريف ح §3", () => {
       from: s.from,
       body: "مرحبا",
       deferred: [],
+      messageType: "text",
+      relayed: { orderId: null },
     };
 
     const winnerDb = new TenantDb();

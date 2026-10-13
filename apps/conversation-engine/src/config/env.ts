@@ -66,6 +66,23 @@ const EnvSchema = z.object({
    */
   REORDER_MIN_AGE_MINUTES: z.coerce.number().int().positive().default(180),
 
+  /**
+   * A customer's message after an order (brief م-أ, decision 1) goes to the
+   * restaurant while they have an order on its way younger than this many
+   * minutes — forgotten orders are real, and with no limit «مرحبا» the next
+   * day would answer about an old one…
+   */
+  RELAY_OPEN_ORDER_MAX_MINUTES: z.coerce.number().int().positive().default(180),
+  /** …or one completed or cancelled less than this many minutes ago… */
+  RELAY_CLOSED_ORDER_MINUTES: z.coerce.number().int().positive().default(60),
+  /**
+   * …and the relay line is not sent again to the same customer within this
+   * many minutes (decision 4): every extra message brings the number closer
+   * to a block. Variables, not constants, so the laptop trial can use minutes
+   * instead of hours. Measured on the database's clock.
+   */
+  RELAY_REPLY_QUIET_MINUTES: z.coerce.number().int().positive().default(10),
+
   ENGINE_PORT: z.coerce.number().int().positive().default(3001),
   PG_POOL_MAX: z.coerce.number().int().positive().default(10),
 

@@ -448,9 +448,9 @@ export const inboundMessages = pgTable(
  * Written by the engine's saving wrapper after a send succeeded, read by the
  * dashboard API for an order's conversation. `to_phone` holds the same digits
  * as `customers.phone_number` and `inbound_messages.from_phone`. `order_id` is
- * set by the status notifications alone; the SQL ties it to the restaurant
- * with the tenant key `(order_id, restaurant_id) → orders`, which, like
- * `order_items`', is not mirrored here.
+ * set by the status notifications and the relay line (brief م-أ); the SQL
+ * ties it to the restaurant with the tenant key `(order_id, restaurant_id) →
+ * orders`, which, like `order_items`', is not mirrored here.
  */
 export const outboundMessages = pgTable(
   "outbound_messages",
