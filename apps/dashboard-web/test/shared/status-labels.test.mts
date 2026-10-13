@@ -112,13 +112,24 @@ test("نص رسائل الزبون هو النص المعتمد", () => {
     orderReceivedMessageAr(101),
     "استلمنا طلبك رقم 101 — التأكيد خلال دقائق.",
   );
-  assert.equal(ORDER_STATUS_MESSAGE_AR.accepted, "أكّدنا طلبك.");
+  // 🔴 With its number since brief م-أ (decision 10): a customer with two
+  //    orders cannot tell which one was confirmed.
+  assert.equal(
+    ORDER_STATUS_MESSAGE_AR.accepted,
+    `أكّدنا طلبك رقم ${ORDER_NUMBER_SLOT}.`,
+  );
   // 🔴 فرعان لا ثابت واحد (ج §2.7 و§15.5): «جاهز» لطلب توصيل تعني «سلّمناه
   //    للسائق»، فنص الاستلام عليه كذب. والشكل المتفرّع هو ما يمنع إرساله.
-  assert.equal(ORDER_STATUS_MESSAGE_AR.ready.pickup, "طلبك جاهز للاستلام.");
-  assert.equal(ORDER_STATUS_MESSAGE_AR.ready.delivery, "طلبك خرج للتوصيل.");
-  assert.equal(readyMessageAr("pickup"), "طلبك جاهز للاستلام.");
-  assert.equal(readyMessageAr("delivery"), "طلبك خرج للتوصيل.");
+  assert.equal(
+    ORDER_STATUS_MESSAGE_AR.ready.pickup,
+    `طلبك رقم ${ORDER_NUMBER_SLOT} جاهز للاستلام.`,
+  );
+  assert.equal(
+    ORDER_STATUS_MESSAGE_AR.ready.delivery,
+    `طلبك رقم ${ORDER_NUMBER_SLOT} خرج للتوصيل.`,
+  );
+  assert.equal(readyMessageAr("pickup", 101), "طلبك رقم 101 جاهز للاستلام.");
+  assert.equal(readyMessageAr("delivery", 101), "طلبك رقم 101 خرج للتوصيل.");
   // الرسالة لا تعيد كلمة الشارة: «جاهز» شارة، والرسالة تقول ماذا يفعل الزبون.
   assert.ok(
     !ORDER_STATUS_MESSAGE_AR.ready.delivery.includes("جاهز"),
@@ -126,7 +137,7 @@ test("نص رسائل الزبون هو النص المعتمد", () => {
   );
   assert.equal(
     ORDER_STATUS_MESSAGE_AR.cancelled.customer,
-    "ألغينا الطلب حسب طلبك.",
+    `ألغينا الطلب رقم ${ORDER_NUMBER_SLOT} حسب طلبك.`,
   );
 });
 

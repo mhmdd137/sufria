@@ -13,6 +13,7 @@ import {
   CART_TEXT_TEMPLATES_AR,
   ORDER_STATUS_TEXTS_AR,
   ORDER_TEXT_TEMPLATES_AR,
+  RELAY_TEXTS_AR,
   ITEM_NAME_SLOT,
   MAX_QTY_PER_ITEM,
   MENU_LINE_AR,
@@ -121,7 +122,12 @@ test("ولا رقم عربي-هندي بأي نص بيوصل الزبون", () =
 //    بدون هالفحص، حدا بيشيل سطرا من `ALL_CUSTOMER_TEXTS_AR` والحارسين بيضلوا
 //    خضر — بيفحصوا نصوص السلّة وبس، زي ما كانوا قبل §15.6 بالضبط.
 test("🔴 الحراسة بتشمل نصوص ج ورسائل الحالة، مش نصوص السلّة وحدها", () => {
-  for (const template of [...ORDER_TEXT_TEMPLATES_AR, ...ORDER_STATUS_TEXTS_AR])
+  for (const template of [
+    ...ORDER_TEXT_TEMPLATES_AR,
+    ...ORDER_STATUS_TEXTS_AR,
+    // The relay line's own (brief م-أ).
+    ...RELAY_TEXTS_AR,
+  ])
     assert.ok(
       ALL_CUSTOMER_TEXTS_AR.includes(template),
       `«${template}» برّا الحراسة`,
@@ -136,7 +142,8 @@ test("🔴 الحراسة بتشمل نصوص ج ورسائل الحالة، م�
     ALL_CUSTOMER_TEXTS_AR.length,
     CART_TEXT_TEMPLATES_AR.length +
       ORDER_TEXT_TEMPLATES_AR.length +
-      ORDER_STATUS_TEXTS_AR.length,
+      ORDER_STATUS_TEXTS_AR.length +
+      RELAY_TEXTS_AR.length,
   );
 });
 

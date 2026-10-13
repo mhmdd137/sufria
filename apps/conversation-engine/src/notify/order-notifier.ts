@@ -47,6 +47,8 @@ export const FREE_FORM_WINDOW_MS = (23 * 60 + 50) * 60 * 1000;
 export interface ClaimedOrder {
   id: string;
   restaurantId: string;
+  /** `orders.order_number` — in the message since brief م-أ (decision 10). */
+  orderNumber: number;
   status: OrderStatus;
   fulfillmentType: "pickup" | "delivery";
   cancellationReason: string | null;
@@ -380,6 +382,7 @@ export async function claimOrderForNotification(
   const res = await tx.execute<{
     id: string;
     restaurant_id: string;
+    order_number: number;
     status: OrderStatus;
     fulfillment_type: "pickup" | "delivery";
     cancellation_reason: string | null;
@@ -394,7 +397,7 @@ export async function claimOrderForNotification(
        AND o.notified = false
        AND c.id = o.customer_id
        AND r.id = o.restaurant_id
-    RETURNING o.id, o.restaurant_id, o.status::text AS status,
+    RETURNING o.id, o.restaurant_id, o.order_number, o.status::text AS status,
               o.fulfillment_type::text AS fulfillment_type,
               o.cancellation_reason, o.created_at,
               c.phone_number, r.whatsapp_phone_id`);
@@ -403,6 +406,7 @@ export async function claimOrderForNotification(
   return {
     id: row.id,
     restaurantId: row.restaurant_id,
+    orderNumber: row.order_number,
     status: row.status,
     fulfillmentType: row.fulfillment_type,
     cancellationReason: row.cancellation_reason,

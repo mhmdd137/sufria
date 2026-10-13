@@ -11,6 +11,7 @@ import {
   ALL_CUSTOMER_TEXTS_AR,
   ORDER_STATUSES,
   ORDER_STATUS_MESSAGE_AR,
+  ORDER_NUMBER_SLOT,
   ORDER_STATUS_TEXTS_AR,
   statusNotificationAr,
   type StatusNotificationInput,
@@ -22,6 +23,7 @@ const order = (
 ): StatusNotificationInput => ({
   fulfillmentType: "pickup",
   cancellationReason: null,
+  orderNumber: 101,
   ...over,
 });
 
@@ -35,10 +37,10 @@ test("pending_acceptance ← صمت: «استلمنا» يرسلها المحر�
   );
 });
 
-test("accepted ← «أكّدنا طلبك.»", () => {
+test("accepted ← «أكّدنا طلبك رقم 101.»", () => {
   assert.equal(
     statusNotificationAr(order({ status: "accepted" })),
-    "أكّدنا طلبك.",
+    "أكّدنا طلبك رقم 101.",
   );
 });
 
@@ -50,19 +52,19 @@ test("🔴 preparing ← صمت، بالاستلام والتوصيل", () => {
     );
 });
 
-test("ready · استلام ← «طلبك جاهز للاستلام.»", () => {
+test("ready · استلام ← «طلبك رقم 101 جاهز للاستلام.»", () => {
   assert.equal(
     statusNotificationAr(order({ status: "ready", fulfillmentType: "pickup" })),
-    "طلبك جاهز للاستلام.",
+    "طلبك رقم 101 جاهز للاستلام.",
   );
 });
 
-test("ready · توصيل ← «طلبك خرج للتوصيل.»", () => {
+test("ready · توصيل ← «طلبك رقم 101 خرج للتوصيل.»", () => {
   assert.equal(
     statusNotificationAr(
       order({ status: "ready", fulfillmentType: "delivery" }),
     ),
-    "طلبك خرج للتوصيل.",
+    "طلبك رقم 101 خرج للتوصيل.",
   );
 });
 
@@ -71,7 +73,7 @@ test("cancelled · بسبب ← السبب حرفيا في الخانة", () => 
     statusNotificationAr(
       order({ status: "cancelled", cancellationReason: "نفد الخبز" }),
     ),
-    "ألغينا طلبك — نفد الخبز.",
+    "ألغينا طلبك رقم 101 — نفد الخبز.",
   );
 });
 
@@ -80,16 +82,16 @@ test("cancelled · السبب يُقصّ من طرفيه", () => {
     statusNotificationAr(
       order({ status: "cancelled", cancellationReason: "  نفد الخبز \n" }),
     ),
-    "ألغينا طلبك — نفد الخبز.",
+    "ألغينا طلبك رقم 101 — نفد الخبز.",
   );
 });
 
-test("cancelled · بلا سبب (NULL) ← «ألغينا طلبك.»", () => {
+test("cancelled · بلا سبب (NULL) ← «ألغينا طلبك رقم 101.»", () => {
   assert.equal(
     statusNotificationAr(
       order({ status: "cancelled", cancellationReason: null }),
     ),
-    "ألغينا طلبك.",
+    "ألغينا طلبك رقم 101.",
   );
 });
 
@@ -97,7 +99,7 @@ test("🔴 cancelled · سبب فارغ أو مسافات ← يعامَل كغ�
   for (const cancellationReason of ["", "   ", "\n\t "])
     assert.equal(
       statusNotificationAr(order({ status: "cancelled", cancellationReason })),
-      "ألغينا طلبك.",
+      "ألغينا طلبك رقم 101.",
       JSON.stringify(cancellationReason),
     );
 });
@@ -107,7 +109,7 @@ test("🔴 cancelled · سبب فيه $& أو خانة بينطبع حرفيا �
     statusNotificationAr(
       order({ status: "cancelled", cancellationReason: "$& [السبب]" }),
     ),
-    "ألغينا طلبك — $& [السبب].",
+    "ألغينا طلبك رقم 101 — $& [السبب].",
   );
 });
 
@@ -128,6 +130,7 @@ test("🔴 ولا نص صادر فيه خانة غير مملوءة — بكل �
           status,
           fulfillmentType,
           cancellationReason,
+          orderNumber: 101,
         });
         if (text === null) continue;
         checked += 1;
@@ -136,27 +139,31 @@ test("🔴 ولا نص صادر فيه خانة غير مملوءة — بكل �
   assert.ok(checked > 0, "الحارس لازم يلاقي نصوصا يفحصها");
 });
 
-test("🔴 النص الجديد «ألغينا طلبك.» داخل القاموس المحروس", () => {
+test("🔴 النص الجديد «ألغينا طلبك رقم …» داخل القاموس المحروس", () => {
   // فحوص الصياغة (الأرقام العربية-الهندية، اسم الصنف فاعلا) بتمشي على
   // ALL_CUSTOMER_TEXTS_AR — نص برّاها ما بيفحصه شي.
   const text = ORDER_STATUS_MESSAGE_AR.cancelled.restaurant_no_reason;
-  assert.equal(text, "ألغينا طلبك.");
+  assert.equal(text, "ألغينا طلبك رقم [رقم الطلب].");
   assert.ok(ORDER_STATUS_TEXTS_AR.includes(text));
   assert.ok(ALL_CUSTOMER_TEXTS_AR.includes(text));
 });
 
 test("كل نص تخرجه الدالة مصدره القاموس المحروس", () => {
-  // النص الوحيد المعبّأ هو الإلغاء بسبب — وقالبه من القاموس.
+  // Every text carries its number since brief م-أ: the dictionary's template
+  // with `[رقم الطلب]` filled, and nothing else.
   for (const status of ORDER_STATUSES)
     for (const fulfillmentType of ["pickup", "delivery"] as const) {
       const text = statusNotificationAr({
         status,
         fulfillmentType,
         cancellationReason: null,
+        orderNumber: 101,
       });
       if (text !== null)
         assert.ok(
-          ORDER_STATUS_TEXTS_AR.includes(text),
+          ORDER_STATUS_TEXTS_AR.some(
+            (template) => template.replace(ORDER_NUMBER_SLOT, "101") === text,
+          ),
           `«${text}» برّا القاموس`,
         );
     }

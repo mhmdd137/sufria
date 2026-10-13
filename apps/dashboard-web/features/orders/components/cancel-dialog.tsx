@@ -23,8 +23,8 @@ type Props = {
 
 /**
  * «إلغاء الطلب» (brief I §4, I-6): the reason is optional — and 🔴 it reaches
- * the customer word for word («ألغينا طلبك — [السبب].»), which the line under
- * the field says before anything is sent.
+ * the customer word for word («ألغينا طلبك رقم [رقم الطلب] — [السبب].»),
+ * which the line under the field says before anything is sent.
  */
 export function CancelDialog({
   open,
