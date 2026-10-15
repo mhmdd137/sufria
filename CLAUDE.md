@@ -21,9 +21,9 @@ with `ERR_PNPM_BAD_PM_VERSION`).
 | Path | Package | What it is |
 |---|---|---|
 | `packages/shared` | `@sufria/shared` | Drizzle schema mirror + domain logic shared by every app |
-| `apps/dashboard-api` | `@sufria/dashboard-api` | NestJS REST API for the restaurant dashboard: orders and their status, restaurant settings (task D); the menu — `GET`/`POST /menu-items`, `PATCH /menu-items/:id` (name, price, availability, archive and bring back), `POST /menu-items/enable-all`, `GET /menu-categories` — and `PATCH /restaurant/orders-pause`, all under the 4096 guard where they can lengthen the menu (brief ي-أ, `docs/brief-ja-menu-backend.md`). Contracts as built: `docs/13-dashboard-api-brief.md` §9 (§9.10 for ي-أ) |
+| `apps/dashboard-api` | `@sufria/dashboard-api` | NestJS REST API for the restaurant dashboard: orders and their status (with their unread customer messages and `returned`, and `POST /orders/:id/messages/seen` — brief م-ب, `docs/13` §9.1 and §9.11), restaurant settings (task D); the menu — `GET`/`POST /menu-items`, `PATCH /menu-items/:id` (name, price, availability, archive and bring back), `POST /menu-items/enable-all`, `GET /menu-categories` — and `PATCH /restaurant/orders-pause`, all under the 4096 guard where they can lengthen the menu (brief ي-أ, `docs/brief-ja-menu-backend.md`). Contracts as built: `docs/13-dashboard-api-brief.md` §9 (§9.10 for ي-أ) |
 | `apps/conversation-engine` | `@sufria/conversation-engine` | WhatsApp webhooks, business-hours gate, session, browsing cart, pickup-or-delivery, address, and order creation (task C); the customer-notification poller (task F, `src/notify/`); the 60-minute session timeout (task H, `docs/17-session-timeout-brief.md`); orders paused and the empty menu (brief ي-أ §4, `src/conversation/orders-paused.ts`); «آخر طلب لك» in a returning customer's first message, and «نفسه» (FR-08, brief ك, `docs/brief-ka-reorder.md`, `src/conversation/reorder.ts`); a customer's message after an order reaches the restaurant — the relay line instead of the menu, the message linked to the order, a reaction stored and nothing else (brief م-أ, `docs/brief-ma-customer-messages.md`, `src/conversation/customer-relay.ts`) |
-| `apps/dashboard-web` | `@sufria/dashboard-web` | Next.js staff UI: login, the orders screen (task G, `docs/16-orders-screen-brief.md`), an order's details with its conversation (task I, `docs/brief-i-order-details.md`), and the menu screen with the orders pause — `/menu`, `/menu/removed`, the pause strip on every page (brief ي-ب, `docs/brief-jb-menu-screen.md`). Feature-based: `app/` (routes) · `features/<x>/` · `shared/` — see *Dashboard structure*. Talks to `dashboard-api` at `NEXT_PUBLIC_API_URL` |
+| `apps/dashboard-web` | `@sufria/dashboard-web` | Next.js staff UI: login, the orders screen (task G, `docs/16-orders-screen-brief.md`), an order's details with its conversation (task I, `docs/brief-i-order-details.md`), and the menu screen with the orders pause — `/menu`, `/menu/removed`, the pause strip on every page (brief ي-ب, `docs/brief-jb-menu-screen.md`); a customer's messages (brief م-ب, `docs/brief-mb-customer-messages-screen.md`) — the latest unread one on its card with the count, closed orders a message brought back in a group of their own above «الطلبات», every kind of message in the conversation (read every 5 s, marked read on the server), and the alert sound: O2 for a pending order (each minute, up to 3 h), M1 for a message, the header's «اكتم الصوت» and two strips (`shared/sound/`). Feature-based: `app/` (routes) · `features/<x>/` · `shared/` — see *Dashboard structure*. Talks to `dashboard-api` at `NEXT_PUBLIC_API_URL` |
 | `db/migrations` | — | Raw SQL. The single source of truth for the schema |
 | `db/seed` | — | Dev-only fixtures |
 | `tests/security` | — | Chain-isolation gate (mandatory) |
@@ -609,16 +609,23 @@ into the same `.next` that `next start` serves: restart a running one after.
   expression — it cannot prove a property read pure — so the object read
   stays on every page; and before ج, unused slot constants and the two
   pickup-or-delivery prompts stayed beside them. `ORDER_STATUS_TEXTS_AR`,
-  still in `domain.ts`, keeps `ORDER_STATUS_MESSAGE_AR` on every page that
-  way. The budgets now: JS `/login` 138760 · `/orders` 146012 · `/history`
+  then still in `domain.ts`, kept `ORDER_STATUS_MESSAGE_AR` on every page
+  that way, until brief م-ب moved it. The budgets now: JS `/login` 138760 · `/orders` 146012 · `/history`
   146239 · `/orders/[id]` 149090 · `/menu` 151008 · `/menu/removed` 148920;
-  fonts 123204 each.
+  fonts 123204 each. **Brief م-ب left them as they are, red on four pages —
+  a decision for Mohammed** (its report and «كما انبنى»): `ORDER_STATUS_TEXTS_AR`
+  moved to `relay-line.ts` (−175 · −647 each, as predicted); the live
+  list's two (`POLL_MS`, `replaceInActive`) moved to `features/orders/lib/live.ts`,
+  so `board.ts` — every card decision — left the menu's pages; the
+  messages' texts and the sound's each in a module of their own
+  (`dashboard-messages-ui.ts`, `dashboard-sound-ui.ts`): the build keeps a
+  module whole, whatever a page reads of it.
 - **Under the pointer and pressed (brief ل §3, decision 2).** Eight tokens
   in `design-tokens.ts`, each named by the ground it changes:
   `surface-hover`/`-press`, `bg-hover`/`-press` (`bg-press` is also the view
   switch's chosen half), `accent-hover`/`-press`, `inverse-hover`/`-press`
-  (the inverted «شغّل») — an sRGB mix, recomputed by a test; 52 contrast
-  pairs, the weakest `text-secondary` on light `bg-press`, 4.62. `:hover`
+  (the inverted «شغّل») — an sRGB mix, recomputed by a test; 54 contrast
+  pairs (brief م-ب: `surface` on `text-primary`, the card's count), the weakest `text-secondary` on light `bg-press`, 4.62. `:hover`
   only inside `@media (hover: hover) and (pointer: fine)` (a phone never
   keeps it after a tap); `:active` on every device; every state of a button
   is written `:not(:disabled, [aria-busy="true"])`, so neither a disabled
@@ -639,6 +646,25 @@ into the same `.next` that `next start` serves: restart a running one after.
   `amountAr` (every amount on the dashboard). The API's JSON keeps «15.00»;
   the row's edit field starts at «15», and `canonicalPrice` reads the two
   alike, so «حفظ» untouched sends nothing.
+- **A customer's voice note, image, video or file is a word, never shown**
+  (brief م-ب): «رسالة صوتية — لا تظهر هنا»; a location is «موقع» and a
+  Google Maps link. Fetching the media from Meta is a later brief. The
+  location's `payload->'location'` shape is Meta's documented one — no real
+  location message exists in the repo to check it; coordinates that are
+  not JSON numbers show «موقع» with no link.
+- **The alert sound can ring up to a minute late with the tab hidden**
+  (brief م-ب, decision 8): the live list polls with the tab hidden
+  (`usePolling`'s `whileHidden`, `LiveOrdersProvider` alone), but browsers
+  slow a hidden tab's timers to about once a minute. A browser
+  notification is after hosting (decision 13). The «browser stopped the
+  sound» strip is held by tests of the store, and its look by a stand-in
+  `AudioContext`: headless Chromium runs audio whatever the autoplay policy,
+  so the real stop is checked on a laptop alone.
+- **«Read» is per order, on the server** (`orders.customer_messages_seen_at`,
+  0017, brief م-ب): opening the order's page marks its customer messages
+  read up to the latest it shows, for every device. A closed order with an
+  unread message under 24 hours old (the database's clock) is in
+  `returned`, not in history's flow; past 24 hours it stays in «السجل» only.
 - **The menu list is not polled.** Another device's change to an item shows
   when the screen is opened again; the pause alone is read every tick.
 - **A failed «استلمنا طلبك» is never retried.** It is logged, and the order is
