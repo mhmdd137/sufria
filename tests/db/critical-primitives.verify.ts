@@ -8,7 +8,8 @@
 // Section 7 does the same for 0011's order number and currency, and section 8
 // for 0014's «an archived item is never available».
 // Section 9 checks 0015's partial index for the reorder suggestion, and
-// section 10 0016's columns for a customer's message after an order.
+// section 10 0016's columns for a customer's message after an order, and
+// section 11 0017's column for when they were read.
 //
 // Every order inserted here carries an explicit order_number (0011: NOT NULL,
 // no default), and no two orders of the same restaurant in one section share
@@ -827,6 +828,24 @@ async function main() {
     "10. idx_inbound_messages_order: (order_id, received_at), partial on order_id IS NOT NULL",
     relayIndexDef === expectedRelayIndexDef,
     relayIndexDef === expectedRelayIndexDef ? "" : `${relayIndexDef ?? "—"}`,
+  );
+
+  // --- 11. 0017 when an order's customer messages were read (brief م-ب §3) -
+  const seen = await pool.query<{ data_type: string; is_nullable: string }>(
+    `SELECT data_type, is_nullable
+       FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'orders'
+        AND column_name = 'customer_messages_seen_at'`,
+  );
+  const seenColumn = seen.rows[0];
+  check(
+    "11. orders.customer_messages_seen_at: timestamptz, NULL allowed",
+    seenColumn?.data_type === "timestamp with time zone" &&
+      seenColumn.is_nullable === "YES",
+    seenColumn === undefined
+      ? "missing"
+      : `${seenColumn.data_type}, nullable ${seenColumn.is_nullable}`,
   );
 
   console.log(

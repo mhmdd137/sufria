@@ -302,6 +302,11 @@ export const orders = pgTable("orders", {
   paymentGatewayRef: text("payment_gateway_ref").unique(),
   readyAt: timestamp("ready_at", { withTimezone: true }), // ADR-002 §2
   outboundMsgCount: integer("outbound_msg_count").notNull().default(0), // ADR-002 §3
+  // 0017 — when the restaurant last read the order's customer messages
+  // (brief م-ب): a message relayed to it after this is unread. NULL = never.
+  customerMessagesSeenAt: timestamp("customer_messages_seen_at", {
+    withTimezone: true,
+  }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
