@@ -14,7 +14,6 @@ import {
   CART_TEXT_TEMPLATES_AR,
   ORDER_NUMBER_SLOT,
   ORDER_STATUS_MESSAGE_AR,
-  ORDER_STATUS_TEXTS_AR,
   ORDER_TEXT_TEMPLATES_AR,
   RESTAURANT_PHONE_SLOT,
   fillSlots,
@@ -75,6 +74,24 @@ export const RELAY_TEXTS_AR: readonly string[] = [
   RELAY_RECEIVED_CLOSED_AR,
   RELAY_CONTACT_AR,
   RELAY_MENU_HINT_AR,
+];
+
+/**
+ * رسائل الحالة، مسطّحة — `ORDER_STATUS_MESSAGE_AR` متداخلة، والحارس يمشي على
+ * نصوص لا على شجرة.
+ *
+ * Here, off `domain.ts` (brief م-ب §2): the dashboard's pages import
+ * `domain.ts`, and a property read in this list kept
+ * `ORDER_STATUS_MESSAGE_AR` on every one of them.
+ */
+export const ORDER_STATUS_TEXTS_AR: readonly string[] = [
+  ORDER_STATUS_MESSAGE_AR.pending_acceptance,
+  ORDER_STATUS_MESSAGE_AR.accepted,
+  ORDER_STATUS_MESSAGE_AR.ready.pickup,
+  ORDER_STATUS_MESSAGE_AR.ready.delivery,
+  ORDER_STATUS_MESSAGE_AR.cancelled.restaurant,
+  ORDER_STATUS_MESSAGE_AR.cancelled.restaurant_no_reason,
+  ORDER_STATUS_MESSAGE_AR.cancelled.customer,
 ];
 
 /**

@@ -566,20 +566,6 @@ export const ORDER_TEXT_TEMPLATES_AR: readonly string[] = [
   SUMMARY_PAYMENT_LINE_AR,
 ];
 
-/**
- * رسائل الحالة، مسطّحة — `ORDER_STATUS_MESSAGE_AR` متداخلة، والحارس يمشي على
- * نصوص لا على شجرة.
- */
-export const ORDER_STATUS_TEXTS_AR: readonly string[] = [
-  ORDER_STATUS_MESSAGE_AR.pending_acceptance,
-  ORDER_STATUS_MESSAGE_AR.accepted,
-  ORDER_STATUS_MESSAGE_AR.ready.pickup,
-  ORDER_STATUS_MESSAGE_AR.ready.delivery,
-  ORDER_STATUS_MESSAGE_AR.cancelled.restaurant,
-  ORDER_STATUS_MESSAGE_AR.cancelled.restaurant_no_reason,
-  ORDER_STATUS_MESSAGE_AR.cancelled.customer,
-];
-
 // --- المال: قروش أعدادا صحيحة، والقسمة على 100 عند العرض وبس (§11.6-أ) -----
 
 /**
