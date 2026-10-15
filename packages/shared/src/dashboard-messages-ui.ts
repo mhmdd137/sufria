@@ -1,13 +1,13 @@
 /**
- * A customer's messages on the dashboard, and its alert sound — brief م-ب,
- * Mohammed's texts of 13 October (19:20), verbatim. A file of its own, as
- * `dashboard-menu-ui.ts` is (brief ي-ب-9 §3, decision 2B): `DASHBOARD_UI_AR`
- * is one object, and every page — `/login` too — carries all of it.
+ * A customer's messages on the dashboard — brief م-ب, Mohammed's texts of
+ * 13 October (19:20), verbatim. A file of its own, as `dashboard-menu-ui.ts`
+ * is (brief ي-ب-9 §3, decision 2B): `DASHBOARD_UI_AR` is one object, and
+ * every page — `/login` too — carries all of it. The sound's texts, which
+ * every page behind login shows, are `dashboard-sound-ui.ts`: a page that
+ * imports anything of a module carries all of it.
  *
- * Two dictionaries, so a page carries only the one it reads: the messages'
- * words reach «الطلبات» and an order's page; the sound's, the header and its
- * strips on every page behind login. The same pattern otherwise: each one's
- * exact wording held by a test, and `check:numerals` walking every string.
+ * The same pattern otherwise: the exact wording held by a test, and
+ * `check:numerals` walking every string.
  */
 import type { MessageKind, MessageLocation } from "./dashboard-api.js";
 import { COUNT_SLOT } from "./dashboard-ui.js";
@@ -32,14 +32,6 @@ export const DASHBOARD_MESSAGES_UI_AR = {
   returned: "رسائل جديدة على طلبات منتهية",
   /** The count's label, for a screen reader. */
   unread: `رسائل جديدة: ${COUNT_SLOT}`,
-} as const;
-
-/** The header's sound button and the two strips under the header. */
-export const DASHBOARD_SOUND_UI_AR = {
-  mute: "اكتم الصوت",
-  unmute: "شغّل الصوت",
-  muted: "صوت التنبيه مكتوم على هذا الجهاز",
-  blocked: "المتصفح أوقف الصوت",
 } as const;
 
 /** The kinds that have a word of their own: every one but `text`. */

@@ -54,9 +54,11 @@
   color: var(--text-secondary);
 }
 
+/* «خروج», and the sound's button in its look (brief م-ب). */
 .logout {
   min-height: 44px;
   padding-inline: 12px;
+  white-space: nowrap;
   background: transparent;
   border: 1px solid var(--border);
   border-radius: 8px;

@@ -1,0 +1,69 @@
+/* The sound's strips — brief م-ب, decision 9. The pause strip's place and
+   strength (orders-paused-strip.module.css), not its amber: amber means
+   orders are paused. The surface, the line under it. «مكتوم» 16px/700, the
+   browser's 15px/600; the button 15px/700, 44px. Logical properties only. */
+
+.strip {
+  background: var(--surface);
+  border-block-end: 1px solid var(--border);
+  padding-block: 10px;
+  color: var(--text-primary);
+}
+
+.strip[data-strip="muted"] {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.strip[data-strip="blocked"] {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* The page's width and edges, as the header's .bounds: the text as wide as
+   itself, the button right after it, the rest of the line empty. */
+.bounds {
+  width: 100%;
+  max-width: var(--page-width, none);
+  margin-inline: auto;
+  padding-inline: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, max-content) auto minmax(0, 1fr);
+  grid-template-areas: "label on .";
+  align-items: center;
+  gap: 4px 12px;
+}
+
+/* The text wraps on a narrow phone — on purpose; the button never does. */
+.label {
+  grid-area: label;
+  min-width: 0;
+}
+
+.on {
+  grid-area: on;
+  min-height: 44px;
+  padding-inline: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Under the pointer and pressed (brief ل §3): the fill and its line take
+   the hover ground, then the pressed one; never while disabled or working. */
+@media (hover: hover) and (pointer: fine) {
+  .on:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.on:not(:disabled, [aria-busy="true"]):active {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
+}

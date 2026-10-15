@@ -58,10 +58,11 @@ test("🔴 the strip sits under the header, above «انقطع الاتصال»,
   const at = (s: string) => header.indexOf(s);
   assert.ok(at("</header>") !== -1 && at("{strip}") > at("</header>"));
   assert.ok(at("{strip}") < at("{offline && ("));
-  // Every page behind login: the dashboard's one layout fills the slot.
+  // Every page behind login: the dashboard's one layout fills the slot —
+  // the pause strip first, the sound's after it (brief م-ب).
   assert.match(
     read("app/(dashboard)/layout.tsx"),
-    /strip=\{<OrdersPausedStrip \/>\}/,
+    /strip=\{\s*<>\s*<OrdersPausedStrip \/>\s*<SoundStrip \/>\s*<\/>\s*\}/,
   );
   // Nothing while taking orders, or before the first read.
   assert.match(strip, /if \(!ordersPausedAt\) return null;/);

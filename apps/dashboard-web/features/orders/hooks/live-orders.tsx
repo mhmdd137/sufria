@@ -10,8 +10,9 @@ import {
 } from "react";
 import type { Currency, OrderListItem } from "@sufria/shared";
 import { useLiveSettings } from "../../../shared/settings/live-settings.tsx";
+import { sound } from "../../../shared/sound/sound-store.ts";
 import { ordersApi } from "../api/orders-api.ts";
-import { POLL_MS, replaceInActive } from "../lib/live.ts";
+import { POLL_MS, replaceInActive, ringTracker } from "../lib/live.ts";
 import { usePolling } from "./use-polling.ts";
 
 export type LiveOrders = {
@@ -48,8 +49,13 @@ export function useLiveOrders(): LiveOrders {
 /**
  * The dashboard's one poll of «الطلبات» (brief I §4, I-3): now, then every
  * 10 seconds, on every page under it — it feeds the header's count and the
- * list both — and never while the browser tab is hidden; it catches up the
- * moment the tab is shown again.
+ * list both — and on while the browser tab is hidden too (brief م-ب,
+ * decision 8), so the sound rings with another tab in front.
+ *
+ * After each read of the list, `soundFor` (through `ringTracker`) decides
+ * what rings — a pending
+ * order, again each minute; a customer's message — and `sound` rings it,
+ * unless muted on this device.
  *
  * Each tick also reads the restaurant's settings, beside the list (brief
  * ي-ب §4): the currency and `ordersPausedAt`, for the pause strip and the
@@ -68,6 +74,7 @@ export function LiveOrdersProvider({
   const [returned, setReturned] = useState<OrderListItem[] | null>(null);
   const [offline, setOffline] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [rings] = useState(ringTracker);
 
   const refresh = useCallback(async () => {
     const startedAt = Date.now();
@@ -80,15 +87,20 @@ export function LiveOrdersProvider({
     if (res.ok) {
       setOrders(res.value.orders);
       setReturned(res.value.returned);
+      const ring = rings.after(
+        { orders: res.value.orders, returned: res.value.returned },
+        Date.now(),
+      );
+      if (ring !== null) void sound.alert(ring);
     }
     // `unauthorized`: the session is gone, and the gate takes the page to login.
     const failed = [settings, res].some(
       (r) => !r.ok && r.error.kind !== "unauthorized",
     );
     setOffline(failed);
-  }, [read]);
+  }, [read, rings]);
 
-  usePolling(() => void refresh(), POLL_MS);
+  usePolling(() => void refresh(), POLL_MS, { whileHidden: true });
 
   const apply = useCallback((order: OrderListItem) => {
     setNow(Date.now());
