@@ -3,11 +3,13 @@ import { sql, type SQL } from "drizzle-orm";
 import {
   ORDER_TAB_STATUSES,
   canStaffTransition,
+  messageKind,
   type FulfillmentType,
   type HistoryActor,
   type OrderDetail,
   type OrderListItem,
   type OrderListResponse,
+  type MessageLocation,
   type OrderMessage,
   type OrderMessagesResponse,
   type OrderStatus,
@@ -18,7 +20,7 @@ import {
   type UpdateOrderStatusRequest,
 } from "@sufria/shared";
 import { isoUtc } from "../db/iso-utc.js";
-import { TenantDbService } from "../db/tenant-db.service.js";
+import { TenantDbService, type TenantTx } from "../db/tenant-db.service.js";
 
 /**
  * The §3.1 item projection — one for `GET /orders` and for the reply of
@@ -31,6 +33,14 @@ import { TenantDbService } from "../db/tenant-db.service.js";
  * change, and the cancellation reason. `status_changed_at` is the last
  * history row, or `created_at` for an order that has none (the seeded order
  * of restaurant C) — never a time the screen makes up.
+ *
+ * Brief م-ب adds two, from the customer messages the engine relayed to the
+ * order (`inbound_messages.order_id`, brief م-أ): how many arrived after
+ * `customer_messages_seen_at` (0017), and the latest one, read or not — its
+ * type and its first 200 characters (the list is polled every 10 seconds,
+ * and a WhatsApp text may be 4096). A message of the order's own making
+ * names no order and never counts, nor does a reaction (never relayed).
+ * Both served by `idx_inbound_messages_order`.
  */
 const orderListColumns = () => sql`
   o.id,
@@ -55,7 +65,22 @@ const orderListColumns = () => sql`
     `COALESCE((SELECT max(h.changed_at) FROM order_status_history h
                 WHERE h.order_id = o.id), o.created_at)`,
   )} AS status_changed_at,
-  o.cancellation_reason`;
+  o.cancellation_reason,
+  (SELECT count(*)::int
+     FROM inbound_messages i
+    WHERE i.order_id = o.id
+      AND i.restaurant_id = o.restaurant_id
+      AND i.message_type <> 'reaction'
+      AND i.received_at > COALESCE(o.customer_messages_seen_at,
+                                   '-infinity'::timestamptz))
+    AS unread_messages,
+  (SELECT json_build_object('type', i.message_type, 'body', left(i.body, 200))
+     FROM inbound_messages i
+    WHERE i.order_id = o.id
+      AND i.restaurant_id = o.restaurant_id
+      AND i.message_type <> 'reaction'
+    ORDER BY i.received_at DESC, i.id DESC
+    LIMIT 1) AS last_message`;
 
 /**
  * The outcome of a status change — the controller maps it to HTTP (brief D
@@ -70,6 +95,12 @@ export type StatusChangeOutcome =
 
 /** Brief D §2.5: 20 per page in the `history` tab, no pages in `active`. */
 export const HISTORY_PAGE_SIZE = 20;
+
+/**
+ * Brief م-ب: a closed order with an unread message comes back to «الطلبات»
+ * while that message is younger than this, by the database's clock.
+ */
+export const RETURNED_WINDOW = "24 hours";
 
 /** Brief I §4 (I-5): an order's conversation, at most its latest 200. */
 export const MESSAGES_LIMIT = 200;
@@ -97,6 +128,18 @@ type OrderListRow = {
   items: { name: string; quantity: number }[];
   status_changed_at: string;
   cancellation_reason: string | null;
+  unread_messages: number;
+  last_message: { type: string; body: string | null } | null;
+};
+
+/** A message of `messages` as SQL builds it; `toMessage` names its kind. */
+type MessageRow = {
+  id: string;
+  direction: OrderMessage["direction"];
+  type: string;
+  text: string | null;
+  location: { latitude: unknown; longitude: unknown } | null;
+  at: string;
 };
 
 type OrderDetailRow = {
@@ -157,15 +200,22 @@ export class OrdersService {
       ? sql`LIMIT ${HISTORY_PAGE_SIZE + 1} OFFSET ${(page - 1) * HISTORY_PAGE_SIZE}`
       : sql``;
 
-    const res = await this.tenantDb.runInTenant(restaurantId, (tx) =>
-      tx.execute<OrderListRow>(sql`
-        SELECT ${orderListColumns()}
-          FROM orders o
-          JOIN customers c ON c.id = o.customer_id
-         WHERE o.restaurant_id = ${restaurantId}::uuid
-           AND o.status IN (${statuses})
-         ORDER BY o.created_at ${direction}, o.id ${direction}
-         ${window}`),
+    // `returned` with `active` alone: a second statement in the same
+    // transaction (brief م-ب).
+    const [res, returned] = await this.tenantDb.runInTenant(
+      restaurantId,
+      async (tx) =>
+        [
+          await tx.execute<OrderListRow>(sql`
+            SELECT ${orderListColumns()}
+              FROM orders o
+              JOIN customers c ON c.id = o.customer_id
+             WHERE o.restaurant_id = ${restaurantId}::uuid
+               AND o.status IN (${statuses})
+             ORDER BY o.created_at ${direction}, o.id ${direction}
+             ${window}`),
+          isHistory ? null : await this.returned(tx, restaurantId),
+        ] as const,
     );
 
     const rows = res.rows;
@@ -176,7 +226,43 @@ export class OrdersService {
         .map(toListItem),
       page: isHistory ? page : 1,
       hasMore,
+      returned: returned?.rows.map(toListItem) ?? [],
     };
+  }
+
+  /**
+   * Brief م-ب: the closed orders a customer wrote to — a status of the
+   * history tab, and an unread message relayed to the order received less
+   * than 24 hours ago by the database's clock. Newest unread message first,
+   * then `id`. Driven from the restaurant's recent messages, not its whole
+   * history: `idx_inbound_messages_conversation` leads with `restaurant_id`.
+   */
+  private returned(tx: TenantTx, restaurantId: string) {
+    const closed = sql.join(
+      ORDER_TAB_STATUSES.history.map((s) => sql`${s}::order_status`),
+      sql`, `,
+    );
+    return tx.execute<OrderListRow>(sql`
+      WITH unread AS (
+        SELECT i.order_id, max(i.received_at) AS last_at
+          FROM inbound_messages i
+          JOIN orders u ON u.id = i.order_id
+                       AND u.restaurant_id = i.restaurant_id
+         WHERE i.restaurant_id = ${restaurantId}::uuid
+           AND i.order_id IS NOT NULL
+           AND i.message_type <> 'reaction'
+           AND i.received_at > now() - ${RETURNED_WINDOW}::interval
+           AND i.received_at > COALESCE(u.customer_messages_seen_at,
+                                        '-infinity'::timestamptz)
+         GROUP BY i.order_id
+      )
+      SELECT ${orderListColumns()}
+        FROM unread
+        JOIN orders o ON o.id = unread.order_id
+        JOIN customers c ON c.id = o.customer_id
+       WHERE o.restaurant_id = ${restaurantId}::uuid
+         AND o.status IN (${closed})
+       ORDER BY unread.last_at DESC, o.id`);
   }
 
   /**
@@ -287,8 +373,13 @@ export class OrdersService {
    *      the reply answered it;
    *   5. what comes after the customer's last order, relayed to none, is no
    *      order's yet.
-   * Text messages alone; the latest 200, in time order then `id`. One
-   * statement, so the order and its messages are one moment's.
+   * A customer message with no text (a voice note, an image, a location…)
+   * is shown only when relayed to this very order (2b, brief م-ب): rule 3's
+   * window never brings one. A reaction never is. Each message comes with its
+   * `kind` (`messageKind`, from `message_type` and the body) and, for a
+   * location, its point from `payload->'location'` when both coordinates are
+   * numbers. The latest 200, in time order then `id`. One statement, so the
+   * order and its messages are one moment's.
    *
    * RLS keeps every table to the restaurant (`runInTenant`); the explicit
    * `restaurant_id` conditions are defence in depth, and the indexes'.
@@ -298,7 +389,7 @@ export class OrdersService {
     orderId: string,
   ): Promise<OrderMessagesResponse | null> {
     const res = await this.tenantDb.runInTenant(restaurantId, (tx) =>
-      tx.execute<{ found: boolean; messages: OrderMessage[] }>(sql`
+      tx.execute<{ found: boolean; messages: MessageRow[] }>(sql`
         WITH o AS (
           SELECT o.id, o.restaurant_id, o.created_at, c.phone_number AS phone,
                  (SELECT p.created_at
@@ -314,16 +405,24 @@ export class OrdersService {
              AND o.restaurant_id = ${restaurantId}::uuid
         ),
         msgs AS (
-          SELECT i.id, 'inbound' AS direction, i.body AS text, i.received_at AS at
+          SELECT i.id, 'inbound' AS direction, i.message_type AS type,
+                 i.body AS text, i.received_at AS at,
+                 CASE WHEN jsonb_typeof(i.payload->'location'->'latitude') = 'number'
+                       AND jsonb_typeof(i.payload->'location'->'longitude') = 'number'
+                      THEN jsonb_build_object(
+                             'latitude', i.payload->'location'->'latitude',
+                             'longitude', i.payload->'location'->'longitude')
+                 END AS location
             FROM o
             JOIN inbound_messages i
               ON i.restaurant_id = o.restaurant_id
              AND i.from_phone = o.phone
-           WHERE i.body IS NOT NULL
+           WHERE (i.body IS NOT NULL OR i.order_id = o.id)
+             AND i.message_type <> 'reaction'
              AND (i.order_id = o.id
                   OR (i.order_id IS NULL AND ${inWindow("i.received_at")}))
           UNION ALL
-          SELECT m.id, 'outbound', m.body, m.sent_at
+          SELECT m.id, 'outbound', 'text', m.body, m.sent_at, NULL::jsonb
             FROM o
             JOIN outbound_messages m
               ON m.restaurant_id = o.restaurant_id
@@ -347,7 +446,9 @@ export class OrdersService {
                  (SELECT json_agg(json_build_object(
                            'id', l.id,
                            'direction', l.direction,
+                           'type', l.type,
                            'text', l.text,
+                           'location', l.location,
                            'at', ${isoUtc("l.at")})
                          ORDER BY l.at, l.id)
                     FROM (SELECT * FROM msgs
@@ -357,7 +458,50 @@ export class OrdersService {
     );
     const row = res.rows[0];
     if (!row?.found) return null;
-    return { messages: row.messages };
+    return { messages: row.messages.map(toMessage) };
+  }
+
+  /**
+   * `POST /orders/:id/messages/seen` — brief م-ب: the restaurant has read
+   * this order's customer messages up to `upTo`, the latest one the page
+   * showed. `upTo` is a message of this restaurant from this order's
+   * customer; anything else, or an order not ours, is `false` — one 404,
+   * the two never told apart (§2.9).
+   *
+   * 🔴 `seen_at` is `upTo`'s own `received_at`, never `now()`: a message
+   *    arriving between the page's read and this call stays unread. And it
+   *    never moves backwards (`GREATEST`): a late call for an older message
+   *    does not bring read ones back. Nothing else of the order changes —
+   *    no status, no `notified`, no history row.
+   */
+  async markMessagesSeen(
+    restaurantId: string,
+    orderId: string,
+    upTo: string,
+  ): Promise<boolean> {
+    const res = await this.tenantDb.runInTenant(restaurantId, (tx) =>
+      tx.execute<{ id: string }>(sql`
+        WITH target AS (
+          SELECT i.received_at
+            FROM orders o
+            JOIN customers c ON c.id = o.customer_id
+            JOIN inbound_messages i
+              ON i.restaurant_id = o.restaurant_id
+             AND i.from_phone = c.phone_number
+           WHERE o.id = ${orderId}::uuid
+             AND o.restaurant_id = ${restaurantId}::uuid
+             AND i.id = ${upTo}::uuid
+        )
+        UPDATE orders o
+           SET customer_messages_seen_at = GREATEST(
+                 COALESCE(o.customer_messages_seen_at, '-infinity'::timestamptz),
+                 target.received_at)
+          FROM target
+         WHERE o.id = ${orderId}::uuid
+           AND o.restaurant_id = ${restaurantId}::uuid
+        RETURNING o.id`),
+    );
+    return res.rows.length === 1;
   }
 
   /**
@@ -515,5 +659,29 @@ function toListItem(r: OrderListRow): OrderListItem {
     items: r.items,
     statusChangedAt: r.status_changed_at,
     cancellationReason: r.cancellation_reason,
+    unreadMessages: r.unread_messages,
+    lastMessage: r.last_message && {
+      kind: messageKind(r.last_message.type, r.last_message.body),
+      text: r.last_message.body,
+    },
   };
+}
+
+function toMessage(r: MessageRow): OrderMessage {
+  const kind = messageKind(r.type, r.text);
+  return {
+    id: r.id,
+    direction: r.direction,
+    kind,
+    text: r.text,
+    location: kind === "location" ? toLocation(r.location) : null,
+    at: r.at,
+  };
+}
+
+/** Numbers alone — SQL already checked `jsonb_typeof`; this is the type's. */
+function toLocation(l: MessageRow["location"]): MessageLocation | null {
+  return l && typeof l.latitude === "number" && typeof l.longitude === "number"
+    ? { latitude: l.latitude, longitude: l.longitude }
+    : null;
 }

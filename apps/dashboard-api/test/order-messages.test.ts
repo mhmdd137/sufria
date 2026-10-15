@@ -457,13 +457,17 @@ describe("GET /orders/:id/messages — the reply", () => {
     expect(messages[0]).toEqual({
       id: msg["hello-8"]!.id,
       direction: "inbound",
+      kind: "text",
       text: "مرحبا",
+      location: null,
       at: at(8),
     });
     expect(messages.at(-1)).toEqual({
       id: msg["received-102"]!.id,
       direction: "outbound",
+      kind: "text",
       text: "استلمنا طلبك رقم 102",
+      location: null,
       at: at(11.2),
     });
   });
@@ -499,6 +503,7 @@ describe("GET /orders/:id/messages — a customer's message the engine relayed (
       "r-where-130",
       "r-line-130.1",
       "r-unnamed-130.5",
+      "r-voice-131",
     ]);
   });
 
@@ -524,11 +529,18 @@ describe("GET /orders/:id/messages — a customer's message the engine relayed (
     expect(named(await messagesOk(relayB))).not.toContain("r-unnamed-130.5");
   });
 
-  it("a relayed message with no text (a voice note) is not shown — text messages alone, until brief م-ب", async () => {
-    const all = [
-      ...named(await messagesOk(relayA)),
-      ...named(await messagesOk(relayB)),
-    ];
-    expect(all).not.toContain("r-voice-131");
+  it("a relayed message with no text (a voice note) is shown in its order alone, by its kind (brief م-ب)", async () => {
+    const voice = (await messagesOk(relayA)).find(
+      (m) => m.id === msg["r-voice-131"]!.id,
+    );
+    expect(voice).toEqual({
+      id: msg["r-voice-131"]!.id,
+      direction: "inbound",
+      kind: "audio",
+      text: null,
+      location: null,
+      at: at(131),
+    });
+    expect(named(await messagesOk(relayB))).not.toContain("r-voice-131");
   });
 });
