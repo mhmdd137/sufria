@@ -63,10 +63,30 @@ export type OrderListItem = {
   statusChangedAt: string;
   /** `null` unless cancelled with a reason. */
   cancellationReason: string | null;
+  /**
+   * Customer messages relayed to this order (`inbound_messages.order_id`,
+   * brief م-أ) after `customer_messages_seen_at` (0017, brief م-ب). A message
+   * of the order's own making carries no `order_id` and never counts; nor
+   * does a reaction (never relayed).
+   */
+  unreadMessages: number;
+  /**
+   * The latest message relayed to this order, read or not; `null` when none
+   * is. `text` is cut at 200 characters by the API, and `null` unless `kind`
+   * is `text`.
+   */
+  lastMessage: { kind: MessageKind; text: string | null } | null;
 };
 
 export type OrderListResponse = {
   orders: OrderListItem[];
+  /**
+   * With `active` alone (`[]` with `history`, brief م-ب): orders of the
+   * history tab's statuses with an unread message received less than 24
+   * hours ago — newest unread message first, then `id`. Not in `orders`, and
+   * not in the header's count.
+   */
+  returned: OrderListItem[];
   /** Always 1 with `active`. */
   page: number;
   /** Always false with `active`. */
@@ -197,14 +217,41 @@ export const MESSAGE_DIRECTIONS = ["inbound", "outbound"] as const;
 export type MessageDirection = (typeof MESSAGE_DIRECTIONS)[number];
 
 /**
- * A message of `GET /orders/:id/messages` — brief I §4 (I-5). Text messages
- * alone: an image or a location has no text and is not returned.
+ * What a customer message is, as the dashboard names it (brief م-ب): `text`
+ * whenever it has a body, else its WhatsApp `message_type` among these five,
+ * else `other` (a sticker, contacts, `unsupported`…). `messageKind` decides.
+ */
+export const MESSAGE_KINDS = [
+  "text",
+  "audio",
+  "image",
+  "video",
+  "document",
+  "location",
+  "other",
+] as const;
+export type MessageKind = (typeof MESSAGE_KINDS)[number];
+
+/** A location message's point, from its `payload->'location'`. */
+export type MessageLocation = { latitude: number; longitude: number };
+
+/**
+ * A message of `GET /orders/:id/messages` — brief I §4 (I-5). A customer
+ * message with no text is returned only when it was relayed to this very
+ * order (rule 2b, brief م-ب); a reaction never is.
  */
 export type OrderMessage = {
   id: string;
   direction: MessageDirection;
-  /** As it arrived, or as it was sent: content, never translated or reformatted. */
-  text: string;
+  /** `text` for every bot message. */
+  kind: MessageKind;
+  /**
+   * As it arrived, or as it was sent: content, never translated or
+   * reformatted. `null` unless `kind` is `text`.
+   */
+  text: string | null;
+  /** With `kind: "location"` and numeric coordinates alone; else `null`. */
+  location: MessageLocation | null;
   /** ISO 8601 in UTC: when it reached us (`inbound`), or went out (`outbound`). */
   at: string;
 };
@@ -215,6 +262,13 @@ export type OrderMessage = {
  * (I-5), as built in `apps/dashboard-api/src/orders/orders.service.ts`.
  */
 export type OrderMessagesResponse = { messages: OrderMessage[] };
+
+/**
+ * Body of `POST /orders/:id/messages/seen` (brief م-ب): the id of the latest
+ * customer message the page showed. The server reads that message's own
+ * `received_at`, never its clock, so one arriving in between stays unread.
+ */
+export type MarkMessagesSeenRequest = { upTo: string };
 
 /** The 200 of `PATCH /orders/:id/status`: the order as a `GET /orders` item. */
 export type UpdateOrderStatusResponse = OrderListItem;
