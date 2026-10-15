@@ -12,12 +12,7 @@
  * 🔴 Staff text, not customer text: the customer's WhatsApp messages stay in
  *    `ORDER_STATUS_MESSAGE_AR`, and the badges in `ORDER_STATUS_LABEL_AR`.
  */
-import type {
-  FulfillmentType,
-  MessageKind,
-  MessageLocation,
-  OrderListLine,
-} from "./dashboard-api.js";
+import type { FulfillmentType, OrderListLine } from "./dashboard-api.js";
 import type { StaffTargetStatus } from "./dashboard-api.js";
 import {
   CURRENCY_LABEL_AR,
@@ -109,35 +104,6 @@ export const DASHBOARD_UI_AR = {
    * the label, then from the first minute `itemSeparator` and «منذ…».
    */
   paused: { label: "الطلبات موقفة", resume: "استأنف" },
-  /**
-   * A customer's messages on the board and in the conversation (brief م-ب,
-   * Mohammed's approval, 13 October 19:20). On the card a kind is its word
-   * alone; in the conversation `notShown` follows it — but never after
-   * `other` (it would say it twice) or `location` (its link follows).
-   */
-  messages: {
-    kind: {
-      audio: "رسالة صوتية",
-      image: "صورة",
-      video: "فيديو",
-      document: "ملف",
-      location: "موقع",
-      other: "رسالة لا تظهر هنا",
-    },
-    notShown: " — لا تظهر هنا",
-    openMap: "افتح الخريطة",
-    /** Over the closed orders a message brought back to «الطلبات». */
-    returned: "رسائل جديدة على طلبات منتهية",
-    /** The count's label, for a screen reader. */
-    unread: `رسائل جديدة: ${COUNT_SLOT}`,
-  },
-  /** The alert sound: the header's button and the two strips (brief م-ب). */
-  sound: {
-    mute: "اكتم الصوت",
-    unmute: "شغّل الصوت",
-    muted: "صوت التنبيه مكتوم على هذا الجهاز",
-    blocked: "المتصفح أوقف الصوت",
-  },
   fulfillment: { pickup: "استلام", delivery: "توصيل" },
   /** The card's order number, before the customer: «#102». */
   orderNumber: `#${ORDER_NUMBER_SLOT}`,
@@ -359,58 +325,4 @@ export function ordersPausedAr(pausedAt: string, now: number): string {
   return minutes < 1
     ? label
     : `${label}${DASHBOARD_UI_AR.itemSeparator}${relativeTimeAr(minutes)}`;
-}
-
-/** The kinds that have a word of their own: every one but `text`. */
-export type MessageKindWord = Exclude<MessageKind, "text">;
-
-const KIND_TYPES: readonly MessageKindWord[] = [
-  "audio",
-  "image",
-  "video",
-  "document",
-  "location",
-];
-
-/**
- * What a customer message is (brief م-ب): `text` whenever it has a body;
- * else its WhatsApp `message_type` when it is one of the five with a word,
- * and `other` for anything else — a sticker, contacts, `unsupported`, a type
- * WhatsApp adds tomorrow.
- */
-export function messageKind(
-  messageType: string,
-  body: string | null,
-): MessageKind {
-  if (body !== null) return "text";
-  return (KIND_TYPES as readonly string[]).includes(messageType)
-    ? (messageType as MessageKindWord)
-    : "other";
-}
-
-/** The card's word for a message with no text: «رسالة صوتية». */
-export function messageKindLabelAr(kind: MessageKindWord): string {
-  return DASHBOARD_UI_AR.messages.kind[kind];
-}
-
-/**
- * The conversation's word for a message with no text: «رسالة صوتية — لا
- * تظهر هنا». `other` and `location` stay alone: the first already says it,
- * and the second's link follows.
- */
-export function conversationKindAr(kind: MessageKindWord): string {
-  const word = DASHBOARD_UI_AR.messages.kind[kind];
-  return kind === "other" || kind === "location"
-    ? word
-    : `${word}${DASHBOARD_UI_AR.messages.notShown}`;
-}
-
-/** A location's map: Google Maps at the point, the numbers as `String` writes them. */
-export function mapUrl(location: MessageLocation): string {
-  return `https://www.google.com/maps?q=${String(location.latitude)},${String(location.longitude)}`;
-}
-
-/** The unread count's label, for a screen reader: «رسائل جديدة: 3». */
-export function unreadLabelAr(count: number): string {
-  return fill(DASHBOARD_UI_AR.messages.unread, { [COUNT_SLOT]: String(count) });
 }

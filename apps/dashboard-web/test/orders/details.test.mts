@@ -355,7 +355,9 @@ const message = (
 ): OrderMessage => ({
   id: `${direction}-${text.length}-${at}`,
   direction,
+  kind: "text",
   text,
+  location: null,
   at,
 });
 

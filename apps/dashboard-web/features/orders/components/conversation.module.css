@@ -104,6 +104,38 @@
   background: var(--surface);
 }
 
+/* A message with no text (brief م-ب): its kind's word, 13px/600 in grey,
+   in the same bubble with its ordinary line. A location's link follows the
+   word on its line. */
+.word {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: normal;
+}
+
+/* «افتح الخريطة»: the 44px to press, without growing the bubble past it. */
+.map {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-block: -10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .map:hover {
+    text-decoration-thickness: 2px;
+  }
+}
+
 .more {
   min-height: 44px;
   padding-inline: 4px;

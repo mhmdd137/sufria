@@ -11,7 +11,7 @@ import {
 import type { Currency, OrderListItem } from "@sufria/shared";
 import { useLiveSettings } from "../../../shared/settings/live-settings.tsx";
 import { ordersApi } from "../api/orders-api.ts";
-import { POLL_MS, replaceInActive } from "../lib/board.ts";
+import { POLL_MS, replaceInActive } from "../lib/live.ts";
 import { usePolling } from "./use-polling.ts";
 
 export type LiveOrders = {
@@ -19,11 +19,16 @@ export type LiveOrders = {
   currency: Currency | null;
   /** «الطلبات» as the last poll returned it; `null` before the first answer. */
   orders: OrderListItem[] | null;
+  /**
+   * The closed orders a customer's message brought back (brief م-ب), from
+   * the same answer; `null` before the first. Not in the header's count.
+   */
+  returned: OrderListItem[] | null;
   /** The last read failed: the header shows its strip until one answers. */
   offline: boolean;
   /** When the list was last read — the cards' «منذ…» and pulse count from it. */
   now: number;
-  /** A poll now, out of turn: after a 409 `status_conflict`. */
+  /** A poll now, out of turn: after a 409 `status_conflict`, or messages read. */
   refresh(): Promise<void>;
   /** A card's button moved an order: in place, or gone once it is history. */
   apply(order: OrderListItem): void;
@@ -60,6 +65,7 @@ export function LiveOrdersProvider({
 }) {
   const { currency, read } = useLiveSettings();
   const [orders, setOrders] = useState<OrderListItem[] | null>(null);
+  const [returned, setReturned] = useState<OrderListItem[] | null>(null);
   const [offline, setOffline] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
@@ -71,7 +77,10 @@ export function LiveOrdersProvider({
     ]);
     if (settings.ok) read(settings.value, startedAt);
     setNow(Date.now());
-    if (res.ok) setOrders(res.value.orders);
+    if (res.ok) {
+      setOrders(res.value.orders);
+      setReturned(res.value.returned);
+    }
     // `unauthorized`: the session is gone, and the gate takes the page to login.
     const failed = [settings, res].some(
       (r) => !r.ok && r.error.kind !== "unauthorized",
@@ -90,13 +99,14 @@ export function LiveOrdersProvider({
     () => ({
       currency,
       orders,
+      returned,
       offline,
       now,
       refresh,
       apply,
       reportOffline: setOffline,
     }),
-    [currency, orders, offline, now, refresh, apply],
+    [currency, orders, returned, offline, now, refresh, apply],
   );
 
   return <LiveOrdersContext value={live}>{children(live)}</LiveOrdersContext>;

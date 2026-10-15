@@ -2,15 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { Currency, OrderListItem, OrderTab } from "@sufria/shared";
+import type { Currency, OrderListItem } from "@sufria/shared";
 import { StatusBadge } from "../../../shared/ui/status-badge.tsx";
-import { cardView, type AdvanceOutcome } from "../lib/board.ts";
+import { cardView, type AdvanceOutcome, type CardPlace } from "../lib/board.ts";
 import { NextStepButton } from "./next-step-button.tsx";
 import styles from "./order-card.module.css";
 
 type Props = {
   order: OrderListItem;
-  tab: OrderTab;
+  /** A tab, or the returned group of «الطلبات» (brief م-ب). */
+  place: CardPlace;
   currency: Currency;
   now: number;
   /** The board acts on the outcome: update, refresh, or back to login. */
@@ -25,9 +26,13 @@ type Props = {
  * itself, its ::after stretched over the card. The button is not in the link
  * — a button inside a link is two controls in one — and sits above that
  * layer, so pressing it acts without opening.
+ *
+ * Under the details, while a message is unread (brief م-ب): the customer's
+ * latest, in the conversation's customer bubble cut to one line — or the
+ * word of its kind, in grey — and the unread count beside it.
  */
-export function OrderCard({ order, tab, currency, now, onOutcome }: Props) {
-  const view = cardView(order, tab, currency, now);
+export function OrderCard({ order, place, currency, now, onOutcome }: Props) {
+  const view = cardView(order, place, currency, now);
   const [line, setLine] = useState<string | null>(null);
 
   function stepped(outcome: AdvanceOutcome) {
@@ -62,6 +67,27 @@ export function OrderCard({ order, tab, currency, now, onOutcome }: Props) {
           {view.reason && (
             <div className={styles.details} dir="auto">
               {view.reason}
+            </div>
+          )}
+          {view.message && (
+            <div className={styles.message}>
+              <bdi
+                dir="auto"
+                className={
+                  view.message.word
+                    ? `${styles.bubble} ${styles.word}`
+                    : styles.bubble
+                }
+              >
+                {view.message.text}
+              </bdi>
+              <span
+                className={`num ${styles.unread}`}
+                role="img"
+                aria-label={view.message.label}
+              >
+                {view.message.count}
+              </span>
             </div>
           )}
         </div>

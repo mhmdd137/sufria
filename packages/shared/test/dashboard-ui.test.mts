@@ -13,11 +13,6 @@ import {
   amountAr,
   cancelTitleAr,
   clockTime,
-  conversationKindAr,
-  mapUrl,
-  messageKind,
-  messageKindLabelAr,
-  unreadLabelAr,
   customerLabelAr,
   dateTime,
   historyTime,
@@ -89,26 +84,6 @@ test("DASHBOARD_UI_AR is the brief's text, verbatim", () => {
       history: "لا طلبات منتهية بعد.",
     },
     paused: { label: "الطلبات موقفة", resume: "استأنف" },
-    messages: {
-      kind: {
-        audio: "رسالة صوتية",
-        image: "صورة",
-        video: "فيديو",
-        document: "ملف",
-        location: "موقع",
-        other: "رسالة لا تظهر هنا",
-      },
-      notShown: " — لا تظهر هنا",
-      openMap: "افتح الخريطة",
-      returned: "رسائل جديدة على طلبات منتهية",
-      unread: "رسائل جديدة: [العدد]",
-    },
-    sound: {
-      mute: "اكتم الصوت",
-      unmute: "شغّل الصوت",
-      muted: "صوت التنبيه مكتوم على هذا الجهاز",
-      blocked: "المتصفح أوقف الصوت",
-    },
     fulfillment: { pickup: "استلام", delivery: "توصيل" },
     orderNumber: "#[رقم الطلب]",
     amount: "[السعر] [العملة]",
@@ -372,54 +347,4 @@ test("🔴 the pause strip: the label alone in the first minute, then «· من�
   );
   // The API's clock a moment ahead of the browser's: the label alone.
   assert.equal(ordersPausedAr(at, after(-5_000)), "الطلبات موقفة");
-});
-
-// --- a customer's messages — brief م-ب §4 ----------------------------------
-
-test("messageKind: a body is text whatever its type; else the five, else other", () => {
-  assert.equal(messageKind("text", "وين طلبي؟"), "text");
-  assert.equal(messageKind("image", "a caption"), "text");
-  for (const t of ["audio", "image", "video", "document", "location"])
-    assert.equal(messageKind(t, null), t);
-  for (const t of ["sticker", "contacts", "unsupported", "voice", ""])
-    assert.equal(messageKind(t, null), "other");
-});
-
-test("the card: each kind its word alone", () => {
-  assert.equal(messageKindLabelAr("audio"), "رسالة صوتية");
-  assert.equal(messageKindLabelAr("image"), "صورة");
-  assert.equal(messageKindLabelAr("video"), "فيديو");
-  assert.equal(messageKindLabelAr("document"), "ملف");
-  assert.equal(messageKindLabelAr("location"), "موقع");
-  assert.equal(messageKindLabelAr("other"), "رسالة لا تظهر هنا");
-});
-
-test("the conversation: «— لا تظهر هنا» after audio, image, video and a file", () => {
-  assert.equal(conversationKindAr("audio"), "رسالة صوتية — لا تظهر هنا");
-  assert.equal(conversationKindAr("image"), "صورة — لا تظهر هنا");
-  assert.equal(conversationKindAr("video"), "فيديو — لا تظهر هنا");
-  assert.equal(conversationKindAr("document"), "ملف — لا تظهر هنا");
-});
-
-test("🔴 the conversation: «رسالة لا تظهر هنا» stays alone — never said twice", () => {
-  assert.equal(conversationKindAr("other"), "رسالة لا تظهر هنا");
-});
-
-test("the conversation: «موقع» alone — its link follows", () => {
-  assert.equal(conversationKindAr("location"), "موقع");
-});
-
-test("mapUrl: Google Maps at the point, Western digits, a minus kept", () => {
-  assert.equal(
-    mapUrl({ latitude: 31.9539, longitude: 35.9106 }),
-    "https://www.google.com/maps?q=31.9539,35.9106",
-  );
-  assert.equal(
-    mapUrl({ latitude: -33.8688, longitude: -151.2093 }),
-    "https://www.google.com/maps?q=-33.8688,-151.2093",
-  );
-});
-
-test("unreadLabelAr: «رسائل جديدة: 3»", () => {
-  assert.equal(unreadLabelAr(3), "رسائل جديدة: 3");
 });

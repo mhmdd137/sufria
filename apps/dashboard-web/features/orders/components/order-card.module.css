@@ -178,6 +178,56 @@
   text-overflow: ellipsis;
 }
 
+/* The customer's latest message, while one is unread (brief م-ب, decisions
+   1–2): the conversation's customer bubble — --bg, its line, radius 12,
+   15px — on one line, cut with …; a kind's word 13px/600 in grey inside it.
+   Beside it, the count: 24px high, 999px, inverted, the numbers' font. No
+   new colour. */
+.message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-block-start: 6px;
+}
+
+.bubble {
+  display: block;
+  min-width: 0;
+  padding: 3px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.word {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.unread {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding-inline: 7px;
+  border-radius: 999px;
+  background: var(--text-primary);
+  color: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
 /* The badge's look is shared/ui's; its place is the card's. */
 .badge {
   grid-area: badge;

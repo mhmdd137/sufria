@@ -37,9 +37,10 @@ type Props = {
  * 1024px up, one after the other below.
  */
 export function OrderDetails({ id, from }: Props) {
-  const { currency, reportOffline, apply } = useLiveOrders();
+  const { currency, reportOffline, apply, refresh } = useLiveOrders();
   const order = useOrder(id, reportOffline);
-  const messages = useOrderMessages(id, reportOffline);
+  const onSeen = useCallback(() => void refresh(), [refresh]);
+  const messages = useOrderMessages(id, reportOffline, onSeen);
   const back = backTo(from);
 
   return (

@@ -134,6 +134,8 @@ export const TEXT_ON_BACKGROUND: Readonly<
   bg: ["text-primary", "inverse-hover", "inverse-press"],
   /** The pause strip (brief ي-ب-9 §4.5). */
   "paused-text": ["paused-bg"],
+  /** The card's unread count, inverted (brief م-ب, decision 1). */
+  surface: ["text-primary"],
 };
 
 /** A status badge: its text on its own background, nothing else. */

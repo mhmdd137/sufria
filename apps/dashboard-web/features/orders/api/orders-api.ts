@@ -3,6 +3,7 @@
  * shapes are the API's own, from `@sufria/shared` (brief D §9).
  */
 import type {
+  MarkMessagesSeenRequest,
   OrderDetail,
   OrderListItem,
   OrderListResponse,
@@ -36,6 +37,11 @@ export type OrdersApi = {
   orderDetail(id: string): Promise<ApiResult<OrderDetail>>;
   /** The order's conversation (brief I §4, I-5). 404: not ours. */
   orderMessages(id: string): Promise<ApiResult<OrderMessagesResponse>>;
+  /**
+   * The order's customer messages are read up to `upTo`, the latest the
+   * page showed (brief م-ب). 204; 404 when not this order's customer's.
+   */
+  markMessagesSeen(id: string, upTo: string): Promise<ApiResult<void>>;
   /** The restaurant's currency, for every amount on the screen. */
   restaurantSettings(): Promise<ApiResult<RestaurantSettings>>;
 };
@@ -67,6 +73,13 @@ export function createOrdersApi(http: Http): OrdersApi {
         `/orders/${encodeURIComponent(id)}/messages`,
         { method: "GET", auth: "restaurant" },
       ),
+    markMessagesSeen: (id, upTo) => {
+      const body: MarkMessagesSeenRequest = { upTo };
+      return http.call<void>(
+        `/orders/${encodeURIComponent(id)}/messages/seen`,
+        { method: "POST", body, auth: "restaurant" },
+      );
+    },
     restaurantSettings: () =>
       http.call<RestaurantSettings>("/restaurant/settings", {
         method: "GET",

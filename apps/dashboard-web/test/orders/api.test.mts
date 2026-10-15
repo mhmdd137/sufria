@@ -69,6 +69,8 @@ const ORDER: OrderListItem = {
   items: [{ name: "شاورما دجاج", quantity: 2 }],
   statusChangedAt: "2026-09-27T09:00:00.000Z",
   cancellationReason: null,
+  unreadMessages: 0,
+  lastMessage: null,
 };
 
 test("changeStatus: from is the status the card showed, with token and restaurant headers", async () => {

@@ -61,6 +61,8 @@ const ORDER: OrderListItem = {
   items: [{ name: "شاورما", quantity: 1 }],
   statusChangedAt: "2026-10-05T09:00:00.000Z",
   cancellationReason: null,
+  unreadMessages: 0,
+  lastMessage: null,
 };
 
 test("🔴 nothing about the order changes before the server answers", async () => {

@@ -11,9 +11,11 @@ import {
   STAFF_TRANSITIONS,
   amountAr,
   clockTime,
+  conversationKindAr,
   customerLabelAr,
   historyTime,
   itemsSummaryAr,
+  mapUrl,
   nextStaffAction,
   orderNumberLabel,
   sinceAr,
@@ -26,9 +28,13 @@ import {
 } from "@sufria/shared";
 import { isMaskedCustomer } from "./board.ts";
 
-/** «الطلب» polls every 10 seconds, its conversation every 30 (I-6). */
+/**
+ * «الطلب» polls every 10 seconds (I-6), its conversation every 5 since brief
+ * م-ب (decision 11: it was 30) — the staff member reading a customer's
+ * messages sees the next one come.
+ */
 export const DETAIL_POLL_MS = 10_000;
-export const MESSAGES_POLL_MS = 30_000;
+export const MESSAGES_POLL_MS = 5_000;
 
 export type DetailView = {
   /** The order number, as the card writes it — the page's <h1>. */
@@ -138,8 +144,18 @@ export type ConversationView = {
     id: string;
     /** The customer's at the start of the line, the bot's at its end. */
     from: "customer" | "bot";
-    /** As it arrived — Arabic-Indic digits included: it is what they wrote. */
-    text: string;
+    /**
+     * As it arrived — Arabic-Indic digits included: it is what they wrote.
+     * `null` for a message with no text: `word` instead.
+     */
+    text: string | null;
+    /**
+     * A customer message with no text, by its kind (brief م-ب): «رسالة
+     * صوتية — لا تظهر هنا», «موقع»…; `null` for a text.
+     */
+    word: string | null;
+    /** A location's map link, when its point is known; else `null`. */
+    map: string | null;
     /** The first lines of a long bot message; `null` for one shown whole. */
     preview: string | null;
     time: string;
@@ -158,16 +174,49 @@ export function conversationView(
   return {
     notice,
     messages: messages.map((m) => {
+      const from = m.direction === "inbound" ? "customer" : "bot";
+      const time = clockTime(m.at);
+      if (m.kind !== "text" || m.text === null) {
+        const kind = m.kind === "text" ? "other" : m.kind;
+        return {
+          id: m.id,
+          from,
+          text: null,
+          word: conversationKindAr(kind),
+          map: kind === "location" && m.location ? mapUrl(m.location) : null,
+          preview: null,
+          time,
+        };
+      }
       const lines = m.text.split("\n");
       const long =
         m.direction === "outbound" && lines.length > LONG_MESSAGE_LINES;
       return {
         id: m.id,
-        from: m.direction === "inbound" ? "customer" : "bot",
+        from,
         text: m.text,
+        word: null,
+        map: null,
         preview: long ? lines.slice(0, PREVIEW_LINES).join("\n") : null,
-        time: clockTime(m.at),
+        time,
       };
     }),
   };
+}
+
+/**
+ * «Read» (brief م-ب): after a read of the conversation, the customer message
+ * to mark it read up to — the latest the page shows — or `null` when there
+ * is none, or it is the one already marked. A failed mark leaves `marked`
+ * as it was, so the next read tries again.
+ */
+export function seenUpTo(
+  messages: readonly OrderMessage[],
+  marked: string | null,
+): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!;
+    if (m.direction === "inbound") return m.id === marked ? null : m.id;
+  }
+  return null;
 }
