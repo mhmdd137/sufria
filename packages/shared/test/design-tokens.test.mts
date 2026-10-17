@@ -30,8 +30,9 @@ test("every locked pair passes 4.5:1, and the weakest is 4.62 (text-secondary on
   // Brief ل §2: 52 pairs — the 28 before it and 12 more in each mode. The
   // weakest was «expired» (light, 5.00) until the pressed grounds came.
   // Brief م-ب: 54 — the card's unread count, `surface` on `text-primary`.
+  // Brief م-د: 56 — a staff message's text on its bubble, in each mode.
   const pairs = contrastPairs();
-  assert.equal(pairs.length, 54);
+  assert.equal(pairs.length, 56);
   for (const p of pairs)
     assert.ok(p.ratio >= MIN_TEXT_CONTRAST, `${p.name}: ${p.ratio.toFixed(2)}`);
   const weakest = pairs.reduce((a, b) => (b.ratio < a.ratio ? b : a));
@@ -134,6 +135,19 @@ test("🔴 the eight hover and press grounds: their values, each the brief's sRG
   }
   // text-muted is a line's colour under the pointer, never a text (§3).
   assert.ok(!("text-muted" in TEXT_ON_BACKGROUND));
+});
+
+test("a staff message's bubble (brief م-د §2): its text 16.88 light, 7.04 dark — the dark a grey, not white", () => {
+  const ratio = (mode: "light" | "dark") =>
+    contrastPairs()
+      .find((p) => p.name === `${mode} · on-staff-bubble on staff-bubble`)
+      ?.ratio.toFixed(2);
+  assert.equal(ratio("light"), "16.88");
+  assert.equal(ratio("dark"), "7.04");
+  assert.equal(COLOR_TOKENS.light["staff-bubble"], "#161615");
+  assert.equal(COLOR_TOKENS.light["on-staff-bubble"], "#F7F7F5");
+  assert.equal(COLOR_TOKENS.dark["staff-bubble"], "#52514C");
+  assert.equal(COLOR_TOKENS.dark["on-staff-bubble"], "#F2F1EE");
 });
 
 test("the pairs are enumerated from the source: every badge × both modes", () => {
