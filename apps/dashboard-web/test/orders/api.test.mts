@@ -143,3 +143,73 @@ test("listOrders: active has no page, history carries it", async () => {
   assert.equal(calls[0]!.url, "http://api.test/orders?tab=active");
   assert.equal(calls[1]!.url, "http://api.test/orders?tab=history&page=2");
 });
+
+// --- a staff member writes to the customer — brief م-د §4 -----------------
+
+const CLIENT_ID = "0b6f3c2e-8d4a-4f1e-9a7b-3c5d2e1f0a9b";
+
+test("sendStaffMessage: POST /orders/:id/messages with the text and the clientId, both headers", async () => {
+  const row = {
+    id: "m1",
+    direction: "staff",
+    kind: "text",
+    text: "مرحبا، معك المطعم",
+    location: null,
+    at: "2026-10-17T20:00:00.000Z",
+    sendState: "pending",
+    failure: null,
+    staffName: "أحمد",
+    clientId: CLIENT_ID,
+  };
+  const { calls, fetch } = recorder([json(201, row)]);
+  const api = ordersApiOn("http://api.test", fetch);
+
+  const res = await api.sendStaffMessage(ORDER.id, {
+    text: "مرحبا، معك المطعم",
+    clientId: CLIENT_ID,
+  });
+
+  assert.deepEqual(res, { ok: true, value: row });
+  assert.equal(calls[0]!.method, "POST");
+  assert.equal(calls[0]!.url, `http://api.test/orders/${ORDER.id}/messages`);
+  assert.deepEqual(calls[0]!.body, {
+    text: "مرحبا، معك المطعم",
+    clientId: CLIENT_ID,
+  });
+  assert.equal(calls[0]!.headers["Authorization"], "Bearer access-1");
+  assert.equal(calls[0]!.headers["x-restaurant-id"], SESSION.restaurantId);
+});
+
+test("resumeBot: POST /orders/:id/resume-bot, no body; its 204 is ok", async () => {
+  const { calls, fetch } = recorder([
+    () => new Response(null, { status: 204 }),
+  ]);
+  const api = ordersApiOn("http://api.test", fetch);
+
+  assert.deepEqual(await api.resumeBot(ORDER.id), {
+    ok: true,
+    value: undefined,
+  });
+  assert.equal(calls[0]!.method, "POST");
+  assert.equal(calls[0]!.url, `http://api.test/orders/${ORDER.id}/resume-bot`);
+  assert.equal(calls[0]!.body, undefined);
+  assert.equal(calls[0]!.headers["x-restaurant-id"], SESSION.restaurantId);
+});
+
+for (const code of ["reply_window_closed", "client_id_reused"] as const)
+  test(`sendStaffMessage: 409 ${code} is a staff_conflict by its code`, async () => {
+    const { fetch } = recorder([
+      json(409, {
+        statusCode: 409,
+        error: "Conflict",
+        code,
+        message: "for the developer",
+      }),
+    ]);
+    const api = ordersApiOn("http://api.test", fetch);
+
+    assert.deepEqual(
+      await api.sendStaffMessage(ORDER.id, { text: "x", clientId: CLIENT_ID }),
+      { ok: false, error: { kind: "staff_conflict", code } },
+    );
+  });

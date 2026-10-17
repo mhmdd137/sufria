@@ -3,6 +3,8 @@
  * shapes are the API's own, from `@sufria/shared` (brief D §9).
  */
 import type {
+  CreateStaffMessageRequest,
+  CreateStaffMessageResponse,
   MarkMessagesSeenRequest,
   OrderDetail,
   OrderListItem,
@@ -42,6 +44,17 @@ export type OrdersApi = {
    * page showed (brief م-ب). 204; 404 when not this order's customer's.
    */
   markMessagesSeen(id: string, upTo: string): Promise<ApiResult<void>>;
+  /**
+   * A staff member's message to the order's customer (brief م-ج, §9.12): a
+   * `pending` row, sent by the engine. 201 new, 200 for a `clientId` this
+   * order already has; 409 `reply_window_closed` · `client_id_reused`.
+   */
+  sendStaffMessage(
+    id: string,
+    body: CreateStaffMessageRequest,
+  ): Promise<ApiResult<CreateStaffMessageResponse>>;
+  /** «شغّل الرد الآلي»: the bot answers this order's customer again. 204. */
+  resumeBot(id: string): Promise<ApiResult<void>>;
   /** The restaurant's currency, for every amount on the screen. */
   restaurantSettings(): Promise<ApiResult<RestaurantSettings>>;
 };
@@ -80,6 +93,16 @@ export function createOrdersApi(http: Http): OrdersApi {
         { method: "POST", body, auth: "restaurant" },
       );
     },
+    sendStaffMessage: (id, body) =>
+      http.call<CreateStaffMessageResponse>(
+        `/orders/${encodeURIComponent(id)}/messages`,
+        { method: "POST", body, auth: "restaurant" },
+      ),
+    resumeBot: (id) =>
+      http.call<void>(`/orders/${encodeURIComponent(id)}/resume-bot`, {
+        method: "POST",
+        auth: "restaurant",
+      }),
     restaurantSettings: () =>
       http.call<RestaurantSettings>("/restaurant/settings", {
         method: "GET",

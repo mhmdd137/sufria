@@ -23,6 +23,7 @@ import {
   type Currency,
   type OrderDetail,
   type OrderMessage,
+  type OrderMessagesResponse,
   type OrderStatus,
   type StaffAction,
 } from "@sufria/shared";
@@ -128,6 +129,25 @@ export function detailView(
  */
 export function reasonCounter(length: number): string {
   return `${length} / ${MAX_CANCELLATION_REASON_LENGTH}`;
+}
+
+/** The order's conversation, as the page holds it. */
+export type MessagesState =
+  | { kind: "loading" }
+  /**
+   * The answer whole: the messages, and whether the bot keeps quiet and
+   * until when staff can write (brief م-د) — the line and the field.
+   */
+  | ({ kind: "ready" } & OrderMessagesResponse)
+  | { kind: "failed" };
+
+export function messagesReady(res: OrderMessagesResponse): MessagesState {
+  return {
+    kind: "ready",
+    messages: res.messages,
+    botSilence: res.botSilence,
+    replyOpenUntil: res.replyOpenUntil,
+  };
 }
 
 /** A bot message longer than this many lines opens on its first two (I-6). */

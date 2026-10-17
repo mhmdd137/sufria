@@ -6,15 +6,14 @@ import { sound } from "../../../shared/sound/sound-store.ts";
 import { ordersApi } from "../api/orders-api.ts";
 import {
   MESSAGES_POLL_MS,
+  messagesReady,
   newCustomerMessage,
   seenUpTo,
+  type MessagesState,
 } from "../lib/details.ts";
 import { usePolling } from "./use-polling.ts";
 
-export type MessagesState =
-  | { kind: "loading" }
-  | { kind: "ready"; messages: OrderMessage[] }
-  | { kind: "failed" };
+export type { MessagesState };
 
 /**
  * The order's conversation, read now and every 5 seconds while the tab is
@@ -48,7 +47,7 @@ export function useOrderMessages(
     const res = await ordersApi.orderMessages(id);
     if (res.ok) {
       const { messages } = res.value;
-      setState({ kind: "ready", messages });
+      setState(messagesReady(res.value));
       const prev = last.current?.id === id ? last.current.messages : null;
       last.current = { id, messages };
       if (newCustomerMessage(prev, messages)) void sound.alert("message");
