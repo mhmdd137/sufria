@@ -15,6 +15,19 @@ const EnvSchema = z.object({
   JWT_REFRESH_TTL: z.string().default("30d"),
   DASHBOARD_API_PORT: z.coerce.number().int().positive().default(3002),
   PG_POOL_MAX: z.coerce.number().int().positive().default(10),
+  /**
+   * Brief م-ج, decision 1: a staff message keeps the bot quiet for its
+   * customer this many minutes — `staff_messages.silence_until`, written on
+   * the database's clock when the row is. A variable so the laptop trial can
+   * set 1 instead of waiting an hour.
+   */
+  BOT_SILENCE_MINUTES: z.coerce.number().int().positive().default(60),
+  /**
+   * Decision 12: staff can write to a customer until this many minutes after
+   * the customer's last message that is not a reaction — WhatsApp's 24 hours
+   * less a margin of 10 minutes: 23 h 50 min.
+   */
+  REPLY_WINDOW_MINUTES: z.coerce.number().int().positive().default(1430),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),

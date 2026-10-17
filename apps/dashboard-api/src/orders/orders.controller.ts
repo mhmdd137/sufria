@@ -10,19 +10,24 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from "@nestjs/common";
 import type {
+  CreateStaffMessageResponse,
   OrderDetail,
   OrderListResponse,
   OrderMessagesResponse,
   OrderStatusConflictBody,
+  StaffMessageConflictBody,
+  StaffMessageConflictCode,
   UpdateOrderStatusResponse,
 } from "@sufria/shared";
 import type { AuthenticatedUser } from "../auth/auth.types.js";
 import { CurrentUser } from "../auth/decorators/current-user.decorator.js";
 import { VerifiedRestaurantId } from "../auth/decorators/verified-restaurant.decorator.js";
 import { RestaurantContextGuard } from "../auth/restaurant-context.guard.js";
+import { CreateStaffMessageDto } from "./dto/create-staff-message.dto.js";
 import { ListOrdersQueryDto } from "./dto/list-orders.dto.js";
 import { MarkMessagesSeenDto } from "./dto/mark-messages-seen.dto.js";
 import { OrderIdParamDto } from "./dto/order-id.dto.js";
@@ -99,6 +104,66 @@ export class OrdersController {
   }
 
   /**
+   * Brief م-ج §4 أ: a staff member writes to the order's customer. In check
+   * order: 400 (the DTO) → 404 → 200 (this `clientId` already on this order:
+   * the row as it is now) or 409 `client_id_reused` → 409
+   * `reply_window_closed` → 201, the new row, `pending`. Nothing is sent
+   * from here: the engine's queue sends it (decision 6).
+   *
+   * `staff_account_id` comes from the token (`CurrentUser`), the restaurant
+   * from the guard.
+   */
+  @Post(":id/messages")
+  async createStaffMessage(
+    @VerifiedRestaurantId() restaurantId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param() params: OrderIdParamDto,
+    @Body() body: CreateStaffMessageDto,
+    @Res({ passthrough: true }) res: StatusOnly,
+  ): Promise<CreateStaffMessageResponse> {
+    const outcome = await this.orders.createStaffMessage(
+      restaurantId,
+      user.staffAccountId,
+      params.id,
+      body,
+    );
+    switch (outcome.kind) {
+      case "created":
+        return outcome.message;
+      case "existing":
+        res.status(HttpStatus.OK);
+        return outcome.message;
+      case "not_found":
+        throw new NotFoundException();
+      case "client_id_reused":
+        throw staffMessageConflict(
+          "client_id_reused",
+          "this clientId is another order's staff message",
+        );
+      case "reply_window_closed":
+        throw staffMessageConflict(
+          "reply_window_closed",
+          "the customer wrote nothing but reactions within the reply window",
+        );
+    }
+  }
+
+  /**
+   * Brief م-ج §4 ب: «رجّع للبوت». 204 with no body, whether or not the bot
+   * was quiet; another restaurant's order is the very 404 a non-existent one
+   * gets (brief D §2.9).
+   */
+  @Post(":id/resume-bot")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async resumeBot(
+    @VerifiedRestaurantId() restaurantId: string,
+    @Param() params: OrderIdParamDto,
+  ): Promise<void> {
+    if (!(await this.orders.resumeBot(restaurantId, params.id)))
+      throw new NotFoundException();
+  }
+
+  /**
    * Brief D §3.3, in check order: 400 (the DTO) → 409 `transition_not_allowed`
    * → 404 → 409 `status_conflict` or `payment_not_settled`. The 200 is the
    * order in the shape of a `GET /orders` item.
@@ -159,6 +224,27 @@ function conflict(detail: ConflictDetail): ConflictException {
     statusCode: 409,
     error: "Conflict",
     ...detail,
+  };
+  return new ConflictException(body);
+}
+
+/**
+ * The one thing taken from the platform's response: its status, for the 200
+ * of a `clientId` seen before (`passthrough` keeps the return value the
+ * body). Structural, so the API needs no `express` types.
+ */
+type StatusOnly = { status(code: number): unknown };
+
+/** The 409 of `POST /orders/:id/messages`, in the same shape (brief م-ج §3). */
+function staffMessageConflict(
+  code: StaffMessageConflictCode,
+  message: string,
+): ConflictException {
+  const body: StaffMessageConflictBody = {
+    statusCode: 409,
+    error: "Conflict",
+    code,
+    message,
   };
   return new ConflictException(body);
 }

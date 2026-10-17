@@ -21,8 +21,8 @@ with `ERR_PNPM_BAD_PM_VERSION`).
 | Path | Package | What it is |
 |---|---|---|
 | `packages/shared` | `@sufria/shared` | Drizzle schema mirror + domain logic shared by every app |
-| `apps/dashboard-api` | `@sufria/dashboard-api` | NestJS REST API for the restaurant dashboard: orders and their status (with their unread customer messages and `returned`, and `POST /orders/:id/messages/seen` — brief م-ب, `docs/13` §9.1 and §9.11), restaurant settings (task D); the menu — `GET`/`POST /menu-items`, `PATCH /menu-items/:id` (name, price, availability, archive and bring back), `POST /menu-items/enable-all`, `GET /menu-categories` — and `PATCH /restaurant/orders-pause`, all under the 4096 guard where they can lengthen the menu (brief ي-أ, `docs/brief-ja-menu-backend.md`). Contracts as built: `docs/13-dashboard-api-brief.md` §9 (§9.10 for ي-أ) |
-| `apps/conversation-engine` | `@sufria/conversation-engine` | WhatsApp webhooks, business-hours gate, session, browsing cart, pickup-or-delivery, address, and order creation (task C); the customer-notification poller (task F, `src/notify/`); the 60-minute session timeout (task H, `docs/17-session-timeout-brief.md`); orders paused and the empty menu (brief ي-أ §4, `src/conversation/orders-paused.ts`); «آخر طلب لك» in a returning customer's first message, and «نفسه» (FR-08, brief ك, `docs/brief-ka-reorder.md`, `src/conversation/reorder.ts`); a customer's message after an order reaches the restaurant — the relay line instead of the menu, the message linked to the order, a reaction stored and nothing else (brief م-أ, `docs/brief-ma-customer-messages.md`, `src/conversation/customer-relay.ts`) |
+| `apps/dashboard-api` | `@sufria/dashboard-api` | NestJS REST API for the restaurant dashboard: orders and their status (with their unread customer messages and `returned`, and `POST /orders/:id/messages/seen` — brief م-ب, `docs/13` §9.1 and §9.11), a staff member's message to the order's customer — `POST /orders/:id/messages` (a `pending` row, nothing sent), `POST /orders/:id/resume-bot`, the staff messages in the conversation with `botSilence` and `replyOpenUntil`, and `staffMessagedAt` on every list item (brief م-ج, `docs/brief-mc-staff-reply-backend.md`, `docs/13` §9.9 and §9.12), restaurant settings (task D); the menu — `GET`/`POST /menu-items`, `PATCH /menu-items/:id` (name, price, availability, archive and bring back), `POST /menu-items/enable-all`, `GET /menu-categories` — and `PATCH /restaurant/orders-pause`, all under the 4096 guard where they can lengthen the menu (brief ي-أ, `docs/brief-ja-menu-backend.md`). Contracts as built: `docs/13-dashboard-api-brief.md` §9 (§9.10 for ي-أ) |
+| `apps/conversation-engine` | `@sufria/conversation-engine` | WhatsApp webhooks, business-hours gate, session, browsing cart, pickup-or-delivery, address, and order creation (task C); the customer-notification poller (task F, `src/notify/`); the 60-minute session timeout (task H, `docs/17-session-timeout-brief.md`); orders paused and the empty menu (brief ي-أ §4, `src/conversation/orders-paused.ts`); «آخر طلب لك» in a returning customer's first message, and «نفسه» (FR-08, brief ك, `docs/brief-ka-reorder.md`, `src/conversation/reorder.ts`); a customer's message after an order reaches the restaurant — the relay line instead of the menu, the message linked to the order, a reaction stored and nothing else (brief م-أ, `docs/brief-ma-customer-messages.md`, `src/conversation/customer-relay.ts`); the bot keeping quiet for a customer staff are talking to (`src/conversation/bot-silence.ts`), and the queue that sends staff messages (`src/notify/staff-replies.ts`) — brief م-ج |
 | `apps/dashboard-web` | `@sufria/dashboard-web` | Next.js staff UI: login, the orders screen (task G, `docs/16-orders-screen-brief.md`), an order's details with its conversation (task I, `docs/brief-i-order-details.md`), and the menu screen with the orders pause — `/menu`, `/menu/removed`, the pause strip on every page (brief ي-ب, `docs/brief-jb-menu-screen.md`); a customer's messages (brief م-ب, `docs/brief-mb-customer-messages-screen.md`) — the latest unread one on its card with the count, closed orders a message brought back in a group of their own above «الطلبات», every kind of message in the conversation (read every 5 s, marked read on the server), and the alert sound: O2 for a pending order (each minute, up to 3 h), M1 for a message, the header's «اكتم الصوت» and two strips (`shared/sound/`). Feature-based: `app/` (routes) · `features/<x>/` · `shared/` — see *Dashboard structure*. Talks to `dashboard-api` at `NEXT_PUBLIC_API_URL` |
 | `db/migrations` | — | Raw SQL. The single source of truth for the schema |
 | `db/seed` | — | Dev-only fixtures |
@@ -43,7 +43,7 @@ pnpm db:seed          # load dev fixtures
 # After ANY database rebuild, recreate the demo restaurant (brief E) — prints its staff password once:
 node --env-file-if-exists=.env --import @swc-node/register/esm-register apps/dashboard-api/src/scripts/setup-restaurant.ts db/restaurants/demo.json
 pnpm dev              # run all services in parallel
-pnpm test:security    # chain-isolation gate — 15 assertions + 4 negative controls
+pnpm test:security    # chain-isolation gate — 19 assertions + 4 negative controls
 pnpm test:db          # critical primitives + schema drift + the migration tool
 pnpm check:rtl        # dashboard-web: logical properties only, no reversing (in verify and CI)
 pnpm check:budget     # dashboard-web: JS + fonts before first paint, per page, vs perf-budget.json
@@ -58,6 +58,10 @@ node --env-file=.env scripts/demo-order-status.mjs 101 accepted
 node --env-file=.env scripts/demo-menu.mjs list          # also: archived
 node --env-file=.env scripts/demo-menu.mjs pause         # also: resume
 node --env-file=.env scripts/demo-menu.mjs price 1 ٣٫٧٥  # also: on <n> · off <n> · archive <n> · restore <n>
+# Dev only, the same way: staff write to an order's customer, as the message box
+# will (brief م-ج §7). <n> is the order's number:
+node --env-file=.env scripts/demo-staff-message.mjs 101 "مرحبا، معك المطعم"
+node --env-file=.env scripts/demo-staff-message.mjs 101 --status   # also: --resume
 ```
 
 `pnpm verify` needs a live database: `test:security` and `test:db` connect using
@@ -290,6 +294,21 @@ setup and check, so a session aged "60:00" is read at 60:00.05 and expires under
 its transaction open, the loser blocks on the expiry CAS. `setup-env.ts` pins
 `SESSION_IDLE_MINUTES=60`, so a temporary `1` in `.env` changes nothing here.
 
+Brief م-ج's three suites, each break predicted in a file before it ran:
+`dashboard-api/test/staff-messages.test.ts` (POST, resume-bot, the
+conversation's staff messages, `botSilence`, `replyOpenUntil`,
+`staffMessagedAt`) — its "two presses at once" stops both requests of two
+API instances at their INSERT behind a SHARE lock, and its "Node's clock a
+month off" fakes `Date` alone in the suite's process, which is the API's;
+`conversation-engine/test/bot-silence.test.ts` (the silence's place and what
+ends it); `conversation-engine/test/staff-replies.test.ts` (the queue, on
+`notifier.test.ts`'s shape, with a sender of its own that returns Meta's id —
+the recording fake returns none and is left as it is). One break is not
+caught, and is recorded: a claim that reads the row and then writes it,
+inside one transaction, passes the two-cycles test — the suite's single
+connection runs the two claims one after the other. The deterministic break,
+a claim that trusts the listing's read, drops it.
+
 🔴 **Never count a whole table in a test** (`SELECT count(*) FROM orders`).
 The engine and API suites run in parallel under `pnpm -r test`; count only the
 rows of the order or restaurant the test itself created.
@@ -515,6 +534,35 @@ into the same `.next` that `next start` serves: restart a running one after.
   sets minutes on the command line. `test/customer-relay.test.ts` holds the
   brief's tests 1–22; eight breaks were each predicted before they ran
   (`docs/brief-ma-customer-messages.md`, «كما انبنى»).
+- **Staff write to an order's customer (brief م-ج, Mohammed's decisions
+  1–14).** The dashboard API writes a `staff_messages` row (0018) and sends
+  nothing; the engine's queue (`notify/staff-replies.ts`) claims and sends
+  it from the bot's number, as written, at most once — retried after 2 s and
+  6 s, Meta's 131047 never retried, and one that waited longer than
+  `STAFF_REPLY_MAX_WAIT_SECONDS` before its send began (or sat `sending` that
+  long after its claim) failed as `expired`, never sent. **The silence:** the
+  bot keeps quiet for a customer while their latest staff message that did
+  not fail is younger than its `silence_until` (written by the API on the
+  database's clock), unless after it the customer wrote «منيو» or staff
+  pressed «رجّع للبوت» (`customers.bot_resumed_at`), or its order was
+  completed, cancelled or expired. The rule is `app.bot_silence()` alone —
+  no TypeScript copy — read by the engine first thing after a reaction (it
+  beats an active session, the timeout, the pause, the hours and the relay;
+  the message is linked to the silence's order) and by the API
+  (`botSilence`). Status notifications still go out. Four variables:
+  `BOT_SILENCE_MINUTES` (60) and `REPLY_WINDOW_MINUTES` (1430, the 24 hours
+  less 10 minutes) in the API; `STAFF_REPLY_POLL_MS` (5000, `0` off) and
+  `STAFF_REPLY_MAX_WAIT_SECONDS` (120) in the engine, which refuses to start
+  when the wait is not more than 3 × `WHATSAPP_SEND_TIMEOUT_MS` + 8000. All
+  four pinned in the suites' `setup-env.ts`. **Not built:** the screen —
+  the message box, the staff message's look and state, «رجّع للبوت», the
+  24-hours line, stopping a pending order's ring (brief م-د; until then a
+  staff message shows in the conversation as a bot reply, and
+  `scripts/demo-staff-message.mjs` writes them) · showing voice notes and
+  images (م-هـ) · «وصلت ✓» (Meta's delivery statuses: `wa_message_id` is
+  kept, nothing reads it). A send that went out whose final write then
+  failed leaves the row `sending`, to be failed as `expired` — the staff
+  member may then send it again.
 - **An active session silent for `SESSION_IDLE_MINUTES` (default 60) or more
   expires lazily, when the next message arrives** (brief H). `handleInbound`
   reads the idle time with the session (`now() - last_message_at`, the
@@ -556,8 +604,10 @@ into the same `.next` that `next start` serves: restart a running one after.
   the list and by the 4096 guard's read). Changing one does not fail the
   other. The guard's *length* does not depend on it (the categories stay
   contiguous either way); the screen's order does.
-- **Every text the engine sends is kept in `outbound_messages` (0013), from the
-  day it shipped — nothing before it.** One wrapper, `SavingWhatsAppSender`
+- **Every text the engine sends of its own is kept in `outbound_messages`
+  (0013), from the day it shipped — nothing before it.** A staff member's
+  text is not (brief م-ج): it lives in `staff_messages` alone, sent by the
+  queue through the raw sender. One wrapper, `SavingWhatsAppSender`
   (`src/whatsapp/saving-sender.ts`, built in `main.ts`): after a successful
   send, on a `TenantDb` of its own (most replies leave inside the inbound
   transaction, which holds a connection of the engine's pool), with
@@ -689,7 +739,8 @@ into the same `.next` that `next start` serves: restart a running one after.
   order is written `notified = true`, so the poller never sees it.
 - **A closed restaurant answers every message with the closing text** — but a
   customer with an order on its way, or one just finished, gets the relay line
-  (brief م-أ, decision 7). No session is opened by design, so nothing
+  (brief م-أ, decision 7), and one staff are talking to gets nothing (brief
+  م-ج, decision 3). No session is opened by design, so nothing
   remembers that the customer was already told. Rate-limiting that repeat
   belongs with the state machine.
 - **The menu is sent whole, in one message.** A menu that exceeds WhatsApp's
@@ -714,7 +765,8 @@ into the same `.next` that `next start` serves: restart a running one after.
   `ORDERS_PAUSED_AR`, the one text, and nothing is written — but a customer
   with no active session and an order on its way, or one just finished, gets
   the relay line (brief م-أ). The order in `handleInbound`: a reaction (stored,
-  nothing else, brief م-أ) → the session timeout (H) → **an active session
+  nothing else, brief م-أ) → **the silence for staff (brief م-ج)** → the
+  session timeout (H) → **an active session
   while paused: the text, before any routing** — «أكّد» included, so no order;
   the session untouched, not even `last_message_at` → routing → **the relay
   (brief م-أ)** → the hours gate (closed beats paused for a new

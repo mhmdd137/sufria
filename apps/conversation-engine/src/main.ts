@@ -4,6 +4,7 @@ import { TenantDb } from "./db/tenant-db.js";
 import { createWebhookServer, WEBHOOK_PATH } from "./http/server.js";
 import { logger } from "./logger.js";
 import { OrderNotifier } from "./notify/order-notifier.js";
+import { StaffReplySender } from "./notify/staff-replies.js";
 import { SavingWhatsAppSender } from "./whatsapp/saving-sender.js";
 import { MetaWhatsAppSender } from "./whatsapp/sender.js";
 import { WebhookService } from "./whatsapp/webhook.service.js";
@@ -25,11 +26,20 @@ async function bootstrap(): Promise<void> {
   // 🔴 المسار الوحيد للإنتاج. RecordingWhatsAppSender بـwhatsapp/sender.ts
   //    موجود للاختبارات وللتشغيل المحلي بلا توكن، وما بينوصل من هون أبدا.
   //    Every message that went out is kept, for the order's conversation.
-  const sender = new SavingWhatsAppSender(new MetaWhatsAppSender(), outboundDb);
+  const meta = new MetaWhatsAppSender();
+  const sender = new SavingWhatsAppSender(meta, outboundDb);
   const conversation = new ConversationService(sender);
   // مُراقِب الإشعارات (FR-11): نفس المرسِل ونفس المخزن. `NOTIFY_POLL_MS=0` يطفئه.
   const notifier = new OrderNotifier(db, sender, {
     pollMs: config.NOTIFY_POLL_MS,
+  });
+  // The staff-reply queue (brief م-ج §6): the raw sender itself, not the
+  // saving wrapper — a staff text lives in staff_messages alone, and the
+  // queue's type takes only a sender that returns Meta's id.
+  // `STAFF_REPLY_POLL_MS=0` turns it off.
+  const staffReplies = new StaffReplySender(db, meta, {
+    pollMs: config.STAFF_REPLY_POLL_MS,
+    maxWaitSeconds: config.STAFF_REPLY_MAX_WAIT_SECONDS,
   });
 
   const server = createWebhookServer({
@@ -43,8 +53,10 @@ async function bootstrap(): Promise<void> {
     logger.info({ signal }, "إيقاف محرّك المحادثة");
     server.close(() => {
       // المُراقِب قبل المخزن: بيستنّى دورته الشغّالة، فما بينسكّر المخزن تحتها.
+      // The queue the same way, for its cycle.
       void notifier
         .stop()
+        .then(() => staffReplies.stop())
         .then(() => db.stop())
         .then(() => outboundDb.stop())
         .then(() => process.exit(0));
@@ -64,6 +76,13 @@ async function bootstrap(): Promise<void> {
       config.NOTIFY_POLL_MS === 0
         ? "مُراقِب الإشعارات مطفأ (NOTIFY_POLL_MS=0)"
         : "مُراقِب الإشعارات يعمل",
+    );
+    staffReplies.start();
+    logger.info(
+      { pollMs: config.STAFF_REPLY_POLL_MS },
+      config.STAFF_REPLY_POLL_MS === 0
+        ? "staff-reply queue off (STAFF_REPLY_POLL_MS=0)"
+        : "staff-reply queue running",
     );
   });
 }

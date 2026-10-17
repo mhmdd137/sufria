@@ -10,7 +10,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import type { OrderListItem, OrderMessage } from "@sufria/shared";
+import type {
+  CustomerOrBotMessage,
+  OrderListItem,
+  OrderMessage,
+} from "@sufria/shared";
 import { cardView } from "../../features/orders/lib/board.ts";
 import {
   MESSAGES_POLL_MS,
@@ -47,6 +51,7 @@ const ORDER: OrderListItem = {
   cancellationReason: null,
   unreadMessages: 0,
   lastMessage: null,
+  staffMessagedAt: null,
 };
 
 const unread = (
@@ -171,7 +176,7 @@ test("the group shows only with returned orders, above the queue, under its titl
 
 const msg = (
   kind: OrderMessage["kind"],
-  extra: Partial<OrderMessage> = {},
+  extra: Partial<CustomerOrBotMessage> = {},
 ): OrderMessage => ({
   id: `m-${kind}`,
   direction: "inbound",

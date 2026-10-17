@@ -656,6 +656,8 @@ ALTER TABLE orders
   - `unreadMessages`: عدد رسائل الزبون **المربوطة بالطلب** (`inbound_messages.order_id`، م-أ) اللي `received_at` تبعها بعد `orders.customer_messages_seen_at` (هجرة `0017`؛ NULL = `-infinity`). رسائل الطلب نفسه ما إلها `order_id` فما بتنعدّ، والتفاعل ما بينعدّ (`message_type <> 'reaction'`، فوق إنه ما بينربط أصلا).
   - `lastMessage`: آخر رسالة مربوطة، مقروءة أو لأ: `{ kind, text }` — `kind` بـ`messageKind` (`shared`) من `message_type` والنص، و`text` أول 200 حرف (`left(body, 200)`)، و`null` إلا للنص. لا رسالة مربوطة ← `null`.
   - `returned` (بالرد كله، جنب `orders`): **مع `active` بس** — طلبات حالتها من `history` (`completed` · `cancelled` · `expired`) وإلها رسالة غير مقروءة `received_at > now() - interval '24 hours'` (ساعة القاعدة)؛ الأحدث رسالة غير مقروءة أول، وبعدها `id`. **مش بـ`orders`، ومش بعدّاد الراس.** مع `history` ← `[]` دايما، والطلب لسا بالسجل. باستعلام تاني بنفس معاملة `runInTenant`.
+- **أضاف بريف م-ج (17 أكتوبر) حقلا لكل بند** (كُتب من الكود على الفرع `feat/staff-reply`)، بـ`orders` و`returned` وبرد `PATCH /orders/:id/status` (نفس الإسقاط):
+  - `staffMessagedAt`: `created_at` لآخر رسالة موظف على هالطلب **ما فشلت** (`staff_messages`، هجرة `0018`؛ `send_state <> 'failed'`)، ISO بـUTC، و`null` إذا ما في. الشاشة (م-د) بتوقف فيه رنين الطلب المعلّق (قرار 14). فهرس `idx_staff_messages_order`.
 - **الأخطاء:** 400 · 401 · 403 (§9.0).
 
 ### 9.2 · `GET /orders/:id`
@@ -866,6 +868,8 @@ ALTER TABLE orders
 
 **بريف م-ب غيّر الرد** (15 أكتوبر، الفرع `feat/customer-messages-screen`): كل رسالة صار إلها `kind` و`location`، و`text` صار `null` للرسالة اللي مش نص. **القواعد ما تغيّرت**، إلا إن رسالة الزبون اللي بلا نص بتطلع **إذا مربوطة بهالطلب بس** (2ب)، والتفاعل ما بيطلع أبدا.
 
+**بريف م-ج زاد على الرد** (17 أكتوبر، الفرع `feat/staff-reply`): رسائل الموظف بالمحادثة (`direction: "staff"`)، وحقلين جنب `messages`: `botSilence` و`replyOpenUntil`. **قواعد رسائل الزبون والبوت ما تغيّرت.** التفاصيل تحت «رسائل الموظف».
+
 **الطلب:** `:id` بـ`z.guid()` كـ§9.2. نفس الحارس ونفس السياق.
 
 **الرد 200** (`OrderMessagesResponse` بـ`shared`):
@@ -888,8 +892,25 @@ ALTER TABLE orders
 - `at`: للزبون `received_at` (ساعة القاعدة، نفس ساعة `orders.created_at`)، وللبوت `sent_at`.
 - **الترتيب زمني ثم `id`، وآخر 200 بالحد الأقصى** (لو زادت، الأحدث هي اللي بترجع، مرتّبة زمنيا).
 - **رسالة بلا نص** (صوتية، صورة، موقع…) بترجع **إذا مربوطة بهالطلب** (2ب، م-ب)؛ القاعدة 3 بتضل للنص بس، فصورة قبل الطلب ما بترجع — بس بتضل مرجعا للقاعدة 4. **التفاعل (`reaction`) ما بيرجع أبدا**، حتى لو مربوط.
-- طلب بلا رسائل محفوظة ← `{ "messages": [] }` بـ200، **مش 404**.
+- طلب بلا رسائل محفوظة ← `{ "messages": [], "botSilence": null, "replyOpenUntil": null }` بـ200، **مش 404**.
 - **الأخطاء:** 400 (UUID) · 401 · 403 · 404 (غير موجود أو لمطعم آخر، نفس الجسم — وولا رسالة منه).
+
+**رسائل الموظف (م-ج):** كل صف بـ`staff_messages` **انكتب على هالطلب** (`order_id`) — مش رسائل الموظف على طلبات الزبون التانية — بفرع `UNION ALL` تالت بنفس الجملة، **جوّا نفس حد الـ200**، وبالترتيب مع الباقي حسب `at`:
+
+```json
+{ "id": "…uuid…", "direction": "staff", "kind": "text", "text": "طلبك بعد 10 دقايق",
+  "location": null, "at": "2026-10-17T12:41:00.000Z",
+  "sendState": "sent", "failure": null, "staffName": "موظف", "clientId": "…uuid…" }
+```
+
+- `at` = `created_at`: **لحظة ما الموظف ضغط**، مش لحظة ما طلعت.
+- `sendState` (`STAFF_MESSAGE_SEND_STATES`): `pending` (القاعدة `pending` أو `sending`) · `sent` · `failed`. `failure` مع `failed` بس (`STAFF_MESSAGE_FAILURES`: `expired` · `send_failed` · `window_closed` · `no_sender_number`)، وغير هيك `null`.
+- `staffName` من `staff_accounts.name` بـ`LEFT JOIN`؛ `null` إذا الحساب انمسح (`staff_account_id` بيصير NULL، والرسالة بتضل).
+- `OrderMessage` صار اتحاد: `CustomerOrBotMessage` (`inbound` · `outbound`، الحقول زي قبل) أو `StaffOrderMessage` (فوقها `sendState` · `failure` · `staffName` · `clientId`).
+
+**`botSilence`:** `{ "orderId": "…uuid…", "until": "…ISO UTC…" }` من `app.bot_silence(o.customer_id)` (هجرة `0018`، القاعدة بمكانها الوحيد، تحت RLS المطعم) — البوت ساكت لزبون الطلب بسبب رسالة موظف على `orderId` (هالطلب أو طلب تاني إله) لحد `until`؛ وإلا `null`.
+
+**`replyOpenUntil`:** آخر رسالة من زبون الطلب **بلا التفاعل** (`message_type <> 'reaction'`) + `REPLY_WINDOW_MINUTES` (الافتراضي 1430 = 23:50)، **إذا لسا ما فات** (`> now()`)، وإلا `null` — ونفس `null` بلا رسالة أبدا. **نفس قطعة الـSQL** اللي بيفحص فيها `POST /orders/:id/messages` الـ24 ساعة (§9.12)، فالاتنين ما بيختلفوا.
 
 **أي رسائل تنتمي للطلب** — بجملة SQL وحدة (`orders.service.ts`)، والزبون هو زبون الطلب، ورقمه بنفس أرقام `from_phone` و`to_phone` حرفيا (ط-0 #7):
 
@@ -995,6 +1016,40 @@ ALTER TABLE orders
 **الشاشة** بتناديه بعد كل قراءة للمحادثة جابت رسالة زبون أحدث من آخر وحدة علّمتها، وبعد النجاح بتقرأ القائمة فورا. الفشل ما بيقول إشي، وبينعاد بالقراءة الجاية.
 
 **الأخطاء:** 400 · 401 · 403 · 404.
+
+### 9.12 · `POST /orders/:id/messages` و`POST /orders/:id/resume-bot` — أضافهم بريف م-ج (17 أكتوبر)
+
+**كُتب من الكود على الفرع `feat/staff-reply`.** بنفس قواعد §9.0. **الـAPI بيكتب الصف وبس، وما بيبعت إشي** (قرار 6): طابور المحرّك (`notify/staff-replies.ts`) هو اللي بيبعت، كل 5 ث.
+
+#### `POST /orders/:id/messages` — الموظف بيكتب لزبون الطلب
+
+**الطلب:** `:id` بـ`z.guid()` كـ§9.2. الجسم (`CreateStaffMessageRequest`، `strictObject`):
+- `text`: نص، **بيتقصّ من الطرفين وبس** (ولا تحويل أرقام: `toWesternDigits` للأسعار، مش لكلام الموظف)، وبعد القص مش فاضي، و`whatsappTextLength` ≤ `WHATSAPP_TEXT_LIMIT` (4096 حرف، بعدّ واتساب: الإيموجي حرف).
+- `clientId`: UUID بتعمله الشاشة لهالرسالة (`z.guid()`).
+
+**الفحوصات بالترتيب:**
+
+| # | الحالة | الرد |
+|---|---|---|
+| 1 | الـDTO | **400** |
+| 2 | الطلب مش موجود أو لمطعم آخر | **404** بنفس الجسم |
+| 3 | صف بنفس `clientId` بهالمطعم، **لنفس الطلب** | **200** بالصف زي ما هو هلق — ولا صف جديد، **ولا فحص للـ24 ساعة** |
+| 3 | نفسه **لطلب تاني** | **409 `client_id_reused`** |
+| 4 | ما في رسالة من زبون الطلب (بلا التفاعل) خلال `REPLY_WINDOW_MINUTES` | **409 `reply_window_closed`** |
+| 5 | غير هيك | **201**: صف جديد، `sendState: "pending"` |
+
+- **الرد** (`CreateStaffMessageResponse` = `StaffOrderMessage`، بشكل §9.9). جسم الـ409 (`StaffMessageConflictBody`): `{ statusCode: 409, error: "Conflict", code, message }` — `code` للشاشة، و`message` إنجليزي للمطوّر.
+- **الصف:** `staff_account_id` من التوكن (قرار 13) · `body` بعد القص · `silence_until = now() + make_interval(mins => BOT_SILENCE_MINUTES)` (الافتراضي 60) — **بساعة القاعدة، ونفس `now()` تبع `created_at`**، فالسكوت 60 دقيقة بالزبط من لحظة الضغط (قرار 7).
+- **ضغطتين بنفس اللحظة بنفس `clientId`:** `INSERT … ON CONFLICT (restaurant_id, client_id) DO NOTHING`؛ التانية بتستنّى `COMMIT` الأولى، وما بتكتب إشي، وبتقرأ صفّها ← 200. ولا صف تاني ولا 500.
+- كل هاد بمعاملة `runInTenant` وحدة.
+
+#### `POST /orders/:id/resume-bot` — «رجّع للبوت»
+
+**الطلب:** `:id` بـ`z.guid()`، بلا جسم. **الرد:** **204** بلا جسم. `customers.bot_resumed_at = now()` لزبون الطلب: ولا رسالة موظف قبل هاللحظة بتسكّت البوت. بيشتغل حتى لو البوت مش ساكت (ما بيضر). طلب مش إلنا ← **404** بنفس الجسم.
+
+**`staff_messages` (هجرة `0018`):** `id` · `restaurant_id` · `order_id` (بمفتاح المستأجر `(order_id, restaurant_id) → orders`) · `staff_account_id` (`ON DELETE SET NULL`) · `client_id` (`UNIQUE (restaurant_id, client_id)`) · `body` (`CHECK btrim(body) <> ''`) · `send_state` (`pending` ← `sending` ← `sent` | `failed`) · `failure` (مع `failed` وبس، `CHECK`) · `meta_error_code` · `wa_message_id` · `created_at` · `silence_until` (`CHECK > created_at`) · `claimed_at` · `finished_at`. RLS بشكل `0006` حرفيا. **مش بـ`outbound_messages`:** المحرّك بيبعتها بالمرسِل الخام، فالمحادثة بتعرضها مرة وحدة، بحالتها.
+
+**الأخطاء:** 400 · 401 · 403 · 404 · 409.
 
 ---
 

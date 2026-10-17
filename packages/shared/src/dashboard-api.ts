@@ -76,6 +76,12 @@ export type OrderListItem = {
    * is `text`.
    */
   lastMessage: { kind: MessageKind; text: string | null } | null;
+  /**
+   * ISO 8601 in UTC: the latest staff message on this order that did not
+   * fail (`staff_messages.created_at`, brief م-ج); `null` when none. The
+   * screen stops a pending order's ringing on it (decision 14).
+   */
+  staffMessagedAt: string | null;
 };
 
 export type OrderListResponse = {
@@ -211,10 +217,27 @@ export type UpdateOrderStatusRequest = {
 
 /**
  * Who wrote a message of an order's conversation: the customer (`inbound`,
- * `inbound_messages`) or the bot (`outbound`, `outbound_messages`).
+ * `inbound_messages`), the bot (`outbound`, `outbound_messages`) or, from
+ * brief م-ج, a staff member (`staff`, `staff_messages`).
  */
-export const MESSAGE_DIRECTIONS = ["inbound", "outbound"] as const;
+export const MESSAGE_DIRECTIONS = ["inbound", "outbound", "staff"] as const;
 export type MessageDirection = (typeof MESSAGE_DIRECTIONS)[number];
+
+/**
+ * A staff message as the dashboard sees it: the database's `pending` and
+ * `sending` are both `pending`.
+ */
+export const STAFF_MESSAGE_SEND_STATES = ["pending", "sent", "failed"] as const;
+export type StaffMessageSendState = (typeof STAFF_MESSAGE_SEND_STATES)[number];
+
+/** Why a staff message failed — `staff_messages.failure` (0018). */
+export const STAFF_MESSAGE_FAILURES = [
+  "expired",
+  "send_failed",
+  "window_closed",
+  "no_sender_number",
+] as const;
+export type StaffMessageFailure = (typeof STAFF_MESSAGE_FAILURES)[number];
 
 /**
  * What a customer message is, as the dashboard names it (brief م-ب): `text`
@@ -235,15 +258,10 @@ export type MessageKind = (typeof MESSAGE_KINDS)[number];
 /** A location message's point, from its `payload->'location'`. */
 export type MessageLocation = { latitude: number; longitude: number };
 
-/**
- * A message of `GET /orders/:id/messages` — brief I §4 (I-5). A customer
- * message with no text is returned only when it was relayed to this very
- * order (rule 2b, brief م-ب); a reaction never is.
- */
-export type OrderMessage = {
+/** The fields every message of an order's conversation has. */
+type OrderMessageBase = {
   id: string;
-  direction: MessageDirection;
-  /** `text` for every bot message. */
+  /** `text` for every bot message, and every staff one. */
   kind: MessageKind;
   /**
    * As it arrived, or as it was sent: content, never translated or
@@ -252,16 +270,97 @@ export type OrderMessage = {
   text: string | null;
   /** With `kind: "location"` and numeric coordinates alone; else `null`. */
   location: MessageLocation | null;
-  /** ISO 8601 in UTC: when it reached us (`inbound`), or went out (`outbound`). */
+  /**
+   * ISO 8601 in UTC: when it reached us (`inbound`), went out (`outbound`),
+   * or staff pressed «send» (`staff`).
+   */
   at: string;
 };
 
 /**
+ * A message of `GET /orders/:id/messages` from the customer or the bot —
+ * brief I §4 (I-5). A customer message with no text is returned only when it
+ * was relayed to this very order (rule 2b, brief م-ب); a reaction never is.
+ */
+export type CustomerOrBotMessage = OrderMessageBase & {
+  direction: "inbound" | "outbound";
+};
+
+/**
+ * A staff member's message to the order's customer (brief م-ج): one row of
+ * `staff_messages` written on this order, in whatever state it is.
+ */
+export type StaffOrderMessage = OrderMessageBase & {
+  direction: "staff";
+  kind: "text";
+  /** `at`: when staff pressed «send» (`created_at`), not when it went out. */
+  sendState: StaffMessageSendState;
+  /** With `sendState: "failed"` alone; else `null`. */
+  failure: StaffMessageFailure | null;
+  /** `staff_accounts.name` of who sent it; `null` once the account is gone. */
+  staffName: string | null;
+  /** The screen's own id for the message (`CreateStaffMessageRequest`). */
+  clientId: string;
+};
+
+export type OrderMessage = CustomerOrBotMessage | StaffOrderMessage;
+
+/**
  * `GET /orders/:id/messages` — the order's conversation, in time order then
  * `id`, at most the latest 200. Which messages are the order's: brief I §4
- * (I-5), as built in `apps/dashboard-api/src/orders/orders.service.ts`.
+ * (I-5), as built in `apps/dashboard-api/src/orders/orders.service.ts`; a
+ * staff message is the order's it was written on (brief م-ج).
  */
-export type OrderMessagesResponse = { messages: OrderMessage[] };
+export type OrderMessagesResponse = {
+  messages: OrderMessage[];
+  /**
+   * The bot keeps quiet for this order's customer, because of a staff
+   * message on `orderId` (this order or another of theirs), until `until`
+   * (ISO 8601, UTC) — `app.bot_silence()` (0018). `null`: the bot answers.
+   */
+  botSilence: { orderId: string; until: string } | null;
+  /**
+   * The last moment staff can write to this customer (ISO 8601, UTC): their
+   * last message that is not a reaction + `REPLY_WINDOW_MINUTES`. `null` once
+   * it passed, or with no message at all.
+   */
+  replyOpenUntil: string | null;
+};
+
+/**
+ * Body of `POST /orders/:id/messages` (brief م-ج): the text as staff wrote
+ * it — trimmed at both ends, not empty, at most `WHATSAPP_TEXT_LIMIT` as
+ * WhatsApp counts — and `clientId`, a UUID the screen makes for this message:
+ * a second press, or the request sent again, finds the first row.
+ */
+export type CreateStaffMessageRequest = { text: string; clientId: string };
+
+/**
+ * The 201 of `POST /orders/:id/messages` — the new message, `pending` — or
+ * the 200 with the row that already had this `clientId` on this order, as it
+ * is now.
+ */
+export type CreateStaffMessageResponse = StaffOrderMessage;
+
+export type StaffMessageConflictCode =
+  "reply_window_closed" | "client_id_reused";
+
+/**
+ * The 409 body of `POST /orders/:id/messages` — brief D §8.7's shape: Nest's
+ * default plus `code`. The screen reads `code`; `message` is English, for the
+ * developer.
+ *
+ * - `reply_window_closed` — the customer wrote nothing but reactions within
+ *   `REPLY_WINDOW_MINUTES`: WhatsApp would refuse a free-form message.
+ * - `client_id_reused` — this restaurant already has a staff message with
+ *   this `clientId`, on another order.
+ */
+export type StaffMessageConflictBody = {
+  statusCode: 409;
+  error: "Conflict";
+  code: StaffMessageConflictCode;
+  message: string;
+};
 
 /**
  * Body of `POST /orders/:id/messages/seen` (brief م-ب): the id of the latest

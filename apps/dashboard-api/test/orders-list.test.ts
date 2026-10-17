@@ -432,6 +432,8 @@ describe("GET /orders — tabs and ordering", () => {
       // Brief م-ب: no message relayed to this order.
       unreadMessages: 0,
       lastMessage: null,
+      // Brief م-ج: no staff message on it.
+      staffMessagedAt: null,
     });
     expect(rows[0]!.created_at).toBe(at(0));
   });

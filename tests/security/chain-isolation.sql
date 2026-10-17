@@ -5,7 +5,7 @@
 -- إلزامي بنهاية Sprint 0 / بداية Sprint 1، قبل أي فيتشر يُبنى فوق الـguard."
 --
 -- Run:  psql -v ON_ERROR_STOP=1 -f tests/security/chain-isolation.sql
--- Any failing assertion raises and aborts. Silence + "ALL 15 ASSERTIONS PASSED"
+-- Any failing assertion raises and aborts. Silence + "ALL 19 ASSERTIONS PASSED"
 -- is the only passing output. No feature may be built on the Guard until this
 -- prints that line in CI.
 -- =============================================================================
@@ -385,4 +385,211 @@ BEGIN;
   END $$;
 ROLLBACK;
 
-DO $$ BEGIN RAISE NOTICE 'ALL 15 ASSERTIONS PASSED — chain isolation gate is green'; END $$;
+-- =============================================================================
+-- A16. app.restaurants_with_pending_staff_messages — Bypass #5 (0018), the
+--      staff-reply queue's only privileged call. The shape of A13: the engine
+--      alone may run it, not the API role, not PUBLIC; SECURITY DEFINER with
+--      a pinned search_path, or a caller could shadow `staff_messages`.
+-- =============================================================================
+BEGIN;
+  DO $$
+  DECLARE fn regprocedure := 'app.restaurants_with_pending_staff_messages()'::regprocedure;
+  BEGIN
+    IF has_function_privilege('sufria_dashboard', fn, 'EXECUTE') THEN
+      RAISE EXCEPTION 'A16 FAILED: the API role can execute restaurants_with_pending_staff_messages()';
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a
+                WHERE p.oid = fn AND a.grantee = 0) THEN
+      RAISE EXCEPTION 'A16 FAILED: PUBLIC can execute restaurants_with_pending_staff_messages()';
+    END IF;
+    IF NOT has_function_privilege('sufria_engine', fn, 'EXECUTE') THEN
+      RAISE EXCEPTION 'A16 FAILED: the engine role cannot execute restaurants_with_pending_staff_messages()';
+    END IF;
+    IF NOT (SELECT prosecdef FROM pg_proc WHERE oid = fn) THEN
+      RAISE EXCEPTION 'A16 FAILED: restaurants_with_pending_staff_messages() is not SECURITY DEFINER';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_proc p, unnest(p.proconfig) c
+                    WHERE p.oid = fn AND c LIKE 'search_path=%') THEN
+      RAISE EXCEPTION 'A16 FAILED: restaurants_with_pending_staff_messages() has no pinned search_path';
+    END IF;
+  END $$;
+  -- And the call itself, not only the catalogue: the API role is refused.
+  SET ROLE sufria_dashboard;
+  DO $$
+  BEGIN
+    BEGIN
+      PERFORM app.restaurants_with_pending_staff_messages();
+      RAISE EXCEPTION 'A16 FAILED: the API role called restaurants_with_pending_staff_messages()';
+    EXCEPTION WHEN insufficient_privilege THEN
+      NULL;  -- expected: permission denied for function
+    END;
+  END $$;
+  RESET ROLE;
+ROLLBACK;
+
+-- =============================================================================
+-- A17. A restaurant with no staff message pending or being sent does not
+--      appear. Set up inside the transaction, so rows other suites leave
+--      behind cannot make it pass: every waiting message finished first, then
+--      branch A given a sent one and a failed one, branch B a pending one.
+-- =============================================================================
+BEGIN;
+  UPDATE staff_messages SET send_state = 'sent'
+   WHERE send_state IN ('pending', 'sending');
+  INSERT INTO staff_messages (restaurant_id, order_id, client_id, body,
+                              send_state, failure, silence_until) VALUES
+    ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'f0000000-0000-4000-8000-00000000000a',
+     gen_random_uuid(), 'a17', 'sent', NULL, now() + interval '1 hour'),
+    ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'f0000000-0000-4000-8000-00000000000a',
+     gen_random_uuid(), 'a17', 'failed', 'send_failed', now() + interval '1 hour'),
+    ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'f0000000-0000-4000-8000-00000000000b',
+     gen_random_uuid(), 'a17', 'pending', NULL, now() + interval '1 hour');
+  SET ROLE sufria_engine;
+  DO $$
+  DECLARE got text;
+  BEGIN
+    SELECT string_agg(r::text, ',' ORDER BY r) INTO got
+      FROM app.restaurants_with_pending_staff_messages() r;
+    IF got IS DISTINCT FROM 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' THEN
+      RAISE EXCEPTION 'A17 FAILED: expected only branch B (pending), got [%]', got;
+    END IF;
+  END $$;
+  RESET ROLE;
+  -- Being sent counts as waiting too.
+  UPDATE staff_messages SET send_state = 'sending', claimed_at = now()
+   WHERE restaurant_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' AND send_state = 'pending';
+  SET ROLE sufria_engine;
+  DO $$
+  DECLARE got text;
+  BEGIN
+    SELECT string_agg(r::text, ',' ORDER BY r) INTO got
+      FROM app.restaurants_with_pending_staff_messages() r;
+    IF got IS DISTINCT FROM 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' THEN
+      RAISE EXCEPTION 'A17 FAILED: expected only branch B (sending), got [%]', got;
+    END IF;
+  END $$;
+  RESET ROLE;
+  -- Nothing waiting anywhere => nothing at all.
+  UPDATE staff_messages SET send_state = 'sent' WHERE send_state = 'sending';
+  SET ROLE sufria_engine;
+  DO $$
+  DECLARE n int;
+  BEGIN
+    SELECT count(*) INTO n FROM app.restaurants_with_pending_staff_messages();
+    IF n <> 0 THEN
+      RAISE EXCEPTION 'A17 FAILED: % restaurants returned with no staff message waiting', n;
+    END IF;
+  END $$;
+  RESET ROLE;
+ROLLBACK;
+
+-- =============================================================================
+-- A18. The function returns nothing of a message. The declared result is a
+--      bare SETOF uuid, and every value it returns is a restaurant id — never
+--      a staff message's id or an order's.
+-- =============================================================================
+BEGIN;
+  DO $$
+  DECLARE result text;
+  BEGIN
+    SELECT pg_get_function_result('app.restaurants_with_pending_staff_messages()'::regprocedure)
+      INTO result;
+    IF result <> 'SETOF uuid' THEN
+      RAISE EXCEPTION 'A18 FAILED: result type is [%], must be exactly SETOF uuid', result;
+    END IF;
+  END $$;
+  INSERT INTO staff_messages (restaurant_id, order_id, client_id, body, silence_until)
+  SELECT o.restaurant_id, o.id, gen_random_uuid(), 'a18', now() + interval '1 hour'
+    FROM orders o
+   WHERE o.id IN ('f0000000-0000-4000-8000-00000000000a',
+                  'f0000000-0000-4000-8000-00000000000b',
+                  'f0000000-0000-4000-8000-00000000000c');
+  SET ROLE sufria_engine;
+  DO $$
+  DECLARE total int;
+  BEGIN
+    SELECT count(*) INTO total FROM app.restaurants_with_pending_staff_messages();
+    IF total = 0 THEN
+      RAISE EXCEPTION 'A18 FAILED: nothing returned — the check below would be vacuous';
+    END IF;
+  END $$;
+  RESET ROLE;
+  -- Compared as the owner: the engine cannot see the rows to compare against.
+  CREATE TEMP TABLE a18_returned ON COMMIT DROP AS
+    SELECT r AS id FROM app.restaurants_with_pending_staff_messages() r;
+  DO $$
+  DECLARE n int;
+  BEGIN
+    SELECT count(*) INTO n FROM a18_returned x JOIN staff_messages s ON s.id = x.id;
+    IF n <> 0 THEN RAISE EXCEPTION 'A18 FAILED: % staff message ids returned', n; END IF;
+    SELECT count(*) INTO n FROM a18_returned x JOIN orders o ON o.id = x.id;
+    IF n <> 0 THEN RAISE EXCEPTION 'A18 FAILED: % order ids returned', n; END IF;
+    SELECT count(*) INTO n FROM a18_returned x
+     WHERE NOT EXISTS (SELECT 1 FROM restaurants r WHERE r.id = x.id);
+    IF n <> 0 THEN RAISE EXCEPTION 'A18 FAILED: % values that are not restaurant ids', n; END IF;
+  END $$;
+ROLLBACK;
+
+-- =============================================================================
+-- A19. app.bot_silence(uuid) (0018) runs under the caller's RLS: NOT
+--      SECURITY DEFINER, executable by both application roles and not by
+--      PUBLIC. Under branch A's context, branch B's customer gives no row —
+--      even though a staff message keeps the bot quiet for them — and under
+--      branch B's it gives one, or the first check would be vacuous.
+-- =============================================================================
+BEGIN;
+  DO $$
+  DECLARE fn regprocedure := 'app.bot_silence(uuid)'::regprocedure;
+  BEGIN
+    IF (SELECT prosecdef FROM pg_proc WHERE oid = fn) THEN
+      RAISE EXCEPTION 'A19 FAILED: bot_silence() is SECURITY DEFINER — it must run under the caller''s RLS';
+    END IF;
+    IF NOT has_function_privilege('sufria_dashboard', fn, 'EXECUTE') THEN
+      RAISE EXCEPTION 'A19 FAILED: the API role cannot execute bot_silence()';
+    END IF;
+    IF NOT has_function_privilege('sufria_engine', fn, 'EXECUTE') THEN
+      RAISE EXCEPTION 'A19 FAILED: the engine role cannot execute bot_silence()';
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a
+                WHERE p.oid = fn AND a.grantee = 0) THEN
+      RAISE EXCEPTION 'A19 FAILED: PUBLIC can execute bot_silence()';
+    END IF;
+  END $$;
+  -- Branch B's customer, kept quiet by a staff message on branch B's order.
+  INSERT INTO staff_messages (restaurant_id, order_id, client_id, body, silence_until)
+  VALUES ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'f0000000-0000-4000-8000-00000000000b',
+          gen_random_uuid(), 'a19', now() + interval '1 hour');
+  SET ROLE sufria_engine;
+  DO $ctx$ BEGIN PERFORM set_config('app.current_restaurant_id', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true); END $ctx$;
+  DO $$
+  DECLARE n int;
+  BEGIN
+    SELECT count(*) INTO n FROM app.bot_silence('c0000000-0000-4000-8000-00000000000b');
+    IF n <> 0 THEN
+      RAISE EXCEPTION 'A19 FAILED: the engine under branch A sees branch B''s customer kept quiet (% rows)', n;
+    END IF;
+  END $$;
+  DO $ctx$ BEGIN PERFORM set_config('app.current_restaurant_id', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true); END $ctx$;
+  DO $$
+  DECLARE n int;
+  BEGIN
+    SELECT count(*) INTO n FROM app.bot_silence('c0000000-0000-4000-8000-00000000000b');
+    IF n <> 1 THEN
+      RAISE EXCEPTION 'A19 FAILED: under branch B its own customer gives % rows, expected 1 — the check above would be vacuous', n;
+    END IF;
+  END $$;
+  RESET ROLE;
+  SET ROLE sufria_dashboard;
+  DO $ctx$ BEGIN PERFORM set_config('app.current_restaurant_id', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true); END $ctx$;
+  DO $$
+  DECLARE n int;
+  BEGIN
+    SELECT count(*) INTO n FROM app.bot_silence('c0000000-0000-4000-8000-00000000000b');
+    IF n <> 0 THEN
+      RAISE EXCEPTION 'A19 FAILED: the API under branch A sees branch B''s customer kept quiet (% rows)', n;
+    END IF;
+  END $$;
+  RESET ROLE;
+ROLLBACK;
+
+DO $$ BEGIN RAISE NOTICE 'ALL 19 ASSERTIONS PASSED — chain isolation gate is green'; END $$;

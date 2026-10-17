@@ -51,3 +51,10 @@ process.env["JWT_SECRET"] ??= "test-only-jwt-secret-not-used-anywhere-else";
 // deterministic question. With a larger pool the follow-up query may land on a
 // different member and the leak test would pass without proving anything.
 process.env["PG_POOL_MAX"] = "1";
+
+// 🔴 The staff reply's two (brief م-ج) pinned to their defaults: the laptop
+// trial sets `BOT_SILENCE_MINUTES=1` or `REPLY_WINDOW_MINUTES=1` on the
+// command line, and a suite reading them would see a silence end, or the 24
+// hours close, where the tests say neither.
+process.env["BOT_SILENCE_MINUTES"] = "60";
+process.env["REPLY_WINDOW_MINUTES"] = "1430";

@@ -43,6 +43,7 @@ const ORDER: OrderListItem = {
   cancellationReason: null,
   unreadMessages: 0,
   lastMessage: null,
+  staffMessagedAt: null,
 };
 
 function apiReplying(status: number, body: unknown) {
