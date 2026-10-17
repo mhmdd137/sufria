@@ -100,3 +100,12 @@ process.env["REORDER_MIN_AGE_MINUTES"] = "180";
 process.env["RELAY_OPEN_ORDER_MAX_MINUTES"] = "180";
 process.env["RELAY_CLOSED_ORDER_MINUTES"] = "60";
 process.env["RELAY_REPLY_QUIET_MINUTES"] = "10";
+
+/**
+ * 🔴 The staff-reply queue (brief م-ج) off, as the notifier is: the tests
+ *    call `tick()` themselves, and a running timer would claim other
+ *    suites' messages. Its wait pinned to the default, for the reason of
+ *    the relay's three.
+ */
+process.env["STAFF_REPLY_POLL_MS"] = "0";
+process.env["STAFF_REPLY_MAX_WAIT_SECONDS"] = "120";

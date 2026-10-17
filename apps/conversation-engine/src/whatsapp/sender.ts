@@ -46,8 +46,34 @@ export interface OutboundTextMessage {
   orderId?: string;
 }
 
+/**
+ * What a send that went out tells — brief م-ج: Meta's id for the message
+ * (`messages[0].id` of its reply, `wamid.*`), what a delivery status names.
+ * `null` when Meta's 2xx carried none: the text went out all the same, and
+ * a send that went out is never retried.
+ */
+export interface SentText {
+  readonly waMessageId: string | null;
+}
+
+/**
+ * 🔴 `SentText | void`, so no existing sender or call changes (brief م-ج):
+ *    Meta's sender returns the id, the recording fake and the saving
+ *    wrapper return nothing, and every caller that awaits and ignores the
+ *    result reads as before.
+ */
 export interface WhatsAppSender {
-  sendText(message: OutboundTextMessage): Promise<void>;
+  sendText(message: OutboundTextMessage): Promise<SentText | void>;
+}
+
+/**
+ * A sender that always tells Meta's id — `MetaWhatsAppSender`. The
+ * staff-reply queue takes this one (`notify/staff-replies.ts`): the saving
+ * wrapper returns no id, so it cannot be handed to the queue by mistake — a
+ * staff text lives in `staff_messages` alone, never in `outbound_messages`.
+ */
+export interface IdentifyingWhatsAppSender {
+  sendText(message: OutboundTextMessage): Promise<SentText>;
 }
 
 /**
@@ -103,8 +129,17 @@ function metaErrorCode(detail: string): number | null {
   }
 }
 
+/** `messages[0].id` from Meta's 2xx body, or `null` — never a throw. */
+function sentMessageId(body: unknown): string | null {
+  const id = (body as { messages?: { id?: unknown }[] } | null)?.messages?.[0]
+    ?.id;
+  return typeof id === "string" && id !== "" ? id : null;
+}
+
 /** تنفيذ حقيقي عبر Meta Cloud API. */
-export class MetaWhatsAppSender implements WhatsAppSender {
+export class MetaWhatsAppSender
+  implements WhatsAppSender, IdentifyingWhatsAppSender
+{
   constructor(
     private readonly accessToken: string = env().WHATSAPP_ACCESS_TOKEN,
     private readonly baseUrl: string = env().WHATSAPP_GRAPH_API_BASE,
@@ -112,7 +147,7 @@ export class MetaWhatsAppSender implements WhatsAppSender {
     private readonly timeoutMs: number = env().WHATSAPP_SEND_TIMEOUT_MS,
   ) {}
 
-  async sendText(message: OutboundTextMessage): Promise<void> {
+  async sendText(message: OutboundTextMessage): Promise<SentText> {
     assertWithinTextLimit(message.body);
 
     const url = `${this.baseUrl}/${this.apiVersion}/${message.phoneNumberId}/messages`;
@@ -149,6 +184,10 @@ export class MetaWhatsAppSender implements WhatsAppSender {
       );
     }
 
+    // 🔴 After a 2xx the text went out: a body that cannot be read is an id
+    //    unknown, never a failure — a failure would be sent again.
+    const waMessageId = sentMessageId(await res.json().catch(() => null));
+
     logger.info(
       {
         restaurantId: message.restaurantId,
@@ -157,6 +196,7 @@ export class MetaWhatsAppSender implements WhatsAppSender {
       },
       "رسالة صادرة انبعثت",
     );
+    return { waMessageId };
   }
 }
 
