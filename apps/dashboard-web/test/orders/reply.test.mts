@@ -11,7 +11,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
+  WHATSAPP_TEXT_LIMIT,
   clockTime,
+  type CreateStaffMessageRequest,
   type CustomerOrBotMessage,
   type OrderMessagesResponse,
   type StaffMessageFailure,
@@ -24,10 +26,20 @@ import {
   seenUpTo,
 } from "../../features/orders/lib/details.ts";
 import {
+  FIELD_MAX_LENGTH,
+  SEND_RETRY_MS,
+  createReply,
+  editInto,
+  enterSends,
   newStaffClientId,
+  replyPanel,
+  resumeOutcome,
+  sendDecision,
+  sendWithRetry,
   withLocal,
   type LocalStaffMessage,
 } from "../../features/orders/lib/reply.ts";
+import type { ApiResult } from "../../shared/api/http.ts";
 
 const COMPONENTS = fileURLToPath(
   new URL("../../features/orders/components/", import.meta.url),
@@ -275,4 +287,331 @@ test("the staff bubble's look (§3): dashed while it goes, filled once sent, 2px
   assert.match(tsx, /data-state=\{m\.staff\?\.state\}/);
   // The time under it in the numbers' font.
   assert.match(tsx, /className=\{`num \$\{styles\.metaTime\}`\}/);
+});
+
+// --- md-4: the field, the line, the closed state ----------------------------
+
+const key = (extra: Partial<Parameters<typeof enterSends>[0]> = {}) => ({
+  key: "Enter",
+  shiftKey: false,
+  isComposing: false,
+  finePointer: true,
+  ...extra,
+});
+
+test("Enter: sends with a mouse and keyboard; Shift+Enter, touch and a composing word do not", () => {
+  assert.equal(enterSends(key()), true);
+  assert.equal(enterSends(key({ shiftKey: true })), false);
+  assert.equal(enterSends(key({ finePointer: false })), false);
+  assert.equal(enterSends(key({ isComposing: true })), false);
+  assert.equal(enterSends(key({ key: "a" })), false);
+});
+
+test("«أرسل» with nothing but spaces: the cursor in the field, nothing sent; else the text trimmed", () => {
+  assert.deepEqual(sendDecision(""), { kind: "focus" });
+  assert.deepEqual(sendDecision("  \n "), { kind: "focus" });
+  assert.deepEqual(sendDecision("  مرحبا\nمعك المطعم "), {
+    kind: "send",
+    text: "مرحبا\nمعك المطعم",
+  });
+});
+
+type Reply = ApiResult<unknown>;
+const ok: Reply = { ok: true, value: {} };
+const network: Reply = { ok: false, error: { kind: "network" } };
+const http = (status: number): Reply => ({
+  ok: false,
+  error: { kind: "http", status },
+});
+const closed: Reply = {
+  ok: false,
+  error: { kind: "staff_conflict", code: "reply_window_closed" },
+};
+const reused: Reply = {
+  ok: false,
+  error: { kind: "staff_conflict", code: "client_id_reused" },
+};
+
+function attempts(replies: Reply[]) {
+  const waits: number[] = [];
+  let calls = 0;
+  return {
+    attempt: async () => {
+      calls++;
+      return replies.shift()!;
+    },
+    wait: async (ms: number) => {
+      waits.push(ms);
+    },
+    get calls() {
+      return calls;
+    },
+    waits,
+  };
+}
+
+test("the retries: no answer three times — after 2 s and 6 s — then failed", async () => {
+  const a = attempts([network, network, network]);
+  assert.equal(await sendWithRetry(a.attempt, a.wait), "failed");
+  assert.equal(a.calls, 3);
+  assert.deepEqual(a.waits, [2_000, 6_000]);
+  assert.deepEqual(SEND_RETRY_MS, [2_000, 6_000]);
+});
+
+test("the retries: a 5xx is tried again, and the next answer counts", async () => {
+  const a = attempts([http(502), ok]);
+  assert.equal(await sendWithRetry(a.attempt, a.wait), "sent");
+  assert.deepEqual(a.waits, [2_000]);
+});
+
+test("the retries: 400 · 404 · client_id_reused fail at once; 409 reply_window_closed is closed", async () => {
+  for (const r of [http(400), http(404), reused]) {
+    const a = attempts([r]);
+    assert.equal(await sendWithRetry(a.attempt, a.wait), "failed");
+    assert.equal(a.calls, 1);
+  }
+  const a = attempts([closed]);
+  assert.equal(await sendWithRetry(a.attempt, a.wait), "closed");
+  assert.equal(a.calls, 1);
+});
+
+/** A store on fakes: what it sent, read and put in the field. */
+function store(replies: Reply[]) {
+  const sent: CreateStaffMessageRequest[] = [];
+  const inserted: string[] = [];
+  let reloads = 0;
+  let n = 0;
+  const reply = createReply({
+    wait: async () => {},
+    now: () => Date.parse(AT),
+    newId: () => `c-${++n}`,
+  });
+  reply.connect({
+    send: async (body) => {
+      sent.push(body);
+      return replies.shift()!;
+    },
+    reload: async () => {
+      reloads++;
+    },
+    insert: (text) => inserted.push(text),
+  });
+  return {
+    reply,
+    sent,
+    inserted,
+    get reloads() {
+      return reloads;
+    },
+  };
+}
+
+test("the send is optimistic: «جارٍ الإرسال…» before the answer; written → the conversation read at once", async () => {
+  let answer!: (r: Reply) => void;
+  const reply = createReply({ newId: () => "c-1", now: () => Date.parse(AT) });
+  let reloads = 0;
+  reply.connect({
+    send: () => new Promise((r) => (answer = r)),
+    reload: async () => {
+      reloads++;
+    },
+    insert: () => {},
+  });
+  const done = reply.send("مرحبا");
+  assert.deepEqual(reply.get().local, [local("c-1", { text: "مرحبا" })]);
+  answer(ok);
+  assert.equal(await done, "sent");
+  assert.equal(reloads, 1);
+  // The bubble stays until a read brings its row (withLocal drops it then).
+  assert.equal(reply.get().local.length, 1);
+});
+
+test("a send that never got through: the bubble failed, «تعذّر الإرسال» and «عدّل وأرسل»", async () => {
+  const s = store([network, network, network]);
+  assert.equal(await s.reply.send("مرحبا"), "failed");
+  assert.deepEqual(s.sent, [
+    { text: "مرحبا", clientId: "c-1" },
+    { text: "مرحبا", clientId: "c-1" },
+    { text: "مرحبا", clientId: "c-1" },
+  ]);
+  assert.deepEqual(s.reply.get().local, [
+    local("c-1", { text: "مرحبا", state: "failed" }),
+  ]);
+  const [m] = conversationView(withLocal([], s.reply.get().local)).messages;
+  assert.equal(m!.staff!.note, "لم تُرسل: تعذّر الإرسال.");
+  assert.equal(m!.staff!.action, "edit");
+});
+
+test("409 reply_window_closed: the bubble goes, the text kept read-only, read again → the closed line", async () => {
+  const s = store([closed]);
+  assert.equal(await s.reply.send("طلبك بعد 10 دقايق"), "closed");
+  assert.deepEqual(s.reply.get(), {
+    local: [],
+    closedText: "طلبك بعد 10 دقايق",
+  });
+  assert.equal(s.reloads, 1);
+  // The read that follows says the window passed: the closed line.
+  assert.equal(
+    replyPanel({ botSilence: null, replyOpenUntil: null }),
+    "closed",
+  );
+  // The next send clears it.
+  const t = store([closed, ok]);
+  await t.reply.send("أ");
+  await t.reply.send("ب");
+  assert.equal(t.reply.get().closedText, null);
+});
+
+test("«عدّل وأرسل»: the text in the field — never sent by itself; the screen's own bubble goes, the server's failed row stays", async () => {
+  assert.equal(editInto("", "طلبك بعد 10 دقايق"), "طلبك بعد 10 دقايق");
+  assert.equal(editInto("  ", "طلبك"), "طلبك");
+  assert.equal(editInto("مرحبا", "طلبك"), "مرحبا\nطلبك");
+
+  const s = store([http(400)]);
+  // A failed bubble of the screen's own, there before.
+  await s.reply.send("أ");
+  const mine = s.reply.get().local[0]!;
+  assert.equal(mine.state, "failed");
+  s.reply.edit(mine.text, mine.clientId);
+  assert.deepEqual(s.inserted, ["أ"]);
+  assert.deepEqual(s.reply.get().local, []);
+  assert.equal(s.sent.length, 1, "edit sent nothing of its own");
+
+  // A failed row of the server's: put in the field, and nothing goes.
+  const t = store([]);
+  t.reply.edit("طلبك بعد 10 دقايق", null);
+  assert.deepEqual(t.inserted, ["طلبك بعد 10 دقايق"]);
+  assert.deepEqual(t.reply.get().local, []);
+  assert.equal(t.sent.length, 0);
+  const row = staff("s1", { sendState: "failed", failure: "expired" });
+  assert.equal(withLocal([row], t.reply.get().local).length, 1);
+});
+
+test("what shows under the messages: closed once replyOpenUntil is null; the line only while the bot keeps quiet", () => {
+  const until = "2026-10-17T21:00:00.000Z";
+  const silence = { orderId: "o", until };
+  assert.equal(
+    replyPanel({ botSilence: null, replyOpenUntil: null }),
+    "closed",
+  );
+  // Closed beats the silence: no line after the 24 hours.
+  assert.equal(
+    replyPanel({ botSilence: silence, replyOpenUntil: null }),
+    "closed",
+  );
+  assert.equal(replyPanel({ botSilence: null, replyOpenUntil: until }), "open");
+  assert.equal(
+    replyPanel({ botSilence: silence, replyOpenUntil: until }),
+    "silent",
+  );
+});
+
+test("«شغّل الرد الآلي»: 204 reads again · no answer → the offline strip · 401 nothing · else «لا يمكن تنفيذ هذه الخطوة الآن.»", () => {
+  assert.equal(resumeOutcome({ ok: true, value: undefined }), "reload");
+  assert.equal(
+    resumeOutcome({ ok: false, error: { kind: "network" } }),
+    "offline",
+  );
+  assert.equal(
+    resumeOutcome({ ok: false, error: { kind: "unauthorized" } }),
+    "none",
+  );
+  assert.equal(
+    resumeOutcome({ ok: false, error: { kind: "http", status: 404 } }),
+    "failed",
+  );
+  const tsx = read("conversation.tsx");
+  assert.match(tsx, /\{T\.errors\.stepFailed\}/);
+  assert.match(tsx, /aria-busy=\{busy\}/);
+});
+
+test("the field: dir auto, 4096 at most, its placeholder its name; «أرسل» never disabled, never takes the focus", () => {
+  assert.equal(FIELD_MAX_LENGTH, WHATSAPP_TEXT_LIMIT);
+  const tsx = read("staff-composer.tsx");
+  assert.match(
+    tsx,
+    /placeholder=\{R\.placeholder\}\s+aria-label=\{R\.placeholder\}/,
+  );
+  assert.match(tsx, /dir="auto"/);
+  assert.match(tsx, /maxLength=\{FIELD_MAX_LENGTH\}/);
+  assert.doesNotMatch(tsx, /disabled[={]/);
+  assert.match(tsx, /onMouseDown=\{\(e\) => e\.preventDefault\(\)\}/);
+  assert.match(tsx, /data-composer=""/);
+});
+
+test("the field's look (§3): bg, 1px line, 8 radius, 15/1.55, 10×12 — with the focus 2px text-primary and 9×11; 5 lines then it scrolls", () => {
+  const css = read("staff-composer.module.css");
+  const input = rule(css, ".input");
+  for (const d of [
+    "background: var(--bg);",
+    "border: 1px solid var(--border);",
+    "border-radius: 8px;",
+    "font-size: 15px;",
+    "line-height: 1.55;",
+    "padding: 10px 12px;",
+    "min-height: 44px;",
+    "max-height: calc(5 * 1.55em + 22px);",
+    "resize: none;",
+    "color: var(--text-primary);",
+  ])
+    assert.ok(input.includes(d), d);
+  const focus = rule(css, ".input:focus");
+  assert.ok(focus.includes("border: 2px solid var(--text-primary);"));
+  assert.ok(focus.includes("padding: 9px 11px;"));
+  assert.ok(
+    rule(css, ".input::placeholder").includes("color: var(--text-secondary);"),
+  );
+  const send = rule(css, ".send");
+  for (const d of [
+    "background: var(--text-primary);",
+    "color: var(--bg);",
+    "border: 0;",
+    "border-radius: 8px;",
+    "min-height: 44px;",
+    "padding-inline: 20px;",
+    "font-size: 15px;",
+    "font-weight: 600;",
+  ])
+    assert.ok(send.includes(d), d);
+  // Below 640 the button under the field, at the start; from 640 one line.
+  assert.match(
+    rule(css, ".composer"),
+    /grid-template-areas:\s+"field"\s+"send";/,
+  );
+  assert.match(
+    css,
+    /@media \(min-width: 640px\) \{\n  \.composer \{[^}]*grid-template-areas: "field send";[^}]*align-items: end;/,
+  );
+});
+
+test("the silence line and the closed line (§3): their lines, sizes and buttons; the time in the numbers' font", () => {
+  const css = read("conversation.module.css");
+  const silence = rule(css, ".silence");
+  assert.ok(silence.includes("padding-block-start: 12px;"));
+  assert.ok(silence.includes("border-block-start: 1px solid var(--border);"));
+  const text = rule(css, ".silenceText");
+  assert.ok(text.includes("font-size: 13px;"));
+  assert.ok(text.includes("color: var(--text-secondary);"));
+  const button = rule(css, ".lineButton");
+  for (const d of [
+    "min-height: 44px;",
+    "padding-inline: 16px;",
+    "font-size: 15px;",
+  ])
+    assert.ok(button.includes(d), d);
+  const closedRule = rule(css, ".closed");
+  assert.ok(
+    closedRule.includes("border-block-start: 1px solid var(--border);"),
+  );
+  const note = rule(css, ".closedNote");
+  assert.ok(note.includes("max-width: 460px;"));
+  assert.ok(note.includes("font-size: 15px;"));
+  const tsx = read("conversation.tsx");
+  assert.match(tsx, /role="status"/);
+  assert.match(
+    tsx,
+    /\{line\.before\}\s+<span className=\{`num \$\{styles\.metaTime\}`\}>\{line\.time\}<\/span>/,
+  );
+  assert.match(tsx, /readOnly/);
+  assert.ok(rule(css, ".metaTime").includes("font-weight: 500;"));
 });

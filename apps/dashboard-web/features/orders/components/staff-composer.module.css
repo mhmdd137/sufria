@@ -1,0 +1,85 @@
+/* The field under the conversation — brief م-د §3. Tokens only; logical
+   properties only; 44px to press. Below 640px the field the whole width and
+   «أرسل» under it, at the start of the line; from 640 one line, the field
+   taking what is left and the button at its end. */
+
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "field"
+    "send";
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .composer {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "field send";
+    align-items: end;
+  }
+}
+
+/* It grows with its text (staff-composer.tsx) up to 5 lines, then scrolls
+   — a textarea's own overflow, its bar thin in the tokens' grey from
+   globals.css; never resized by hand. With the focus, a 2px line and a pixel less
+   padding: the box keeps its size. */
+.input {
+  grid-area: field;
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  max-height: calc(5 * 1.55em + 22px);
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-primary);
+  resize: none;
+}
+
+.input::placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .input:hover {
+    border-color: var(--text-muted);
+  }
+}
+
+.input:focus {
+  padding: 9px 11px;
+  border: 2px solid var(--text-primary);
+  outline: none;
+}
+
+/* «أرسل», inverted (decision 2): the step's button is the accent, and two
+   accent buttons would compete. */
+.send {
+  grid-area: send;
+  justify-self: start;
+  min-height: 44px;
+  padding-inline: 20px;
+  background: var(--text-primary);
+  color: var(--bg);
+  border: 0;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .send:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--inverse-hover);
+  }
+}
+
+.send:not(:disabled, [aria-busy="true"]):active {
+  background: var(--inverse-press);
+}

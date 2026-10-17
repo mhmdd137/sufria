@@ -241,6 +241,129 @@
   color: var(--text-secondary);
 }
 
+/* ---- under the messages: the reply (brief م-د §3) ----
+   The silence line, then the field; or, once the 24 hours passed, the
+   closed line. In the section, after the list: from 1024px up the list
+   scrolls and this stays in sight under it; below, at the section's end —
+   never fixed (the bottom of the screen is the step's). */
+.reply {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* While the bot keeps quiet: below 640px the text over its button, the
+   button at the start; from 640 one line, the two at its ends, wrapping. */
+.silence,
+.closedLine {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.silence {
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--border);
+}
+
+@media (min-width: 640px) {
+  .silence,
+  .closedLine {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.silenceText {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.resume {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* «شغّل الرد الآلي» and «راسل الزبون»: the secondary button, 15px. */
+.lineButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.lineButton[aria-busy="true"] {
+  cursor: progress;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lineButton:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.lineButton:not(:disabled, [aria-busy="true"]):active {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
+}
+
+/* Under it when it failed: the step's own failure line (order-details). */
+.resumeFailed {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* The 24 hours passed (decision 11): no line, no field — why, and
+   «راسل الزبون»; over them, read-only, the text a 409 turned back. */
+.closed {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--border);
+}
+
+.closedNote {
+  max-width: 460px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* The field's look (staff-composer.module.css), read-only. */
+.closedText {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  max-height: calc(5 * 1.55em + 22px);
+  field-sizing: content;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-primary);
+  resize: none;
+}
+
 /* From 1024px up, beside the order and sticky (order-details.module.css):
    the screen's height less where the columns start (--chat-top, measured
    before the first paint) and the page's 32px end, so its latest message is

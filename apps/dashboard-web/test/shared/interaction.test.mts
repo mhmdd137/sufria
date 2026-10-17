@@ -172,6 +172,11 @@ const KINDS: {
       ["features/orders/components/cancel-dialog.module.css", ".button", true],
       ["features/orders/components/conversation.module.css", ".retry", true],
       ["features/orders/components/conversation.module.css", ".action", true],
+      [
+        "features/orders/components/conversation.module.css",
+        ".lineButton",
+        true,
+      ],
       ["features/orders/components/order-list.module.css", ".more", true],
       ["shared/layout/dashboard-header.module.css", ".logout", true],
       ["features/orders/components/conversation.module.css", ".more", false],
@@ -191,6 +196,14 @@ const KINDS: {
     hover: "inverse-hover",
     press: "inverse-press",
     line: true,
+  },
+  {
+    kind: "inverted",
+    file: "features/orders/components/staff-composer.module.css",
+    selector: ".send",
+    hover: "inverse-hover",
+    press: "inverse-press",
+    line: false,
   },
   {
     kind: "on bg",
@@ -272,6 +285,7 @@ test("every field: its line --text-muted under the pointer", () => {
     "features/menu/components/add-item-form.module.css",
     "features/orders/components/cancel-dialog.module.css",
     "features/auth/components/login-form.module.css",
+    "features/orders/components/staff-composer.module.css",
   ]) {
     const r = ALL.find((x) => x.file === css && x.selector === ".input:hover");
     assert.ok(r, css);

@@ -1,23 +1,46 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { DASHBOARD_MESSAGES_UI_AR, DASHBOARD_UI_AR } from "@sufria/shared";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from "react";
+import {
+  DASHBOARD_MESSAGES_UI_AR,
+  DASHBOARD_REPLY_UI_AR,
+  DASHBOARD_UI_AR,
+  clockTime,
+  silenceLineAr,
+} from "@sufria/shared";
 import { Skeleton } from "../../../shared/ui/skeleton.tsx";
+import { ordersApi } from "../api/orders-api.ts";
 import type { MessagesState } from "../hooks/use-order-messages.ts";
 import { conversationView } from "../lib/details.ts";
-import { withLocal, type LocalStaffMessage } from "../lib/reply.ts";
+import {
+  createReply,
+  replyPanel,
+  resumeOutcome,
+  withLocal,
+} from "../lib/reply.ts";
+import { StaffComposer, type ComposerHandle } from "./staff-composer.tsx";
 import styles from "./conversation.module.css";
 
 const T = DASHBOARD_UI_AR;
 const M = DASHBOARD_MESSAGES_UI_AR;
+const R = DASHBOARD_REPLY_UI_AR;
 
 type Props = {
+  /** The order's id: the staff messages are written on it. */
+  orderId: string;
   state: MessagesState;
-  retry: () => void;
+  /** The conversation, read again at once. */
+  reload: () => Promise<void>;
   /** «راسل الزبون»: `https://wa.me/<digits>`, the order's own link. */
   chat: string;
-  /** The staff messages this page sent that no read brought back yet. */
-  local: readonly LocalStaffMessage[];
+  reportOffline: (offline: boolean) => void;
 };
 
 /**
@@ -34,8 +57,33 @@ type Props = {
  * line while it goes, filled once it reached the customer, a thick line
  * with nothing in it when it failed — and under it, their name and the
  * time, «جارٍ الإرسال…», or why.
+ *
+ * Under the messages, inside the section (decision 3) — from 1024px up in
+ * sight under the list that scrolls by itself, below at the section's end,
+ * never fixed: the silence line while the bot keeps quiet, and the field;
+ * once the 24 hours passed, the closed line and «راسل الزبون» instead.
  */
-export function Conversation({ state, retry, chat, local }: Props) {
+export function Conversation({
+  orderId,
+  state,
+  reload,
+  chat,
+  reportOffline,
+}: Props) {
+  const composer = useRef<ComposerHandle | null>(null);
+  const [reply] = useState(() => createReply());
+  useEffect(() => {
+    reply.connect({
+      send: (body) => ordersApi.sendStaffMessage(orderId, body),
+      reload,
+      insert: (text) => composer.current?.insert(text),
+    });
+  }, [reply, orderId, reload]);
+  const { local, closedText } = useSyncExternalStore(
+    reply.subscribe,
+    reply.get,
+    reply.get,
+  );
   const view = useMemo(
     () =>
       state.kind === "ready"
@@ -81,7 +129,11 @@ export function Conversation({ state, retry, chat, local }: Props) {
       {state.kind === "failed" && (
         <div className={styles.failed}>
           <p>{T.errors.loadFailed}</p>
-          <button type="button" className={styles.retry} onClick={retry}>
+          <button
+            type="button"
+            className={styles.retry}
+            onClick={() => void reload()}
+          >
             {T.errors.retry}
           </button>
         </div>
@@ -142,6 +194,17 @@ export function Conversation({ state, retry, chat, local }: Props) {
                 {m.staff?.state === "failed" && (
                   <div className={styles.failure}>
                     <span className={styles.reason}>{m.staff.note}</span>
+                    {m.staff.action === "edit" && (
+                      <button
+                        type="button"
+                        className={styles.action}
+                        onClick={() =>
+                          reply.edit(m.text ?? "", m.staff?.local ?? null)
+                        }
+                      >
+                        {R.editAndSend}
+                      </button>
+                    )}
                     {m.staff.action === "contact" && (
                       <a
                         className={styles.action}
@@ -172,6 +235,117 @@ export function Conversation({ state, retry, chat, local }: Props) {
           })}
         </ol>
       )}
+
+      {state.kind === "ready" && (
+        <Reply
+          orderId={orderId}
+          state={state}
+          chat={chat}
+          closedText={closedText}
+          composer={composer}
+          onSend={(text) => void reply.send(text)}
+          reload={reload}
+          reportOffline={reportOffline}
+        />
+      )}
     </section>
+  );
+}
+
+/**
+ * Under the messages (brief م-د, decisions 4 and 11): the silence line and
+ * the field, the field alone, or — the 24 hours passed — the closed line.
+ */
+function Reply({
+  orderId,
+  state,
+  chat,
+  closedText,
+  composer,
+  onSend,
+  reload,
+  reportOffline,
+}: {
+  orderId: string;
+  state: Extract<MessagesState, { kind: "ready" }>;
+  chat: string;
+  closedText: string | null;
+  composer: RefObject<ComposerHandle | null>;
+  onSend: (text: string) => void;
+  reload: () => Promise<void>;
+  reportOffline: (offline: boolean) => void;
+}) {
+  const panel = replyPanel(state);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  async function resume() {
+    setBusy(true);
+    setFailed(false);
+    const outcome = resumeOutcome(await ordersApi.resumeBot(orderId));
+    setBusy(false);
+    if (outcome === "reload") await reload();
+    else if (outcome === "offline") reportOffline(true);
+    else if (outcome === "failed") setFailed(true);
+  }
+
+  if (panel === "closed")
+    return (
+      <div className={styles.closed}>
+        {closedText !== null && (
+          <textarea
+            className={styles.closedText}
+            value={closedText}
+            readOnly
+            dir="auto"
+            aria-label={R.placeholder}
+          />
+        )}
+        <div className={styles.closedLine}>
+          <p className={styles.closedNote}>{R.closed}</p>
+          <a
+            className={styles.lineButton}
+            href={chat}
+            target="_blank"
+            rel="noopener"
+          >
+            {T.details.messageCustomer}
+          </a>
+        </div>
+      </div>
+    );
+
+  const line =
+    panel === "silent" && state.botSilence !== null
+      ? silenceLineAr(clockTime(state.botSilence.until))
+      : null;
+  return (
+    <div className={styles.reply}>
+      {line !== null && (
+        <div className={styles.silence}>
+          <p className={styles.silenceText} role="status">
+            {line.before}
+            <span className={`num ${styles.metaTime}`}>{line.time}</span>
+            {line.after}
+          </p>
+          <div className={styles.resume}>
+            <button
+              type="button"
+              className={styles.lineButton}
+              aria-busy={busy}
+              onClick={() => void resume()}
+            >
+              {R.resume}
+            </button>
+            {failed && (
+              <p className={styles.resumeFailed} role="status">
+                {T.errors.stepFailed}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+      <StaffComposer onSend={onSend} handle={composer} />
+    </div>
   );
 }
