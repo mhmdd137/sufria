@@ -61,9 +61,15 @@ export type SoundStore = {
   subscribe(listener: () => void): () => void;
   getSnapshot(): SoundState;
   setMuted(muted: boolean): void;
-  /** Rings `kind`, unless muted; a stopped browser shows its strip. */
+  /**
+   * Rings `kind`, unless muted; a stopped browser — or a player that fails —
+   * shows its strip. Never throws.
+   */
   alert(kind: SoundKind): Promise<void>;
-  /** «شغّل الصوت»: unmuted, the audio asked to run — and what was due rings. */
+  /**
+   * «شغّل الصوت»: unmuted, the audio asked to run — and what was due rings.
+   * A failure keeps the strip; nothing is thrown.
+   */
   enable(): Promise<void>;
   /** The browser runs the audio now (a press anywhere): its strip goes. */
   running(): void;
@@ -99,19 +105,33 @@ export function createSoundStore({
     },
     async alert(kind) {
       if (state.muted) return;
-      const played = await (await loadPlayer(store)).play(kind);
+      // A player that fails to load, or throws, is a stopped browser: its
+      // strip, and the sound due (brief م-ب-9 §1) — never a silent miss.
+      let played: boolean;
+      try {
+        played = await (await loadPlayer(store)).play(kind);
+      } catch {
+        played = false;
+      }
       due = played ? null : kind;
       set({ blocked: !played });
     },
     async enable() {
       store.setMuted(false);
-      const player = await loadPlayer(store);
-      const running = await player.resume();
-      set({ blocked: !running });
-      if (running && due !== null) {
-        const kind = due;
-        due = null;
-        await player.play(kind);
+      let ringing: SoundKind | null = null;
+      try {
+        const player = await loadPlayer(store);
+        const running = await player.resume();
+        set({ blocked: !running });
+        if (running && due !== null) {
+          ringing = due;
+          due = null;
+          await player.play(ringing);
+        }
+      } catch {
+        // The strip stays, what was due with it: the next press tries again.
+        due ??= ringing;
+        set({ blocked: true });
       }
     },
     running() {

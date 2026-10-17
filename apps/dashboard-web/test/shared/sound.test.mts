@@ -125,6 +125,70 @@ test("a press anywhere that lets the audio run takes the strip away", async () =
   assert.equal(store.getSnapshot().blocked, false);
 });
 
+// --- a failure is the browser's strip, never silence (brief م-ب-9 §1) --------
+
+/** A loader the test swaps: failing first, then a working fake. */
+function swappable(first: () => Promise<Player>) {
+  const working = fakePlayer(true);
+  let load = first;
+  return {
+    played: working.played,
+    fix() {
+      load = working.load;
+    },
+    load: () => load(),
+  };
+}
+
+test("🔴 the audio fails to load: the browser's strip and the sound due; «شغّل الصوت» rings it", async () => {
+  const loader = swappable(() => Promise.reject(new Error("ChunkLoadError")));
+  const store = createSoundStore({
+    storage: memoryStorage,
+    loadPlayer: loader.load,
+  });
+  await assert.doesNotReject(store.alert("message"));
+  assert.equal(soundStrip(store.getSnapshot()), "blocked");
+  loader.fix();
+  await store.enable();
+  assert.equal(soundStrip(store.getSnapshot()), null);
+  assert.deepEqual(loader.played, ["message"]);
+});
+
+test("🔴 play throws: the same — the strip, and the sound due", async () => {
+  const loader = swappable(async () => ({
+    play: () => Promise.reject(new Error("InvalidStateError")),
+    resume: async () => true,
+  }));
+  const store = createSoundStore({
+    storage: memoryStorage,
+    loadPlayer: loader.load,
+  });
+  await assert.doesNotReject(store.alert("order"));
+  assert.equal(soundStrip(store.getSnapshot()), "blocked");
+  loader.fix();
+  await store.enable();
+  assert.equal(soundStrip(store.getSnapshot()), null);
+  assert.deepEqual(loader.played, ["order"]);
+});
+
+test("«شغّل الصوت» fails: the strip stays, nothing is thrown, and the next press works", async () => {
+  const loader = swappable(async () => ({
+    play: async () => false,
+    resume: () => Promise.reject(new Error("NotAllowedError")),
+  }));
+  const store = createSoundStore({
+    storage: memoryStorage,
+    loadPlayer: loader.load,
+  });
+  await store.alert("order");
+  await assert.doesNotReject(store.enable());
+  assert.equal(store.getSnapshot().blocked, true);
+  loader.fix();
+  await store.enable();
+  assert.equal(store.getSnapshot().blocked, false);
+  assert.deepEqual(loader.played, ["order"]);
+});
+
 test("both strips due: «مكتوم» alone", () => {
   assert.equal(soundStrip({ muted: true, blocked: true }), "muted");
   assert.equal(soundStrip({ muted: false, blocked: true }), "blocked");
