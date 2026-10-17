@@ -239,6 +239,10 @@ export const customers = pgTable(
     // the next waits RELAY_REPLY_QUIET_MINUTES. Read and written under
     // FOR UPDATE on this row. NULL: never.
     relayRepliedAt: timestamp("relay_replied_at", { withTimezone: true }),
+    // 0018 — the last time the bot was handed back to this customer: «منيو»
+    // from them, or «رجّع للبوت» on the dashboard (brief م-ج). A staff
+    // message older than this no longer keeps the bot quiet. NULL: never.
+    botResumedAt: timestamp("bot_resumed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -475,5 +479,52 @@ export const outboundMessages = pgTable(
       t.toPhone,
       t.sentAt,
     ),
+  ],
+);
+
+/**
+ * 0018 — every text a staff member sent to an order's customer from the
+ * dashboard (brief م-ج), from the moment they pressed «send». The dashboard
+ * API writes the row (`pending`); the engine's queue sends it through its raw
+ * sender and moves it forward: pending → sending → sent | failed. Not in
+ * `outbound_messages`: a staff text lives here alone, with its state, its
+ * author and Meta's id, so the conversation shows it once.
+ *
+ * `silence_until` is the end of the bot's silence this message makes, written
+ * by the dashboard on the database's clock; the rule itself is
+ * `app.bot_silence()` (SQL alone). The SQL ties `order_id` to the restaurant
+ * with the tenant key `(order_id, restaurant_id) → orders`, and holds the
+ * CHECKs on `send_state`, `failure` and `body` — none mirrored here, as
+ * `outbound_messages`' is not. `(restaurant_id, client_id)` is UNIQUE: a
+ * second press finds the first row.
+ */
+export const staffMessages = pgTable(
+  "staff_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    restaurantId: uuid("restaurant_id")
+      .notNull()
+      .references(() => restaurants.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id").notNull(),
+    staffAccountId: uuid("staff_account_id").references(
+      () => staffAccounts.id,
+      { onDelete: "set null" },
+    ),
+    clientId: uuid("client_id").notNull(),
+    body: text("body").notNull(),
+    sendState: text("send_state").notNull().default("pending"),
+    failure: text("failure"),
+    metaErrorCode: integer("meta_error_code"),
+    waMessageId: text("wa_message_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    silenceUntil: timestamp("silence_until", { withTimezone: true }).notNull(),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [
+    unique().on(t.restaurantId, t.clientId),
+    index("idx_staff_messages_order").on(t.orderId, t.createdAt),
   ],
 );
