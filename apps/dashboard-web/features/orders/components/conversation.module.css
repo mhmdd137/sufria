@@ -79,7 +79,8 @@
   align-items: flex-start;
 }
 
-.message[data-from="bot"] {
+.message[data-from="bot"],
+.message[data-from="staff"] {
   align-self: flex-end;
   align-items: flex-end;
 }
@@ -102,6 +103,82 @@
 
 .message[data-from="bot"] .bubble {
   background: var(--surface);
+}
+
+/* A staff member's message (brief م-د §3, decisions 1 and 9): «the bag
+   reached the customer» — a dashed line while it goes, filled with the
+   staff colour once sent, a 2px line with nothing in it when it failed (its
+   padding a pixel less, so the bubble keeps its size). */
+.message[data-from="staff"] .bubble {
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px dashed var(--text-primary);
+}
+
+.message[data-state="sent"] .bubble {
+  background: var(--staff-bubble);
+  color: var(--on-staff-bubble);
+  border: 1px solid var(--staff-bubble);
+}
+
+.message[data-state="failed"] .bubble {
+  padding: 7px 11px;
+  border: 2px solid var(--text-primary);
+}
+
+/* Under it, at the end of the line: «[الاسم] · [الوقت]» — the time in the
+   numbers' font at 500 — or «جارٍ الإرسال…». */
+.meta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.metaTime {
+  font-weight: 500;
+}
+
+/* A failed one: why, and its button, on one line that wraps. */
+.failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.reason {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* «عدّل وأرسل» and «راسل الزبون»: the secondary button, 13px. */
+.action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .action:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.action:not(:disabled, [aria-busy="true"]):active {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
 }
 
 /* A message with no text (brief م-ب): its kind's word, 13px/600 in grey,

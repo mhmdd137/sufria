@@ -171,6 +171,7 @@ const KINDS: {
       ],
       ["features/orders/components/cancel-dialog.module.css", ".button", true],
       ["features/orders/components/conversation.module.css", ".retry", true],
+      ["features/orders/components/conversation.module.css", ".action", true],
       ["features/orders/components/order-list.module.css", ".more", true],
       ["shared/layout/dashboard-header.module.css", ".logout", true],
       ["features/orders/components/conversation.module.css", ".more", false],

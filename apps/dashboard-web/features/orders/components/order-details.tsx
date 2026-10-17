@@ -4,6 +4,7 @@ import { useCallback, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   DASHBOARD_UI_AR,
+  waLink,
   type Currency,
   type OrderDetail,
 } from "@sufria/shared";
@@ -17,12 +18,14 @@ import { useOffsetTop } from "../hooks/use-offset-top.ts";
 import { useOrderMessages } from "../hooks/use-order-messages.ts";
 import { backTo, cancelOrder, type AdvanceOutcome } from "../lib/board.ts";
 import { detailView } from "../lib/details.ts";
+import type { LocalStaffMessage } from "../lib/reply.ts";
 import { CancelDialog } from "./cancel-dialog.tsx";
 import { Conversation } from "./conversation.tsx";
 import { NextStepButton } from "./next-step-button.tsx";
 import styles from "./order-details.module.css";
 
 const T = DASHBOARD_UI_AR;
+const NO_LOCAL: readonly LocalStaffMessage[] = [];
 
 type Props = {
   id: string;
@@ -80,7 +83,12 @@ export function OrderDetails({ id, from }: Props) {
           reload={order.reload}
           apply={apply}
           conversation={
-            <Conversation state={messages.state} retry={messages.reload} />
+            <Conversation
+              state={messages.state}
+              retry={messages.reload}
+              chat={waLink(order.state.order.customer.phone)}
+              local={NO_LOCAL}
+            />
           }
         />
       )}

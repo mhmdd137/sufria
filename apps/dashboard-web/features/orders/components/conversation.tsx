@@ -5,6 +5,7 @@ import { DASHBOARD_MESSAGES_UI_AR, DASHBOARD_UI_AR } from "@sufria/shared";
 import { Skeleton } from "../../../shared/ui/skeleton.tsx";
 import type { MessagesState } from "../hooks/use-order-messages.ts";
 import { conversationView } from "../lib/details.ts";
+import { withLocal, type LocalStaffMessage } from "../lib/reply.ts";
 import styles from "./conversation.module.css";
 
 const T = DASHBOARD_UI_AR;
@@ -13,6 +14,10 @@ const M = DASHBOARD_MESSAGES_UI_AR;
 type Props = {
   state: MessagesState;
   retry: () => void;
+  /** «راسل الزبون»: `https://wa.me/<digits>`, the order's own link. */
+  chat: string;
+  /** The staff messages this page sent that no read brought back yet. */
+  local: readonly LocalStaffMessage[];
 };
 
 /**
@@ -24,11 +29,22 @@ type Props = {
  * A customer message with no text is its kind's word in the same bubble, in
  * grey (brief م-ب): «رسالة صوتية — لا تظهر هنا», and a location «موقع» with
  * «افتح الخريطة» after it, in a new tab.
+ *
+ * A staff member's message is at the bot's end (brief م-د §3): a dashed
+ * line while it goes, filled once it reached the customer, a thick line
+ * with nothing in it when it failed — and under it, their name and the
+ * time, «جارٍ الإرسال…», or why.
  */
-export function Conversation({ state, retry }: Props) {
+export function Conversation({ state, retry, chat, local }: Props) {
   const view = useMemo(
-    () => (state.kind === "ready" ? conversationView(state.messages) : null),
-    [state],
+    () =>
+      state.kind === "ready"
+        ? conversationView(
+            withLocal(state.messages, local),
+            state.replyOpenUntil !== null,
+          )
+        : null,
+    [state, local],
   );
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const list = useRef<HTMLOListElement>(null);
@@ -86,7 +102,12 @@ export function Conversation({ state, retry }: Props) {
           {view.messages.map((m) => {
             const open = expanded.has(m.id);
             return (
-              <li key={m.id} className={styles.message} data-from={m.from}>
+              <li
+                key={m.id}
+                className={styles.message}
+                data-from={m.from}
+                data-state={m.staff?.state}
+              >
                 {m.word !== null ? (
                   <p className={`${styles.bubble} ${styles.word}`}>
                     <span>{m.word}</span>
@@ -106,6 +127,33 @@ export function Conversation({ state, retry }: Props) {
                     {m.preview !== null && !open ? m.preview : m.text}
                   </p>
                 )}
+                {m.staff?.meta && (
+                  <span className={styles.meta}>
+                    {m.staff.meta.before}
+                    <span className={`num ${styles.metaTime}`}>
+                      {m.staff.meta.time}
+                    </span>
+                    {m.staff.meta.after}
+                  </span>
+                )}
+                {m.staff?.state === "pending" && (
+                  <span className={styles.meta}>{m.staff.note}</span>
+                )}
+                {m.staff?.state === "failed" && (
+                  <div className={styles.failure}>
+                    <span className={styles.reason}>{m.staff.note}</span>
+                    {m.staff.action === "contact" && (
+                      <a
+                        className={styles.action}
+                        href={chat}
+                        target="_blank"
+                        rel="noopener"
+                      >
+                        {T.details.messageCustomer}
+                      </a>
+                    )}
+                  </div>
+                )}
                 {m.preview !== null && (
                   <button
                     type="button"
@@ -116,7 +164,9 @@ export function Conversation({ state, retry }: Props) {
                     {open ? T.conversation.hide : T.conversation.showAll}
                   </button>
                 )}
-                <span className={`num ${styles.time}`}>{m.time}</span>
+                {m.staff === null && (
+                  <span className={`num ${styles.time}`}>{m.time}</span>
+                )}
               </li>
             );
           })}
