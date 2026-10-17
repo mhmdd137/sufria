@@ -220,3 +220,18 @@ export function seenUpTo(
   }
   return null;
 }
+
+/**
+ * The order's page rings (brief م-ب-9 §2): a read that brings a customer
+ * message the previous read did not have. The first read after the page
+ * opens (`prev` null) never does — the staff member is looking — and a bot
+ * message alone never does.
+ */
+export function newCustomerMessage(
+  prev: readonly OrderMessage[] | null,
+  next: readonly OrderMessage[],
+): boolean {
+  if (prev === null) return false;
+  const known = new Set(prev.map((m) => m.id));
+  return next.some((m) => m.direction === "inbound" && !known.has(m.id));
+}

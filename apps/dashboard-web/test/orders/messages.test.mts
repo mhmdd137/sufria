@@ -15,6 +15,7 @@ import { cardView } from "../../features/orders/lib/board.ts";
 import {
   MESSAGES_POLL_MS,
   conversationView,
+  newCustomerMessage,
   seenUpTo,
 } from "../../features/orders/lib/details.ts";
 
@@ -251,4 +252,25 @@ test("«read» is sent only for a customer message newer than the last one marke
   assert.equal(seenUpTo([first, bot], null), "c1", "the first read");
   assert.equal(seenUpTo([first, bot], "c1"), null, "nothing new");
   assert.equal(seenUpTo([first, bot, second], "c1"), "c2", "a new one");
+});
+
+// --- the order's page rings (brief م-ب-9 §2, tests 1–4) -----------------------
+
+test("the order's page rings for a customer message the previous read did not have", () => {
+  const hello: OrderMessage = { ...msg("text"), id: "c1" };
+  const again: OrderMessage = { ...msg("text"), id: "c2" };
+  const bot: OrderMessage = { ...msg("text"), id: "b1", direction: "outbound" };
+
+  assert.equal(newCustomerMessage(null, [hello]), false, "1: the first read");
+  assert.equal(newCustomerMessage([hello], [hello]), false, "2: the same");
+  assert.equal(
+    newCustomerMessage([hello], [hello, again]),
+    true,
+    "3: a new one",
+  );
+  assert.equal(
+    newCustomerMessage([hello], [hello, bot]),
+    false,
+    "4: the bot's alone",
+  );
 });

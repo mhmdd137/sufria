@@ -2,8 +2,13 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { OrderMessage } from "@sufria/shared";
+import { sound } from "../../../shared/sound/sound-store.ts";
 import { ordersApi } from "../api/orders-api.ts";
-import { MESSAGES_POLL_MS, seenUpTo } from "../lib/details.ts";
+import {
+  MESSAGES_POLL_MS,
+  newCustomerMessage,
+  seenUpTo,
+} from "../lib/details.ts";
 import { usePolling } from "./use-polling.ts";
 
 export type MessagesState =
@@ -22,6 +27,10 @@ export type MessagesState =
  * card's bubble and the returned group follow without waiting for the
  * tick. A failed mark says nothing to the staff member; the next read tries
  * again.
+ *
+ * A read that brings a customer message the previous read did not have
+ * rings, before the mark (brief م-ب-9 §2): marked read, the list would find
+ * nothing to ring for. The first read after the page opens does not.
  */
 export function useOrderMessages(
   id: string,
@@ -30,12 +39,20 @@ export function useOrderMessages(
 ): { state: MessagesState; reload: () => Promise<void> } {
   const [state, setState] = useState<MessagesState>({ kind: "loading" });
   const marked = useRef<string | null>(null);
+  const last = useRef<{
+    id: string;
+    messages: readonly OrderMessage[];
+  } | null>(null);
 
   const reload = useCallback(async () => {
     const res = await ordersApi.orderMessages(id);
     if (res.ok) {
-      setState({ kind: "ready", messages: res.value.messages });
-      const upTo = seenUpTo(res.value.messages, marked.current);
+      const { messages } = res.value;
+      setState({ kind: "ready", messages });
+      const prev = last.current?.id === id ? last.current.messages : null;
+      last.current = { id, messages };
+      if (newCustomerMessage(prev, messages)) void sound.alert("message");
+      const upTo = seenUpTo(messages, marked.current);
       if (upTo !== null) {
         const seen = await ordersApi.markMessagesSeen(id, upTo);
         if (seen.ok) {

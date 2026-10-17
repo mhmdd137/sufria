@@ -10,6 +10,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
+  MESSAGE_RING_GAP_MS,
   MUTED_KEY,
   createSoundStore,
   readMuted,
@@ -187,6 +188,77 @@ test("«شغّل الصوت» fails: the strip stays, nothing is thrown, and the
   await store.enable();
   assert.equal(store.getSnapshot().blocked, false);
   assert.deepEqual(loader.played, ["order"]);
+});
+
+// --- a message rings once (brief م-ب-9 §2, tests 5–8) -------------------------
+
+/** A store on a working fake player, its clock in the test's hands. */
+function clocked(storage: () => Storage | undefined = memoryStorage) {
+  const player = fakePlayer(true);
+  let t = Date.parse("2026-10-17T12:00:00.000Z");
+  const store = createSoundStore({
+    storage,
+    loadPlayer: player.load,
+    now: () => t,
+  });
+  return {
+    store,
+    played: player.played,
+    wait(ms: number) {
+      t += ms;
+    },
+  };
+}
+
+test("5: «message» twice 9 s apart rings once", async () => {
+  const c = clocked();
+  await c.store.alert("message");
+  c.wait(9_000);
+  await c.store.alert("message");
+  assert.deepEqual(c.played, ["message"]);
+});
+
+test("6: «message» twice 10 s apart rings twice", async () => {
+  assert.equal(MESSAGE_RING_GAP_MS, 10_000);
+  const c = clocked();
+  await c.store.alert("message");
+  c.wait(10_000);
+  await c.store.alert("message");
+  assert.deepEqual(c.played, ["message", "message"]);
+});
+
+test("7: «message» then «order» a second apart: both ring", async () => {
+  const c = clocked();
+  await c.store.alert("message");
+  c.wait(1_000);
+  await c.store.alert("order");
+  assert.deepEqual(c.played, ["message", "order"]);
+});
+
+test("8: «message» while muted is no ring: unmuted, the next one 3 s later rings", async () => {
+  const storage = memoryStorage();
+  storage.setItem(MUTED_KEY, "1");
+  const c = clocked(() => storage);
+  await c.store.alert("message");
+  c.store.setMuted(false);
+  c.wait(3_000);
+  await c.store.alert("message");
+  assert.deepEqual(c.played, ["message"]);
+});
+
+test("a «message» the browser stopped is no ring: the next one rings", async () => {
+  const player = fakePlayer(false);
+  let t = 0;
+  const store = createSoundStore({
+    storage: memoryStorage,
+    loadPlayer: player.load,
+    now: () => t,
+  });
+  await store.alert("message");
+  player.allow();
+  t += 1_000;
+  await store.alert("message");
+  assert.deepEqual(player.played, ["message"]);
 });
 
 test("both strips due: «مكتوم» alone", () => {

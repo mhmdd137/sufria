@@ -36,6 +36,13 @@ export function soundStrip(state: SoundState): SoundStrip {
 export const MUTED_KEY = "sufria.sound.muted";
 
 /**
+ * A message rings once (brief م-ب-9 §2): the list and the order's page can
+ * both find the same one. `message` is skipped within this much of the last
+ * `message` that rang — by the browser's clock; `order` is not.
+ */
+export const MESSAGE_RING_GAP_MS = 10_000;
+
+/**
  * Every read and write of the key in `try`: storage can be missing, or throw
  * (a private window, blocked site data). Not muted, then — the default.
  */
@@ -78,12 +85,19 @@ export type SoundStore = {
 export function createSoundStore({
   storage,
   loadPlayer,
+  now = Date.now,
 }: {
   storage: () => Storage | undefined;
   loadPlayer: (store: SoundStore) => Promise<Player>;
+  now?: () => number;
 }): SoundStore {
   let state: SoundState = { muted: readMuted(storage), blocked: false };
   let due: SoundKind | null = null;
+  /** When a `message` last rang — muted or stopped, it did not. */
+  let messageRangAt: number | null = null;
+  const rang = (kind: SoundKind) => {
+    if (kind === "message") messageRangAt = now();
+  };
   const listeners = new Set<() => void>();
   const set = (next: Partial<SoundState>) => {
     const merged = { ...state, ...next };
@@ -105,6 +119,12 @@ export function createSoundStore({
     },
     async alert(kind) {
       if (state.muted) return;
+      if (
+        kind === "message" &&
+        messageRangAt !== null &&
+        now() - messageRangAt < MESSAGE_RING_GAP_MS
+      )
+        return;
       // A player that fails to load, or throws, is a stopped browser: its
       // strip, and the sound due (brief م-ب-9 §1) — never a silent miss.
       let played: boolean;
@@ -113,6 +133,7 @@ export function createSoundStore({
       } catch {
         played = false;
       }
+      if (played) rang(kind);
       due = played ? null : kind;
       set({ blocked: !played });
     },
@@ -126,7 +147,7 @@ export function createSoundStore({
         if (running && due !== null) {
           ringing = due;
           due = null;
-          await player.play(ringing);
+          if (await player.play(ringing)) rang(ringing);
         }
       } catch {
         // The strip stays, what was due with it: the next press tries again.
