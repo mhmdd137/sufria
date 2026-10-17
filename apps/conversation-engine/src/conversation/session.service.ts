@@ -17,6 +17,7 @@ import {
   legacyTimezoneKey,
 } from "../restaurant/business-hours.js";
 import type { WhatsAppSender } from "../whatsapp/sender.js";
+import { silenceForStaff } from "./bot-silence.js";
 import { handleBrowsingMessage } from "./browsing.js";
 import { handleCartReviewMessage } from "./cart-review.js";
 import { relayToRestaurant, type RelayMinutes } from "./customer-relay.js";
@@ -49,6 +50,10 @@ import { isSessionExpired } from "./session-idle.js";
  * one line about it instead of the menu, and the message is linked to that
  * order (`customer-relay.ts`) — before the hours gate and the pause. A
  * reaction is stored and nothing else, first of all.
+ *
+ * A customer a staff member is talking to (brief م-ج): the bot keeps quiet —
+ * right after a reaction, before everything else — and the message is
+ * linked to the staff message's order (`bot-silence.ts`).
  */
 
 /** الحالات اللي معناها "الجلسة خلصت". نفس تعريف 0002 و0007 بالضبط. */
@@ -99,7 +104,13 @@ export type ConversationOutcome =
    * A reaction (👍 on a message): stored by the webhook, and nothing else —
    * no read, no reply, no link, no session touched (brief م-أ, decision 9).
    */
-  | "reaction_ignored";
+  | "reaction_ignored"
+  /**
+   * A staff member is talking to this customer (brief م-ج): the bot keeps
+   * quiet — no reply, the restaurant not read, no session touched — and
+   * `ctx.relayed.orderId` names the staff message's order.
+   */
+  | "bot_silent";
 
 /**
  * رسالة بتنبعت **بعد** ما تُقفل معاملة الرسالة بنجاح — ج §8، الخطوة 7.
@@ -230,6 +241,25 @@ export class ConversationService {
     //    used to bring the whole menu back.
     // ---------------------------------------------------------------------
     if (ctx.messageType === "reaction") return "reaction_ignored";
+
+    // ---------------------------------------------------------------------
+    // 🔴 The bot keeps quiet for a customer staff are talking to — brief م-ج
+    //    §5, decision 3. Right after the reaction and before the restaurant
+    //    is read: so before an active session's routing, the timeout, the
+    //    pause, the hours gate and the relay. Nothing is sent and nothing
+    //    written — not the session, not `last_message_at`, not the streak —
+    //    and the message is linked to the staff message's order. «منيو»
+    //    ends the silence and carries on below, exactly as today.
+    // ---------------------------------------------------------------------
+    const silenced = await silenceForStaff(tx, {
+      restaurantId: ctx.restaurantId,
+      from: ctx.from,
+      body: ctx.body,
+    });
+    if (silenced !== null) {
+      ctx.relayed.orderId = silenced.orderId;
+      return "bot_silent";
+    }
 
     const restaurant = await this.readRestaurant(tx, ctx.restaurantId);
 
