@@ -385,20 +385,26 @@ describe("the bot keeps quiet — brief م-ج §5", () => {
     expect(c.reply()).toBe(RELAY_108);
   });
 
-  it("4. 🔴 the latest failed, one sent 10 minutes before it → bot_silent (decision 10)", async () => {
+  it("4. 🔴 the latest failed, one sent 10 minutes before it → bot_silent, as the sent one made it (decision 10)", async () => {
     const s = await shop("t4");
     const c = customer(s);
-    const order = await pastOrder(s, c.from, {
+    const sentOn = await pastOrder(s, c.from, {
       number: 108,
+      status: "preparing",
+      ageMinutes: 40,
+    });
+    const failedOn = await pastOrder(s, c.from, {
+      number: 109,
       status: "preparing",
       ageMinutes: 20,
     });
-    await staffMessage(s, order, { ageMinutes: 11, state: "sent" });
-    await staffMessage(s, order, { ageMinutes: 1, state: "failed" });
+    await staffMessage(s, sentOn, { ageMinutes: 11, state: "sent" });
+    // On another order, so the failed one would name its own if it counted.
+    await staffMessage(s, failedOn, { ageMinutes: 1, state: "failed" });
 
     expect(await c.say("تمام")).toEqual({
       outcome: "bot_silent",
-      orderId: order,
+      orderId: sentOn,
     });
     expect(c.sent()).toEqual([]);
   });
