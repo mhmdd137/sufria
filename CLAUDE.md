@@ -23,7 +23,7 @@ with `ERR_PNPM_BAD_PM_VERSION`).
 | `packages/shared` | `@sufria/shared` | Drizzle schema mirror + domain logic shared by every app |
 | `apps/dashboard-api` | `@sufria/dashboard-api` | NestJS REST API for the restaurant dashboard: orders and their status (with their unread customer messages and `returned`, and `POST /orders/:id/messages/seen` — brief م-ب, `docs/13` §9.1 and §9.11), a staff member's message to the order's customer — `POST /orders/:id/messages` (a `pending` row, nothing sent), `POST /orders/:id/resume-bot`, the staff messages in the conversation with `botSilence` and `replyOpenUntil`, and `staffMessagedAt` on every list item (brief م-ج, `docs/brief-mc-staff-reply-backend.md`, `docs/13` §9.9 and §9.12), restaurant settings (task D); the menu — `GET`/`POST /menu-items`, `PATCH /menu-items/:id` (name, price, availability, archive and bring back), `POST /menu-items/enable-all`, `GET /menu-categories` — and `PATCH /restaurant/orders-pause`, all under the 4096 guard where they can lengthen the menu (brief ي-أ, `docs/brief-ja-menu-backend.md`). Contracts as built: `docs/13-dashboard-api-brief.md` §9 (§9.10 for ي-أ) |
 | `apps/conversation-engine` | `@sufria/conversation-engine` | WhatsApp webhooks, business-hours gate, session, browsing cart, pickup-or-delivery, address, and order creation (task C); the customer-notification poller (task F, `src/notify/`); the 60-minute session timeout (task H, `docs/17-session-timeout-brief.md`); orders paused and the empty menu (brief ي-أ §4, `src/conversation/orders-paused.ts`); «آخر طلب لك» in a returning customer's first message, and «نفسه» (FR-08, brief ك, `docs/brief-ka-reorder.md`, `src/conversation/reorder.ts`); a customer's message after an order reaches the restaurant — the relay line instead of the menu, the message linked to the order, a reaction stored and nothing else (brief م-أ, `docs/brief-ma-customer-messages.md`, `src/conversation/customer-relay.ts`); the bot keeping quiet for a customer staff are talking to (`src/conversation/bot-silence.ts`), and the queue that sends staff messages (`src/notify/staff-replies.ts`) — brief م-ج |
-| `apps/dashboard-web` | `@sufria/dashboard-web` | Next.js staff UI: login, the orders screen (task G, `docs/16-orders-screen-brief.md`), an order's details with its conversation (task I, `docs/brief-i-order-details.md`), and the menu screen with the orders pause — `/menu`, `/menu/removed`, the pause strip on every page (brief ي-ب, `docs/brief-jb-menu-screen.md`); a customer's messages (brief م-ب, `docs/brief-mb-customer-messages-screen.md`) — the latest unread one on its card with the count, closed orders a message brought back in a group of their own above «الطلبات», every kind of message in the conversation (read every 5 s, marked read on the server), and the alert sound: O2 for a pending order (each minute, up to 3 h), M1 for a message, the header's «اكتم الصوت» and two strips (`shared/sound/`). Feature-based: `app/` (routes) · `features/<x>/` · `shared/` — see *Dashboard structure*. Talks to `dashboard-api` at `NEXT_PUBLIC_API_URL` |
+| `apps/dashboard-web` | `@sufria/dashboard-web` | Next.js staff UI: login, the orders screen (task G, `docs/16-orders-screen-brief.md`), an order's details with its conversation (task I, `docs/brief-i-order-details.md`), and the menu screen with the orders pause — `/menu`, `/menu/removed`, the pause strip on every page (brief ي-ب, `docs/brief-jb-menu-screen.md`); a customer's messages (brief م-ب, `docs/brief-mb-customer-messages-screen.md`) — the latest unread one on its card with the count, closed orders a message brought back in a group of their own above «الطلبات», every kind of message in the conversation (read every 5 s, marked read on the server), and the alert sound: O2 for a pending order (each minute, up to 3 h), M1 for a message, the header's «اكتم الصوت» and two strips (`shared/sound/`); a staff member writing to the order's customer (brief م-د, `docs/brief-md-staff-reply-screen.md`) — the field under the conversation, the staff bubble in its three states, the silence line and «شغّل الرد الآلي», the closed line after 24 hours, and a pending order's ring stopped by a staff message. Feature-based: `app/` (routes) · `features/<x>/` · `shared/` — see *Dashboard structure*. Talks to `dashboard-api` at `NEXT_PUBLIC_API_URL` |
 | `db/migrations` | — | Raw SQL. The single source of truth for the schema |
 | `db/seed` | — | Dev-only fixtures |
 | `tests/security` | — | Chain-isolation gate (mandatory) |
@@ -59,7 +59,7 @@ node --env-file=.env scripts/demo-menu.mjs list          # also: archived
 node --env-file=.env scripts/demo-menu.mjs pause         # also: resume
 node --env-file=.env scripts/demo-menu.mjs price 1 ٣٫٧٥  # also: on <n> · off <n> · archive <n> · restore <n>
 # Dev only, the same way: staff write to an order's customer, as the message box
-# will (brief م-ج §7). <n> is the order's number:
+# does (brief م-ج §7). <n> is the order's number:
 node --env-file=.env scripts/demo-staff-message.mjs 101 "مرحبا، معك المطعم"
 node --env-file=.env scripts/demo-staff-message.mjs 101 --status   # also: --resume
 ```
@@ -371,6 +371,24 @@ under the name. A switched-off row is on `--bg`, «مطفأ» inverted (`--bg` o
 `--text-primary`) and its «شغّل» inverted too, in that row alone.
 «المُزالة» rows have the same structure, the category a badge.
 
+The order's conversation (brief م-د): three voices — the customer at the
+start of the line, the bot and staff at its end, staff's bubble dashed
+while it goes, filled with `staff-bubble` once sent (dark: a grey, not
+white), a 2px line when it failed, and under it the name and time,
+«جارٍ الإرسال…», or why with «عدّل وأرسل» (back to the field, never sent
+by itself) or «راسل الزبون». Under the list, inside the section
+(`staff-composer.tsx`): the silence line with «شغّل الرد الآلي» while the
+bot keeps quiet, then the field and «أرسل» (inverted, never disabled;
+Enter sends with a mouse, Shift+Enter is a line, touch never); once
+`replyOpenUntil` is null, the closed line and «راسل الزبون» instead. The
+send is optimistic: a local bubble by `clientId` (a UUID v4 from
+`getRandomValues`), retried after 2 s and 6 s, kept until a read brings its
+row (`features/orders/lib/reply.ts`). **While the field has the focus, the
+step's bar is back in its place in the page** (`order-details.module.css`,
+`.page:has([data-composer] textarea:focus)`), so a phone's keyboard does
+not lift it over the field; fixed again on blur. Its texts are
+`dashboard-reply-ui.ts`, on the order's page alone.
+
 **The RTL and width contract, on every file touched** — from 375px to 1440px,
 right to left by `dir="rtl"` on `<html>` alone, no horizontal scroll:
 - DOM order = reading order = the phone's column. **Never** `row-reverse`,
@@ -554,13 +572,11 @@ into the same `.next` that `next start` serves: restart a running one after.
   less 10 minutes) in the API; `STAFF_REPLY_POLL_MS` (5000, `0` off) and
   `STAFF_REPLY_MAX_WAIT_SECONDS` (120) in the engine, which refuses to start
   when the wait is not more than 3 × `WHATSAPP_SEND_TIMEOUT_MS` + 8000. All
-  four pinned in the suites' `setup-env.ts`. **Not built:** the screen —
-  the message box, the staff message's look and state, «رجّع للبوت», the
-  24-hours line, stopping a pending order's ring (brief م-د; until then a
-  staff message shows in the conversation as a bot reply, and
-  `scripts/demo-staff-message.mjs` writes them) · showing voice notes and
-  images (م-هـ) · «وصلت ✓» (Meta's delivery statuses: `wa_message_id` is
-  kept, nothing reads it). A send that went out whose final write then
+  four pinned in the suites' `setup-env.ts`. **The screen is built**
+  (brief م-د — *Dashboard structure*); a pending order staff wrote to
+  rings no more (`staffMessagedAt`), its customer's messages still do.
+  **Not built:** showing voice notes and images (م-هـ) · «وصلت ✓» (Meta's
+  delivery statuses: `wa_message_id` is kept, nothing reads it). A send that went out whose final write then
   failed leaves the row `sending`, to be failed as `expired` — the staff
   member may then send it again.
 - **An active session silent for `SESSION_IDLE_MINUTES` (default 60) or more
@@ -676,12 +692,19 @@ into the same `.next` that `next start` serves: restart a running one after.
   123204 each. Over `a112d42` (م-ب's end): `/login` 0 · `/orders/[id]` +156
   · the four others +61 — م-ب-9's catch around the player and the message
   ring's gap, in the store every page carries, and the order page's ring.
+  **Brief م-د (18 October), within its thresholds, set to the measure:**
+  JS `/login` 138628 (+32, the two tokens) · `/orders` 148065 · `/history`
+  148215 · `/menu` 151753 · `/menu/removed` 149665 (+77: the tokens, the
+  staff 409 in `http.ts`, the ring's condition) · `/orders/[id]` 153975
+  (+2795: the field, the line, the staff bubble and their texts); fonts
+  123204 each.
 - **Under the pointer and pressed (brief ل §3, decision 2).** Eight tokens
   in `design-tokens.ts`, each named by the ground it changes:
   `surface-hover`/`-press`, `bg-hover`/`-press` (`bg-press` is also the view
   switch's chosen half), `accent-hover`/`-press`, `inverse-hover`/`-press`
-  (the inverted «شغّل») — an sRGB mix, recomputed by a test; 54 contrast
-  pairs (brief م-ب: `surface` on `text-primary`, the card's count), the weakest `text-secondary` on light `bg-press`, 4.62. `:hover`
+  (the inverted «شغّل») — an sRGB mix, recomputed by a test; 56 contrast
+  pairs (brief م-ب: `surface` on `text-primary`, the card's count; brief
+  م-د: `on-staff-bubble` on `staff-bubble`), the weakest `text-secondary` on light `bg-press`, 4.62. `:hover`
   only inside `@media (hover: hover) and (pointer: fine)` (a phone never
   keeps it after a tap); `:active` on every device; every state of a button
   is written `:not(:disabled, [aria-busy="true"])`, so neither a disabled
