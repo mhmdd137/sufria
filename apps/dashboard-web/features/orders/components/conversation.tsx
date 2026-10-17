@@ -33,10 +33,15 @@ export function Conversation({ state, retry }: Props) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const list = useRef<HTMLOListElement>(null);
   const opened = useRef(false);
+  // Whether the list was at its end before the next answer (48px slack).
+  const atEnd = useRef(true);
 
-  // Once, on the first answer: the latest message in sight.
+  // The latest message in sight: on the first answer, and on every answer
+  // after while the staff member was at the end — never when they scrolled
+  // up to read (brief م-ب, 17 October).
   useEffect(() => {
-    if (view === null || opened.current || list.current === null) return;
+    if (view === null || list.current === null) return;
+    if (opened.current && !atEnd.current) return;
     list.current.scrollTop = list.current.scrollHeight;
     opened.current = true;
   }, [view]);
@@ -69,7 +74,15 @@ export function Conversation({ state, retry }: Props) {
       {view?.notice && <p className={styles.notice}>{view.notice}</p>}
 
       {view && view.messages.length > 0 && (
-        <ol ref={list} className={styles.messages}>
+        <ol
+          ref={list}
+          className={styles.messages}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            atEnd.current =
+              el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+          }}
+        >
           {view.messages.map((m) => {
             const open = expanded.has(m.id);
             return (

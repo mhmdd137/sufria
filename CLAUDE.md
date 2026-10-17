@@ -622,7 +622,7 @@ into the same `.next` that `next start` serves: restart a running one after.
   module whole, whatever a page reads of it.
   **م-ب، قرار محمد A (17 أكتوبر): الحدود الستة للقياس بعد م-ب-9.** The
   budgets now: JS `/login` 138596 · `/orders` 147988 · `/history` 148138 ·
-  `/orders/[id]` 151135 · `/menu` 151676 · `/menu/removed` 149588; fonts
+  `/orders/[id]` 151180 · `/menu` 151676 · `/menu/removed` 149588; fonts
   123204 each. Over `a112d42` (م-ب's end): `/login` 0 · `/orders/[id]` +156
   · the four others +61 — م-ب-9's catch around the player and the message
   ring's gap, in the store every page carries, and the order page's ring.
