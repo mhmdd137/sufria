@@ -3,9 +3,12 @@ import {
   ConflictException,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from "@nestjs/common";
@@ -21,6 +24,7 @@ import { CurrentUser } from "../auth/decorators/current-user.decorator.js";
 import { VerifiedRestaurantId } from "../auth/decorators/verified-restaurant.decorator.js";
 import { RestaurantContextGuard } from "../auth/restaurant-context.guard.js";
 import { ListOrdersQueryDto } from "./dto/list-orders.dto.js";
+import { MarkMessagesSeenDto } from "./dto/mark-messages-seen.dto.js";
 import { OrderIdParamDto } from "./dto/order-id.dto.js";
 import { UpdateOrderStatusDto } from "./dto/update-order-status.dto.js";
 import { OrdersService } from "./orders.service.js";
@@ -72,6 +76,26 @@ export class OrdersController {
     const conversation = await this.orders.messages(restaurantId, params.id);
     if (!conversation) throw new NotFoundException();
     return conversation;
+  }
+
+  /**
+   * Brief م-ب: the order's customer messages are read up to `upTo`. 204 with
+   * no body. A message that is not this order's customer's, and an order
+   * that is not ours, get the very same 404 (brief D §2.9).
+   */
+  @Post(":id/messages/seen")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async markMessagesSeen(
+    @VerifiedRestaurantId() restaurantId: string,
+    @Param() params: OrderIdParamDto,
+    @Body() body: MarkMessagesSeenDto,
+  ): Promise<void> {
+    const marked = await this.orders.markMessagesSeen(
+      restaurantId,
+      params.id,
+      body.upTo,
+    );
+    if (!marked) throw new NotFoundException();
   }
 
   /**

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DASHBOARD_UI_AR } from "@sufria/shared";
+import { DASHBOARD_MESSAGES_UI_AR, DASHBOARD_UI_AR } from "@sufria/shared";
 import { Skeleton } from "../../../shared/ui/skeleton.tsx";
 import type { MessagesState } from "../hooks/use-order-messages.ts";
 import { conversationView } from "../lib/details.ts";
 import styles from "./conversation.module.css";
 
 const T = DASHBOARD_UI_AR;
+const M = DASHBOARD_MESSAGES_UI_AR;
 
 type Props = {
   state: MessagesState;
@@ -19,6 +20,10 @@ type Props = {
  * line, the bot's at its end, each as it was written — `dir="auto"`, its
  * lines kept. From 1024px up the list scrolls by itself, opening on the last
  * message; below, it is part of the page.
+ *
+ * A customer message with no text is its kind's word in the same bubble, in
+ * grey (brief م-ب): «رسالة صوتية — لا تظهر هنا», and a location «موقع» with
+ * «افتح الخريطة» after it, in a new tab.
  */
 export function Conversation({ state, retry }: Props) {
   const view = useMemo(
@@ -28,10 +33,15 @@ export function Conversation({ state, retry }: Props) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const list = useRef<HTMLOListElement>(null);
   const opened = useRef(false);
+  // Whether the list was at its end before the next answer (48px slack).
+  const atEnd = useRef(true);
 
-  // Once, on the first answer: the latest message in sight.
+  // The latest message in sight: on the first answer, and on every answer
+  // after while the staff member was at the end — never when they scrolled
+  // up to read (brief م-ب, 17 October).
   useEffect(() => {
-    if (view === null || opened.current || list.current === null) return;
+    if (view === null || list.current === null) return;
+    if (opened.current && !atEnd.current) return;
     list.current.scrollTop = list.current.scrollHeight;
     opened.current = true;
   }, [view]);
@@ -64,14 +74,38 @@ export function Conversation({ state, retry }: Props) {
       {view?.notice && <p className={styles.notice}>{view.notice}</p>}
 
       {view && view.messages.length > 0 && (
-        <ol ref={list} className={styles.messages}>
+        <ol
+          ref={list}
+          className={styles.messages}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            atEnd.current =
+              el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+          }}
+        >
           {view.messages.map((m) => {
             const open = expanded.has(m.id);
             return (
               <li key={m.id} className={styles.message} data-from={m.from}>
-                <p className={styles.bubble} dir="auto">
-                  {m.preview !== null && !open ? m.preview : m.text}
-                </p>
+                {m.word !== null ? (
+                  <p className={`${styles.bubble} ${styles.word}`}>
+                    <span>{m.word}</span>
+                    {m.map !== null && (
+                      <a
+                        href={m.map}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.map}
+                      >
+                        {M.openMap}
+                      </a>
+                    )}
+                  </p>
+                ) : (
+                  <p className={styles.bubble} dir="auto">
+                    {m.preview !== null && !open ? m.preview : m.text}
+                  </p>
+                )}
                 {m.preview !== null && (
                   <button
                     type="button"

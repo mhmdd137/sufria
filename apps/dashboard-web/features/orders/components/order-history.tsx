@@ -83,7 +83,7 @@ export function OrderHistory() {
           <OrderCard
             key={order.id}
             order={order}
-            tab="history"
+            place="history"
             currency={currency}
             now={now}
             onOutcome={noOutcome}

@@ -41,6 +41,8 @@ const ORDER: OrderListItem = {
   ],
   statusChangedAt: ago(30_000),
   cancellationReason: null,
+  unreadMessages: 0,
+  lastMessage: null,
 };
 
 function apiReplying(status: number, body: unknown) {
@@ -79,6 +81,8 @@ test("cardView: the brief's card, right to left, all from shared", () => {
     since: "منذ 6 دقائق",
     pulse: true,
     action: { to: "ready", label: "سلّمناه للسائق" },
+    // Brief م-ب: no message unread, no bubble.
+    message: null,
   });
 });
 

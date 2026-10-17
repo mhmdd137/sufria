@@ -429,6 +429,9 @@ describe("GET /orders — tabs and ordering", () => {
       // No history row in this fixture: the creation time stands in.
       statusChangedAt: at(0),
       cancellationReason: null,
+      // Brief م-ب: no message relayed to this order.
+      unreadMessages: 0,
+      lastMessage: null,
     });
     expect(rows[0]!.created_at).toBe(at(0));
   });

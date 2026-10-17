@@ -7,13 +7,14 @@
 import {
   DASHBOARD_UI_AR,
   ORDER_STATUS_LABEL_AR,
-  ORDER_TAB_STATUSES,
   amountAr,
   customerLabelAr,
   itemsSummaryAr,
+  messageKindLabelAr,
   nextStaffAction,
   orderNumberLabel,
   sinceAr,
+  unreadLabelAr,
   type Currency,
   type OrderListItem,
   type OrderTab,
@@ -24,8 +25,11 @@ import type { OrdersApi } from "../api/orders-api.ts";
 /** A status changed less than this long ago pulses (G-4). */
 export const PULSE_MS = 60_000;
 
-/** The active tab polls every 10 seconds (ADR-003: 10 to 15). */
-export const POLL_MS = 10_000;
+/**
+ * The live list's two (brief م-ب): in `live.ts`, which the layout imports —
+ * not this file, whose card decisions reach the card pages alone.
+ */
+export { POLL_MS, replaceInActive } from "./live.ts";
 
 /**
  * The pulse is the API's `statusChangedAt` and nothing else — no status
@@ -57,6 +61,27 @@ export function orderHref(id: string, from: OrderTab): string {
   return from === "history" ? `${path}?from=history` : path;
 }
 
+/**
+ * Where a card stands: one of the two tabs, or the group of closed orders a
+ * customer's message brought back to «الطلبات» (brief م-ب, decision 3).
+ */
+export type CardPlace = OrderTab | "returned";
+
+/**
+ * The customer's latest message on the card, while any is unread (brief
+ * م-ب, decisions 1–2): its text cut to one line, or the word of its kind in
+ * grey — and the count beside it.
+ */
+export type CardMessage = {
+  text: string;
+  /** `text` is a kind's word («رسالة صوتية»), not the customer's words. */
+  word: boolean;
+  /** The unread count, in the numbers' font. */
+  count: string;
+  /** «رسائل جديدة: 3», for a screen reader. */
+  label: string;
+};
+
 export type CardView = {
   /** The details page the card opens — on its number, stretched over it. */
   href: string;
@@ -74,18 +99,39 @@ export type CardView = {
   pulse: boolean;
   /** `null` in history and for any status without a next step. */
   action: StaffAction | null;
+  /** `null` while no message is unread: the card as before. */
+  message: CardMessage | null;
 };
 
+/** The card's message line — none unless a message is unread. */
+export function cardMessage(order: OrderListItem): CardMessage | null {
+  const last = order.lastMessage;
+  if (order.unreadMessages <= 0 || last === null) return null;
+  const word = last.kind !== "text";
+  return {
+    text:
+      last.kind === "text" ? (last.text ?? "") : messageKindLabelAr(last.kind),
+    word,
+    count: String(order.unreadMessages),
+    label: unreadLabelAr(order.unreadMessages),
+  };
+}
+
+/**
+ * A returned card (brief م-ب) is a history card in «الطلبات»: its badge and
+ * its cancellation reason, no button — and it opens without
+ * `?from=history`, so the details page goes back to «الطلبات».
+ */
 export function cardView(
   order: OrderListItem,
-  tab: OrderTab,
+  place: CardPlace,
   currency: Currency,
   now: number,
 ): CardView {
   const summary = itemsSummaryAr(order.items);
   const kind = DASHBOARD_UI_AR.fulfillment[order.fulfillmentType];
   return {
-    href: orderHref(order.id, tab),
+    href: orderHref(order.id, place === "history" ? "history" : "active"),
     number: orderNumberLabel(order.orderNumber),
     customer: customerLabelAr(order.customer),
     customerMasked: isMaskedCustomer(order.customer),
@@ -93,7 +139,7 @@ export function cardView(
       ? `${kind}${DASHBOARD_UI_AR.itemSeparator}${summary}`
       : kind,
     reason:
-      tab === "history" && order.status === "cancelled"
+      place !== "active" && order.status === "cancelled"
         ? order.cancellationReason
         : null,
     badge: ORDER_STATUS_LABEL_AR[order.status],
@@ -101,11 +147,12 @@ export function cardView(
     // «منذ…» under 24 hours, its date from 24 on (I-9 #6).
     since: sinceAr(order.createdAt, now),
     pulse: pulses(order, now),
-    // History has no button (G-4).
+    // History has no button (G-4), nor a returned order (brief م-ب).
     action:
-      tab === "active"
+      place === "active"
         ? nextStaffAction(order.status, order.fulfillmentType)
         : null,
+    message: cardMessage(order),
   };
 }
 
@@ -165,20 +212,6 @@ function outcomeOf(
       // `payment_not_settled` and the rest: the step cannot be taken now.
       return { kind: "failed", line: DASHBOARD_UI_AR.errors.stepFailed };
   }
-}
-
-/**
- * The active list after a card changed: the order in place, or gone once its
- * status belongs to history (`completed`).
- */
-export function replaceInActive(
-  orders: readonly OrderListItem[],
-  changed: OrderListItem,
-): OrderListItem[] {
-  const stays = ORDER_TAB_STATUSES.active.includes(changed.status);
-  return orders.flatMap((o) =>
-    o.id !== changed.id ? [o] : stays ? [changed] : [],
-  );
 }
 
 /**

@@ -3,12 +3,15 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { DASHBOARD_UI_AR } from "@sufria/shared";
+import { DASHBOARD_SOUND_UI_AR, DASHBOARD_UI_AR } from "@sufria/shared";
+import { sound } from "../sound/sound-store.ts";
+import { useSound } from "../sound/use-sound.ts";
 import { BrandMark } from "../ui/brand-mark.tsx";
 import styles from "./dashboard-header.module.css";
 import { isCurrentTab } from "./tabs.ts";
 
 const T = DASHBOARD_UI_AR;
+const S = DASHBOARD_SOUND_UI_AR;
 
 type Props = {
   restaurantName: string;
@@ -27,7 +30,9 @@ type Props = {
 /**
  * The dashboard's header on every page behind login (brief G §3 G-4, brief I
  * §4 I-3), two lines since brief ل §5.1 (addition 2): the mark, the
- * restaurant's name, «مباشر» and logout — «سُفريا» stays on the login page
+ * restaurant's name, «مباشر», the sound's button (brief م-ب, decision 9:
+ * logout's look, before it; the name is cut first on a phone) and logout —
+ * «سُفريا» stays on the login page
  * and the browser's tab — then the three tabs — links, the current one marked `aria-current="page"`
  * (`isCurrentTab`: «المنيو» on /menu and /menu/removed, brief ي-ب §5) — then
  * the pause strip, and the strip while the connection is down.
@@ -43,6 +48,7 @@ export function DashboardHeader({
   strip,
 }: Props) {
   const pathname = usePathname();
+  const { muted } = useSound();
   const current = (href: string) =>
     isCurrentTab(pathname, href) ? "page" : undefined;
 
@@ -58,6 +64,13 @@ export function DashboardHeader({
               <span className={styles.liveDot} aria-hidden="true" />
               {T.live}
             </span>
+            <button
+              type="button"
+              className={styles.logout}
+              onClick={() => sound.setMuted(!muted)}
+            >
+              {muted ? S.unmute : S.mute}
+            </button>
             <button type="button" className={styles.logout} onClick={onLogout}>
               {T.logout}
             </button>

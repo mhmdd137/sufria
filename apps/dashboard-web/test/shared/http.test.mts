@@ -105,3 +105,20 @@ test("no answer at all is a network error, not an exception", async () => {
     error: { kind: "network" },
   });
 });
+
+test("204 with no body: ok, nothing to read — not a network error (brief م-ب, «read»)", async () => {
+  const store = memorySessionStore(SESSION);
+  const { calls, fetch } = recorder([
+    () => new Response(null, { status: 204 }),
+  ]);
+  const http = createHttp({ baseUrl: "http://api.test", store, fetch });
+
+  const res = await http.call<void>("/orders/x/messages/seen", {
+    method: "POST",
+    body: { upTo: "m" },
+    auth: "restaurant",
+  });
+
+  assert.deepEqual(res, { ok: true, value: undefined });
+  assert.deepEqual(calls[0]!.body, { upTo: "m" });
+});

@@ -128,6 +128,8 @@ export function createHttp({
         if (init.auth !== "none") store.clear();
         return { ok: false, error: { kind: "unauthorized" } };
       }
+      // 204: no body to read (`POST /orders/:id/messages/seen`, brief م-ب).
+      if (res.status === 204) return { ok: true, value: undefined as T };
       if (res.ok) return { ok: true, value: (await res.json()) as T };
       if (res.status === 409)
         return { ok: false, error: await conflictOf(res) };

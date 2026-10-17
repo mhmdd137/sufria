@@ -20,6 +20,23 @@
   margin-inline: auto;
 }
 
+/* The closed orders a message brought back (brief م-ب): their title,
+   15px/700, then their cards, above the queue. */
+.returned {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block-end: 12px;
+  border-block-end: 1px solid var(--border);
+  margin-block-end: 4px;
+}
+
+.groupTitle {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
 .empty {
   padding: 32px 0;
   text-align: center;

@@ -29,8 +29,9 @@ test("contrastRatio: the WCAG endpoints", () => {
 test("every locked pair passes 4.5:1, and the weakest is 4.62 (text-secondary on bg-press, light)", () => {
   // Brief ل §2: 52 pairs — the 28 before it and 12 more in each mode. The
   // weakest was «expired» (light, 5.00) until the pressed grounds came.
+  // Brief م-ب: 54 — the card's unread count, `surface` on `text-primary`.
   const pairs = contrastPairs();
-  assert.equal(pairs.length, 52);
+  assert.equal(pairs.length, 54);
   for (const p of pairs)
     assert.ok(p.ratio >= MIN_TEXT_CONTRAST, `${p.name}: ${p.ratio.toFixed(2)}`);
   const weakest = pairs.reduce((a, b) => (b.ratio < a.ratio ? b : a));

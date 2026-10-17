@@ -42,6 +42,8 @@ const ORDER: OrderListItem = {
   items: [{ name: "شاورما", quantity: 2 }],
   statusChangedAt: "2026-10-05T09:00:00.000Z",
   cancellationReason: null,
+  unreadMessages: 0,
+  lastMessage: null,
 };
 
 test("🔴 pressing the button does not open the order: it is outside the link, above its layer", () => {

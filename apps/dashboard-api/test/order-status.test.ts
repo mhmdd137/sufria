@@ -229,6 +229,9 @@ const itemOf = (
   ],
   statusChangedAt: expect.any(String) as unknown as string,
   cancellationReason: null,
+  // Brief م-ب: no message relayed to these orders.
+  unreadMessages: 0,
+  lastMessage: null,
 });
 
 /** The order as the database holds it — asked above RLS. Timestamps as text, to the microsecond. */
