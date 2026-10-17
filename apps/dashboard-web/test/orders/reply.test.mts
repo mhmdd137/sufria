@@ -615,3 +615,37 @@ test("the silence line and the closed line (§3): their lines, sizes and buttons
   assert.match(tsx, /readOnly/);
   assert.ok(rule(css, ".metaTime").includes("font-weight: 500;"));
 });
+
+// --- md-5: the keyboard ------------------------------------------------------
+
+test("while the field has the focus, the step's bar is back in the page — no padding kept for it; from 1024 nothing changes", () => {
+  const css = read("order-details.module.css");
+  const back = rule(
+    css,
+    ".page:has([data-composer] textarea:focus) .stepBar[data-fixed]",
+  );
+  for (const d of [
+    "position: static;",
+    "padding: 0;",
+    "background: none;",
+    "border: 0;",
+  ])
+    assert.ok(back.includes(d), d);
+  assert.ok(
+    rule(
+      css,
+      ".page:has(.stepBar[data-fixed]):has([data-composer] textarea:focus)",
+    ).includes("padding-block-end: 32px;"),
+  );
+  // Both outside any media query: the bar is fixed below 1024 alone.
+  const before = css.slice(
+    0,
+    css.indexOf(".page:has([data-composer] textarea:focus)"),
+  );
+  assert.equal(
+    (before.match(/\{/g) ?? []).length,
+    (before.match(/\}/g) ?? []).length,
+  );
+  // The field is the one inside the form that carries the attribute.
+  assert.match(read("staff-composer.tsx"), /data-composer=""/);
+});
