@@ -44,6 +44,7 @@ const ORDER: OrderListItem = {
   cancellationReason: null,
   unreadMessages: 0,
   lastMessage: null,
+  staffMessagedAt: null,
 };
 
 test("🔴 pressing the button does not open the order: it is outside the link, above its layer", () => {

@@ -63,6 +63,7 @@ const ORDER: OrderListItem = {
   cancellationReason: null,
   unreadMessages: 0,
   lastMessage: null,
+  staffMessagedAt: null,
 };
 
 test("🔴 nothing about the order changes before the server answers", async () => {

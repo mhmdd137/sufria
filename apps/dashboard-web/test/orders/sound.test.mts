@@ -37,6 +37,7 @@ const order = (
   cancellationReason: null,
   unreadMessages: 0,
   lastMessage: null,
+  staffMessagedAt: null,
   ...extra,
 });
 const pending = (id: string, ageMinutes = 2) =>

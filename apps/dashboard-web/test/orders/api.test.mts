@@ -71,6 +71,7 @@ const ORDER: OrderListItem = {
   cancellationReason: null,
   unreadMessages: 0,
   lastMessage: null,
+  staffMessagedAt: null,
 };
 
 test("changeStatus: from is the status the card showed, with token and restaurant headers", async () => {

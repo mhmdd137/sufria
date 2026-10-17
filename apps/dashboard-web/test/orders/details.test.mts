@@ -12,6 +12,7 @@ import {
   ORDER_STATUSES,
   STAFF_TRANSITIONS,
   nextStaffAction,
+  type CustomerOrBotMessage,
   type OrderDetail,
   type OrderMessage,
   type UpdateOrderStatusRequest,
@@ -349,7 +350,7 @@ test("the reason right under «ملغى» in the history (I-9 #4): the cancellat
 });
 
 const message = (
-  direction: OrderMessage["direction"],
+  direction: CustomerOrBotMessage["direction"],
   text: string,
   at = "2026-10-05T11:50:00.000Z",
 ): OrderMessage => ({
