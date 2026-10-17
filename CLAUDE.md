@@ -610,9 +610,9 @@ into the same `.next` that `next start` serves: restart a running one after.
   stays on every page; and before ج, unused slot constants and the two
   pickup-or-delivery prompts stayed beside them. `ORDER_STATUS_TEXTS_AR`,
   then still in `domain.ts`, kept `ORDER_STATUS_MESSAGE_AR` on every page
-  that way, until brief م-ب moved it. The budgets now: JS `/login` 138760 · `/orders` 146012 · `/history`
+  that way, until brief م-ب moved it. The budgets before م-ب: JS `/login` 138760 · `/orders` 146012 · `/history`
   146239 · `/orders/[id]` 149090 · `/menu` 151008 · `/menu/removed` 148920;
-  fonts 123204 each. **Brief م-ب left them as they are, red on four pages —
+  fonts 123204 each. **Brief م-ب left them as they were, red on four pages —
   a decision for Mohammed** (its report and «كما انبنى»): `ORDER_STATUS_TEXTS_AR`
   moved to `relay-line.ts` (−175 · −647 each, as predicted); the live
   list's two (`POLL_MS`, `replaceInActive`) moved to `features/orders/lib/live.ts`,
@@ -620,6 +620,12 @@ into the same `.next` that `next start` serves: restart a running one after.
   messages' texts and the sound's each in a module of their own
   (`dashboard-messages-ui.ts`, `dashboard-sound-ui.ts`): the build keeps a
   module whole, whatever a page reads of it.
+  **م-ب، قرار محمد A (17 أكتوبر): الحدود الستة للقياس بعد م-ب-9.** The
+  budgets now: JS `/login` 138596 · `/orders` 147988 · `/history` 148138 ·
+  `/orders/[id]` 151135 · `/menu` 151676 · `/menu/removed` 149588; fonts
+  123204 each. Over `a112d42` (م-ب's end): `/login` 0 · `/orders/[id]` +156
+  · the four others +61 — م-ب-9's catch around the player and the message
+  ring's gap, in the store every page carries, and the order page's ring.
 - **Under the pointer and pressed (brief ل §3, decision 2).** Eight tokens
   in `design-tokens.ts`, each named by the ground it changes:
   `surface-hover`/`-press`, `bg-hover`/`-press` (`bg-press` is also the view
@@ -659,7 +665,17 @@ into the same `.next` that `next start` serves: restart a running one after.
   notification is after hosting (decision 13). The «browser stopped the
   sound» strip is held by tests of the store, and its look by a stand-in
   `AudioContext`: headless Chromium runs audio whatever the autoplay policy,
-  so the real stop is checked on a laptop alone.
+  so the real stop is checked on a laptop alone. A player that fails to
+  load or throws shows the same strip (brief م-ب-9 §1).
+- **The «المتصفح أوقف الصوت» strip does not show on Chrome after login**
+  (brief م-ب-9): Chrome takes the login press as the site's permission,
+  even after F5 — tried 17 October, in Incognito too. Its real place is
+  Safari on an iPad or iPhone, **and it has not been tried there**.
+- **A message reaches the dashboard within 0–10 s** (brief م-ب-9): the list
+  polls every 10 s, the open order's conversation every 5 s — and that page
+  rings too, before it marks the message read; a message rings once
+  (`MESSAGE_RING_GAP_MS`, 10 s, in the store). «لحظة بلحظة» — the server
+  pushing — is after hosting, by Mohammed's decision.
 - **«Read» is per order, on the server** (`orders.customer_messages_seen_at`,
   0017, brief م-ب): opening the order's page marks its customer messages
   read up to the latest it shows, for every device. A closed order with an
