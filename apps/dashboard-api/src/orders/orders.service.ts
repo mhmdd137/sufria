@@ -16,9 +16,14 @@ import {
   type OrderTab,
   type PaymentMethod,
   type PaymentStatus,
+  type CreateStaffMessageRequest,
+  type StaffMessageFailure,
+  type StaffMessageSendState,
+  type StaffOrderMessage,
   type StaffTargetStatus,
   type UpdateOrderStatusRequest,
 } from "@sufria/shared";
+import { env } from "../config/env.js";
 import { isoUtc } from "../db/iso-utc.js";
 import { TenantDbService, type TenantTx } from "../db/tenant-db.service.js";
 
@@ -41,6 +46,10 @@ import { TenantDbService, type TenantTx } from "../db/tenant-db.service.js";
  * and a WhatsApp text may be 4096). A message of the order's own making
  * names no order and never counts, nor does a reaction (never relayed).
  * Both served by `idx_inbound_messages_order`.
+ *
+ * Brief م-ج adds one: the latest staff message on the order that did not
+ * fail (`staff_messages.created_at`, 0018) — the screen stops a pending
+ * order's ringing on it (decision 14). Served by `idx_staff_messages_order`.
  */
 const orderListColumns = () => sql`
   o.id,
@@ -80,7 +89,13 @@ const orderListColumns = () => sql`
       AND i.restaurant_id = o.restaurant_id
       AND i.message_type <> 'reaction'
     ORDER BY i.received_at DESC, i.id DESC
-    LIMIT 1) AS last_message`;
+    LIMIT 1) AS last_message,
+  ${isoUtc(
+    `(SELECT max(s.created_at) FROM staff_messages s
+       WHERE s.order_id = o.id
+         AND s.restaurant_id = o.restaurant_id
+         AND s.send_state <> 'failed')`,
+  )} AS staff_messaged_at`;
 
 /**
  * The outcome of a status change — the controller maps it to HTTP (brief D
@@ -115,6 +130,63 @@ const inWindow = (time: string) =>
             AND ${time} <= o.created_at
             AND ${time} >= o.created_at - interval '24 hours')`);
 
+/**
+ * Brief م-ج, decision 12: the last moment staff can write to a customer —
+ * their last message that is not a reaction, plus `minutes`
+ * (REPLY_WINDOW_MINUTES); NULL with no message at all. One fragment for the
+ * POST's check and the GET's `replyOpenUntil`, so the two never disagree.
+ * `restaurant` and `phone` are SQL text — column names written in the code.
+ * Served by `idx_inbound_messages_conversation`.
+ */
+const replyOpenUntil = (restaurant: string, phone: string, minutes: number) =>
+  sql`(SELECT max(i.received_at) + make_interval(mins => ${minutes})
+         FROM inbound_messages i
+        WHERE i.restaurant_id = ${sql.raw(restaurant)}
+          AND i.from_phone = ${sql.raw(phone)}
+          AND i.message_type <> 'reaction')`;
+
+/**
+ * A staff message as the routes return it (brief م-ج): `staff_messages`
+ * with its author's name, `staff_accounts.name` — NULL once the account is
+ * gone. Assumes `staff_messages s LEFT JOIN staff_accounts a` on the
+ * author; yields a `StaffMessageRow`.
+ */
+const staffMessageColumns = () => sql`
+  s.id,
+  s.order_id,
+  s.body AS text,
+  ${isoUtc("s.created_at")} AS at,
+  s.send_state,
+  s.failure,
+  a.name AS staff_name,
+  s.client_id`;
+
+/** `staff_messages.send_state` (0018), as the database holds it. */
+type StaffMessageDbState = "pending" | "sending" | "sent" | "failed";
+
+type StaffMessageRow = {
+  id: string;
+  order_id: string;
+  text: string;
+  at: string;
+  send_state: StaffMessageDbState;
+  failure: StaffMessageFailure | null;
+  staff_name: string | null;
+  client_id: string;
+};
+
+/**
+ * The outcome of `POST /orders/:id/messages` — the controller maps it to
+ * HTTP (brief م-ج §4 أ): `created` 201, `existing` 200 (this `clientId`
+ * already on this order: the row as it is now).
+ */
+export type StaffMessageOutcome =
+  | { kind: "created"; message: StaffOrderMessage }
+  | { kind: "existing"; message: StaffOrderMessage }
+  | { kind: "not_found" }
+  | { kind: "client_id_reused" }
+  | { kind: "reply_window_closed" };
+
 type OrderListRow = {
   id: string;
   order_number: number;
@@ -130,6 +202,7 @@ type OrderListRow = {
   cancellation_reason: string | null;
   unread_messages: number;
   last_message: { type: string; body: string | null } | null;
+  staff_messaged_at: string | null;
 };
 
 /** A message of `messages` as SQL builds it; `toMessage` names its kind. */
@@ -140,6 +213,11 @@ type MessageRow = {
   text: string | null;
   location: { latitude: unknown; longitude: unknown } | null;
   at: string;
+  // A staff message's (brief م-ج); NULL on the customer's and the bot's.
+  send_state: StaffMessageDbState | null;
+  failure: StaffMessageFailure | null;
+  staff_name: string | null;
+  client_id: string | null;
 };
 
 type OrderDetailRow = {
@@ -383,15 +461,29 @@ export class OrdersService {
    *
    * RLS keeps every table to the restaurant (`runInTenant`); the explicit
    * `restaurant_id` conditions are defence in depth, and the indexes'.
+   *
+   * Brief م-ج: a staff message written on this order is its — one row of
+   * `staff_messages` (`direction: "staff"`), never another order's — at its
+   * `created_at`, the moment staff pressed «send», within the same 200. With
+   * them, `botSilence` — `app.bot_silence()` for the order's customer, the
+   * rule in its one place (0018) — and `replyOpenUntil`, while it is still
+   * ahead (`replyOpenUntil` above, the POST's very check).
    */
   async messages(
     restaurantId: string,
     orderId: string,
   ): Promise<OrderMessagesResponse | null> {
+    const window = env().REPLY_WINDOW_MINUTES;
     const res = await this.tenantDb.runInTenant(restaurantId, (tx) =>
-      tx.execute<{ found: boolean; messages: MessageRow[] }>(sql`
+      tx.execute<{
+        found: boolean;
+        messages: MessageRow[];
+        bot_silence: { orderId: string; until: string } | null;
+        reply_open_until: string | null;
+      }>(sql`
         WITH o AS (
-          SELECT o.id, o.restaurant_id, o.created_at, c.phone_number AS phone,
+          SELECT o.id, o.restaurant_id, o.customer_id, o.created_at,
+                 c.phone_number AS phone,
                  (SELECT p.created_at
                     FROM orders p
                    WHERE p.customer_id = o.customer_id
@@ -412,7 +504,9 @@ export class OrdersService {
                       THEN jsonb_build_object(
                              'latitude', i.payload->'location'->'latitude',
                              'longitude', i.payload->'location'->'longitude')
-                 END AS location
+                 END AS location,
+                 NULL::text AS send_state, NULL::text AS failure,
+                 NULL::text AS staff_name, NULL::uuid AS client_id
             FROM o
             JOIN inbound_messages i
               ON i.restaurant_id = o.restaurant_id
@@ -422,7 +516,8 @@ export class OrdersService {
              AND (i.order_id = o.id
                   OR (i.order_id IS NULL AND ${inWindow("i.received_at")}))
           UNION ALL
-          SELECT m.id, 'outbound', 'text', m.body, m.sent_at, NULL::jsonb
+          SELECT m.id, 'outbound', 'text', m.body, m.sent_at, NULL::jsonb,
+                 NULL, NULL, NULL, NULL
             FROM o
             JOIN outbound_messages m
               ON m.restaurant_id = o.restaurant_id
@@ -440,8 +535,26 @@ export class OrdersService {
                   AND (last.order_id = o.id
                        OR (last.order_id IS NULL
                            AND ${inWindow("last.received_at")})))
+          UNION ALL
+          SELECT s.id, 'staff', 'text', s.body, s.created_at, NULL::jsonb,
+                 s.send_state, s.failure,
+                 a.name,
+                 s.client_id
+            FROM o
+            JOIN staff_messages s
+              ON s.order_id = o.id
+             AND s.restaurant_id = o.restaurant_id
+            LEFT JOIN staff_accounts a ON a.id = s.staff_account_id
         )
         SELECT EXISTS (SELECT 1 FROM o) AS found,
+               (SELECT json_build_object(
+                         'orderId', b.silenced_order_id,
+                         'until', ${isoUtc("b.silenced_until")})
+                  FROM o, app.bot_silence(o.customer_id) b) AS bot_silence,
+               (SELECT CASE WHEN w.until > now() THEN ${isoUtc("w.until")} END
+                  FROM (SELECT ${replyOpenUntil("o.restaurant_id", "o.phone", window)}
+                                 AS until
+                          FROM o) w) AS reply_open_until,
                COALESCE(
                  (SELECT json_agg(json_build_object(
                            'id', l.id,
@@ -449,7 +562,11 @@ export class OrdersService {
                            'type', l.type,
                            'text', l.text,
                            'location', l.location,
-                           'at', ${isoUtc("l.at")})
+                           'at', ${isoUtc("l.at")},
+                           'send_state', l.send_state,
+                           'failure', l.failure,
+                           'staff_name', l.staff_name,
+                           'client_id', l.client_id)
                          ORDER BY l.at, l.id)
                     FROM (SELECT * FROM msgs
                            ORDER BY at DESC, id DESC
@@ -458,7 +575,106 @@ export class OrdersService {
     );
     const row = res.rows[0];
     if (!row?.found) return null;
-    return { messages: row.messages.map(toMessage) };
+    return {
+      messages: row.messages.map(toMessage),
+      botSilence: row.bot_silence,
+      replyOpenUntil: row.reply_open_until,
+    };
+  }
+
+  /**
+   * `POST /orders/:id/messages` — brief م-ج §4 أ: a staff member writes to
+   * the order's customer. The checks after the DTO's, in order: 404 (not
+   * ours, or no such order: one answer, §2.9) → a row with this `clientId`
+   * (the same order: `existing`, as it is now, with no look at the 24 hours;
+   * another order: `client_id_reused`) → `reply_window_closed` → the row.
+   *
+   * @param staffAccountId  from the token: who pressed «send» (decision 13).
+   *
+   * 🔴 Nothing is sent from here (decision 6): the row is `pending`, and the
+   *    engine's queue sends it. `silence_until` is written on the
+   *    database's clock — `now()` + BOT_SILENCE_MINUTES, the very `now()` of
+   *    `created_at` — so the bot keeps quiet from this moment (decision 7).
+   *
+   * 🔴 Two presses at the same moment with one `clientId`: the INSERT is
+   *    `ON CONFLICT DO NOTHING` on `(restaurant_id, client_id)`, so the second
+   *    waits for the first's COMMIT, writes nothing, and reads the first's
+   *    row — a 200, never a second row or a 500.
+   */
+  async createStaffMessage(
+    restaurantId: string,
+    staffAccountId: string,
+    orderId: string,
+    request: CreateStaffMessageRequest,
+  ): Promise<StaffMessageOutcome> {
+    const { BOT_SILENCE_MINUTES, REPLY_WINDOW_MINUTES } = env();
+    return this.tenantDb.runInTenant(restaurantId, async (tx) => {
+      // The order, with what check 4 needs — one statement, one moment.
+      const found = await tx.execute<{ window_open: boolean | null }>(sql`
+        SELECT ${replyOpenUntil("o.restaurant_id", "c.phone_number", REPLY_WINDOW_MINUTES)}
+                 > now() AS window_open
+          FROM orders o
+          JOIN customers c ON c.id = o.customer_id
+         WHERE o.id = ${orderId}::uuid
+           AND o.restaurant_id = ${restaurantId}::uuid`);
+      const order = found.rows[0];
+      if (!order) return { kind: "not_found" };
+
+      // This message already sent: a second press, or the request again
+      // after the network came back — before the 24 hours, so it never turns
+      // into a 409 once they close.
+      const earlier = await staffMessageByClientId(
+        tx,
+        restaurantId,
+        request.clientId,
+      );
+      if (earlier) return sameMessage(earlier, orderId);
+
+      // NULL — no message at all — is closed too.
+      if (order.window_open !== true) return { kind: "reply_window_closed" };
+
+      const inserted = await tx.execute<{ id: string }>(sql`
+        INSERT INTO staff_messages
+               (restaurant_id, order_id, staff_account_id, client_id, body,
+                silence_until)
+        VALUES (${restaurantId}::uuid, ${orderId}::uuid, ${staffAccountId}::uuid,
+                ${request.clientId}::uuid, ${request.text},
+                now() + make_interval(mins => ${BOT_SILENCE_MINUTES}))
+        ON CONFLICT (restaurant_id, client_id) DO NOTHING
+        RETURNING id`);
+      // Read back with its author's name — the winner's row when this
+      // request lost the race, committed by now (READ COMMITTED: a new
+      // statement, a new snapshot).
+      const row = await staffMessageByClientId(
+        tx,
+        restaurantId,
+        request.clientId,
+      );
+      if (!row) throw new Error("staff message neither written nor found");
+      return inserted.rows[0]
+        ? { kind: "created", message: toStaffMessage(row) }
+        : sameMessage(row, orderId);
+    });
+  }
+
+  /**
+   * `POST /orders/:id/resume-bot` — «رجّع للبوت» (brief م-ج §4 ب):
+   * `customers.bot_resumed_at = now()` for the order's customer, so no staff
+   * message before this moment keeps the bot quiet. Harmless when it is not
+   * quiet. `false` = not found under the restaurant's context (§2.9).
+   */
+  async resumeBot(restaurantId: string, orderId: string): Promise<boolean> {
+    const res = await this.tenantDb.runInTenant(restaurantId, (tx) =>
+      tx.execute<{ id: string }>(sql`
+        UPDATE customers c
+           SET bot_resumed_at = now()
+          FROM orders o
+         WHERE o.id = ${orderId}::uuid
+           AND o.restaurant_id = ${restaurantId}::uuid
+           AND c.id = o.customer_id
+        RETURNING c.id`),
+    );
+    return res.rows.length === 1;
   }
 
   /**
@@ -664,10 +880,72 @@ function toListItem(r: OrderListRow): OrderListItem {
       kind: messageKind(r.last_message.type, r.last_message.body),
       text: r.last_message.body,
     },
+    staffMessagedAt: r.staff_messaged_at,
+  };
+}
+
+/** The row with this `clientId` at this restaurant, or `null`. */
+async function staffMessageByClientId(
+  tx: TenantTx,
+  restaurantId: string,
+  clientId: string,
+): Promise<StaffMessageRow | null> {
+  const res = await tx.execute<StaffMessageRow>(sql`
+    SELECT ${staffMessageColumns()}
+      FROM staff_messages s
+      LEFT JOIN staff_accounts a ON a.id = s.staff_account_id
+     WHERE s.restaurant_id = ${restaurantId}::uuid
+       AND s.client_id = ${clientId}::uuid`);
+  return res.rows[0] ?? null;
+}
+
+/** A `clientId` already used: this very message again, or another order's. */
+function sameMessage(
+  row: StaffMessageRow,
+  orderId: string,
+): StaffMessageOutcome {
+  return row.order_id === orderId
+    ? { kind: "existing", message: toStaffMessage(row) }
+    : { kind: "client_id_reused" };
+}
+
+/** The database's `pending` and `sending` are both the screen's `pending`. */
+const SEND_STATE: Record<StaffMessageDbState, StaffMessageSendState> = {
+  pending: "pending",
+  sending: "pending",
+  sent: "sent",
+  failed: "failed",
+};
+
+function toStaffMessage(
+  r: Omit<StaffMessageRow, "order_id">,
+): StaffOrderMessage {
+  return {
+    id: r.id,
+    direction: "staff",
+    kind: "text",
+    text: r.text,
+    location: null,
+    at: r.at,
+    sendState: SEND_STATE[r.send_state],
+    failure: r.failure,
+    staffName: r.staff_name,
+    clientId: r.client_id,
   };
 }
 
 function toMessage(r: MessageRow): OrderMessage {
+  if (r.direction === "staff")
+    // Never NULL on a staff row: SQL takes them from `staff_messages`.
+    return toStaffMessage({
+      id: r.id,
+      text: r.text!,
+      at: r.at,
+      send_state: r.send_state!,
+      failure: r.failure,
+      staff_name: r.staff_name,
+      client_id: r.client_id!,
+    });
   const kind = messageKind(r.type, r.text);
   return {
     id: r.id,

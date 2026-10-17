@@ -232,6 +232,8 @@ const itemOf = (
   // Brief م-ب: no message relayed to these orders.
   unreadMessages: 0,
   lastMessage: null,
+  // Brief م-ج: no staff message on them.
+  staffMessagedAt: null,
 });
 
 /** The order as the database holds it — asked above RLS. Timestamps as text, to the microsecond. */
