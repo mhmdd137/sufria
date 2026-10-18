@@ -14,6 +14,7 @@ import {
   DASHBOARD_UI_AR,
   clockTime,
   silenceLineAr,
+  type OrderMessage,
 } from "@sufria/shared";
 import { Skeleton } from "../../../shared/ui/skeleton.tsx";
 import { ordersApi } from "../api/orders-api.ts";
@@ -36,8 +37,8 @@ type Props = {
   /** The order's id: the staff messages are written on it. */
   orderId: string;
   state: MessagesState;
-  /** The conversation, read again at once. */
-  reload: () => Promise<void>;
+  /** The conversation, read again at once: its messages, `null` if it failed. */
+  reload: () => Promise<readonly OrderMessage[] | null>;
   /** «راسل الزبون»: `https://wa.me/<digits>`, the order's own link. */
   chat: string;
   reportOffline: (offline: boolean) => void;
@@ -72,13 +73,15 @@ export function Conversation({
 }: Props) {
   const composer = useRef<ComposerHandle | null>(null);
   const [reply] = useState(() => createReply());
-  useEffect(() => {
-    reply.connect({
-      send: (body) => ordersApi.sendStaffMessage(orderId, body),
-      reload,
-      insert: (text) => composer.current?.insert(text),
-    });
-  }, [reply, orderId, reload]);
+  useEffect(
+    () =>
+      reply.connect({
+        send: (body) => ordersApi.sendStaffMessage(orderId, body),
+        reload,
+        insert: (text) => composer.current?.insert(text),
+      }),
+    [reply, orderId, reload],
+  );
   const { local, closedText } = useSyncExternalStore(
     reply.subscribe,
     reply.get,
@@ -272,7 +275,7 @@ function Reply({
   closedText: string | null;
   composer: RefObject<ComposerHandle | null>;
   onSend: (text: string) => void;
-  reload: () => Promise<void>;
+  reload: () => Promise<unknown>;
   reportOffline: (offline: boolean) => void;
 }) {
   const panel = replyPanel(state);

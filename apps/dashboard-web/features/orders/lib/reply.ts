@@ -158,11 +158,39 @@ export type ReplySnapshot = {
   closedText: string | null;
 };
 
+/**
+ * After the API wrote a message (brief م-د-9, decision 2): the conversation
+ * read every second, not every 5, until its row is no longer on its way —
+ * 20 such reads at the most, then the ordinary 5 s read alone.
+ */
+export const FAST_READ_MS = 1_000;
+export const FAST_READS_MAX = 20;
+
+/**
+ * Whether to read again in a second: a read brought one of this screen's
+ * messages (`mine`, by `clientId`) still on its way on the server — the
+ * API's `pending` is the database's `pending` and `sending`. A read that
+ * failed (`null`) says nothing: the ordinary read carries on.
+ */
+export function stillSending(
+  messages: readonly OrderMessage[] | null,
+  mine: ReadonlySet<string>,
+): boolean {
+  return (
+    messages?.some(
+      (m) =>
+        m.direction === "staff" &&
+        m.sendState === "pending" &&
+        mine.has(m.clientId),
+    ) ?? false
+  );
+}
+
 /** What the store does to the page: connected once it is on the screen. */
 export type ReplyPorts = {
   send(body: CreateStaffMessageRequest): Promise<ApiResult<unknown>>;
-  /** The conversation, read again at once. */
-  reload(): Promise<unknown>;
+  /** The conversation, read again at once: its messages, `null` if it failed. */
+  reload(): Promise<readonly OrderMessage[] | null>;
   /** Puts a text in the field (`editInto`), the cursor in it. */
   insert(text: string): void;
 };
@@ -171,11 +199,16 @@ export type ReplyOptions = {
   wait?: (ms: number) => Promise<void>;
   now?: () => number;
   newId?: () => string;
+  /** The browser tab is in front — as `startPolling` reads it. */
+  visible?: () => boolean;
 };
 
 export type Reply = {
-  /** The page's own calls; the store does nothing before them. */
-  connect(ports: ReplyPorts): void;
+  /**
+   * The page's own calls; the store does nothing before them. Returns the
+   * page's leaving: the fast read stops.
+   */
+  connect(ports: ReplyPorts): () => void;
   get(): ReplySnapshot;
   subscribe(listener: () => void): () => void;
   /** A text `sendDecision` let through. */
@@ -192,7 +225,11 @@ export type Reply = {
  * The page's staff messages on their way (brief م-د): optimistic — the
  * bubble shows «جارٍ الإرسال…» from the press, before the request, and stays
  * until a read brings its row (`withLocal`). After the API wrote it, the
- * conversation is read at once.
+ * conversation is read at once, then every second while one of the
+ * screen's rows is still on its way (`stillSending`, brief م-د-9) — one
+ * clock for the page: a message written while it runs joins it, and its
+ * 20 reads start again. It stops on the page's leaving and with the tab
+ * hidden; the ordinary 5 s read never stops.
  */
 export function createReply(options: ReplyOptions = {}): Reply {
   const wait =
@@ -200,13 +237,18 @@ export function createReply(options: ReplyOptions = {}): Reply {
     ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const now = options.now ?? Date.now;
   const newId = options.newId ?? (() => newStaffClientId());
+  const visible =
+    options.visible ??
+    (() =>
+      typeof document === "undefined" ||
+      document.visibilityState === "visible");
   const idle = async (): Promise<ApiResult<unknown>> => ({
     ok: false,
     error: { kind: "network" },
   });
   let ports: ReplyPorts = {
     send: idle,
-    reload: async () => undefined,
+    reload: async () => null,
     insert: () => undefined,
   };
   let snap: ReplySnapshot = { local: [], closedText: null };
@@ -218,9 +260,35 @@ export function createReply(options: ReplyOptions = {}): Reply {
   const drop = (clientId: string) =>
     snap.local.filter((l) => l.clientId !== clientId);
 
+  // The fast read: the screen's written messages, and one clock.
+  const mine = new Set<string>();
+  let reads = 0;
+  let following = false;
+  let left = false;
+  async function follow() {
+    reads = 0;
+    if (following) return;
+    following = true;
+    try {
+      let messages = await ports.reload();
+      while (!left && reads < FAST_READS_MAX && stillSending(messages, mine)) {
+        await wait(FAST_READ_MS);
+        if (left || !visible()) return;
+        reads++;
+        messages = await ports.reload();
+      }
+    } finally {
+      following = false;
+    }
+  }
+
   return {
     connect(next) {
       ports = next;
+      left = false;
+      return () => {
+        left = true;
+      };
     },
     get: () => snap,
     subscribe(listener) {
@@ -246,8 +314,10 @@ export function createReply(options: ReplyOptions = {}): Reply {
         () => ports.send({ text, clientId }),
         wait,
       );
-      if (outcome === "sent") await ports.reload();
-      else if (outcome === "closed") {
+      if (outcome === "sent") {
+        mine.add(clientId);
+        await follow();
+      } else if (outcome === "closed") {
         set({ local: drop(clientId), closedText: text });
         await ports.reload();
       } else

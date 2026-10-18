@@ -15,6 +15,7 @@ import {
   clockTime,
   type CreateStaffMessageRequest,
   type CustomerOrBotMessage,
+  type OrderMessage,
   type OrderMessagesResponse,
   type StaffMessageFailure,
   type StaffOrderMessage,
@@ -26,6 +27,8 @@ import {
   seenUpTo,
 } from "../../features/orders/lib/details.ts";
 import {
+  FAST_READS_MAX,
+  FAST_READ_MS,
   FIELD_MAX_LENGTH,
   SEND_RETRY_MS,
   createReply,
@@ -36,6 +39,7 @@ import {
   resumeOutcome,
   sendDecision,
   sendWithRetry,
+  stillSending,
   withLocal,
   type LocalStaffMessage,
 } from "../../features/orders/lib/reply.ts";
@@ -393,6 +397,7 @@ function store(replies: Reply[]) {
     },
     reload: async () => {
       reloads++;
+      return null;
     },
     insert: (text) => inserted.push(text),
   });
@@ -414,6 +419,7 @@ test("the send is optimistic: «جارٍ الإرسال…» before the answer; 
     send: () => new Promise((r) => (answer = r)),
     reload: async () => {
       reloads++;
+      return null;
     },
     insert: () => {},
   });
@@ -648,4 +654,165 @@ test("while the field has the focus, the step's bar is back in the page — no p
   );
   // The field is the one inside the form that carries the attribute.
   assert.match(read("staff-composer.tsx"), /data-composer=""/);
+});
+
+// --- md9-2: the fast read after a send (brief م-د-9, decision 2) ------------
+
+/** A tick of the event loop: what a resolved fake leaves to run, runs. */
+const settle = () => new Promise<void>((r) => setImmediate(r));
+
+/**
+ * A store whose sends are all written (201), on a fake clock: each read
+ * returns `rows(n)` for the n-th read (1 the first), `wait` records its ms.
+ */
+function fastStore(
+  rows: (n: number) => OrderMessage[] | null,
+  options: {
+    wait?: (ms: number) => Promise<void>;
+    visible?: () => boolean;
+  } = {},
+) {
+  const waits: number[] = [];
+  let reads = 0;
+  let n = 0;
+  const reply = createReply({
+    wait:
+      options.wait ??
+      (async (ms) => {
+        waits.push(ms);
+      }),
+    now: () => Date.parse(AT),
+    newId: () => `c-${++n}`,
+    ...(options.visible ? { visible: options.visible } : {}),
+  });
+  const leave = reply.connect({
+    send: async () => ok,
+    reload: async () => rows(++reads),
+    insert: () => {},
+  });
+  return {
+    reply,
+    leave,
+    waits,
+    get reads() {
+      return reads;
+    },
+  };
+}
+
+/** The server's row of the screen's n-th message. */
+const row = (n: number, sendState: StaffOrderMessage["sendState"]) =>
+  staff(`s-${n}`, { clientId: `c-${n}`, sendState });
+
+test("stillSending: one of the screen's rows `pending` (the database's pending and sending alike) — not sent, not failed, not another device's, not a failed read", () => {
+  const mine = new Set(["c-1"]);
+  assert.equal(stillSending([row(1, "pending")], mine), true);
+  assert.equal(stillSending([row(1, "sent")], mine), false);
+  assert.equal(stillSending([row(1, "failed"), customer("i-1")], mine), false);
+  // Another device's message on its way: its own screen follows it.
+  assert.equal(stillSending([row(2, "pending")], mine), false);
+  assert.equal(stillSending(null, mine), false);
+  assert.equal(stillSending([], mine), false);
+});
+
+test("written → read at once; still `pending` → again after 1000 ms, until it is `sent`", async () => {
+  assert.equal(FAST_READ_MS, 1_000);
+  const s = fastStore((n) => [row(1, n < 3 ? "pending" : "sent")]);
+  assert.equal(await s.reply.send("مرحبا"), "sent");
+  assert.equal(s.reads, 3);
+  assert.deepEqual(s.waits, [1_000, 1_000]);
+});
+
+test("the API's `pending` is also the database's `sending`: read again the same way", async () => {
+  // The engine claimed it (`sending`); the API answers `pending` for both.
+  const s = fastStore((n) => [row(1, n === 1 ? "pending" : "sent")]);
+  await s.reply.send("مرحبا");
+  assert.equal(s.reads, 2);
+  assert.deepEqual(s.waits, [1_000]);
+});
+
+test("`sent` on the first read → no second read; `failed` → none either", async () => {
+  const sent = fastStore(() => [row(1, "sent")]);
+  await sent.reply.send("مرحبا");
+  assert.equal(sent.reads, 1);
+  assert.deepEqual(sent.waits, []);
+  const failed = fastStore((n) => [row(1, n === 1 ? "pending" : "failed")]);
+  await failed.reply.send("مرحبا");
+  assert.equal(failed.reads, 2);
+  assert.deepEqual(failed.waits, [1_000]);
+});
+
+test("still `pending` after 20 reads at 1 s → the fast read stops (the 5 s read goes on)", async () => {
+  assert.equal(FAST_READS_MAX, 20);
+  // Pending for 30 reads: without the limit, it would read 31 times.
+  const s = fastStore((n) => [row(1, n <= 30 ? "pending" : "sent")]);
+  await s.reply.send("مرحبا");
+  assert.equal(s.reads, 1 + 20);
+  assert.equal(s.waits.length, 20);
+});
+
+test("a failed read → the fast read stops", async () => {
+  const s = fastStore((n) => (n === 1 ? [row(1, "pending")] : null));
+  await s.reply.send("مرحبا");
+  assert.equal(s.reads, 2);
+});
+
+test("two messages one after the other → one clock: one read a second, never two", async () => {
+  const gates: (() => void)[] = [];
+  let open = 0;
+  let most = 0;
+  const wait = () =>
+    new Promise<void>((r) => {
+      most = Math.max(most, ++open);
+      gates.push(() => {
+        open--;
+        r();
+      });
+    });
+  const states: Record<number, StaffOrderMessage["sendState"][]> = {
+    1: ["pending"],
+    2: ["sent", "pending"],
+    3: ["sent", "sent"],
+  };
+  const s = fastStore(
+    (n) => (states[n] ?? ["sent", "sent"]).map((st, i) => row(i + 1, st)),
+    { wait },
+  );
+  const first = s.reply.send("أ");
+  await settle();
+  assert.equal(s.reads, 1);
+  assert.equal(gates.length, 1);
+  // The second is written while the first is followed: it joins the clock,
+  // with no read and no clock of its own.
+  assert.equal(await s.reply.send("ب"), "sent");
+  assert.equal(s.reads, 1);
+  assert.equal(gates.length, 1);
+  gates.shift()!();
+  await settle();
+  assert.equal(s.reads, 2);
+  gates.shift()!();
+  assert.equal(await first, "sent");
+  assert.equal(s.reads, 3);
+  assert.equal(most, 1);
+});
+
+test("the page left, or the tab hidden → the fast read stops", async () => {
+  const page = { leave: () => {} };
+  let waited = 0;
+  const s = fastStore(() => [row(1, "pending")], {
+    wait: async () => {
+      if (++waited === 3) page.leave();
+    },
+  });
+  page.leave = s.leave;
+  await s.reply.send("مرحبا");
+  // The read at once, two after a second; the third second ended on the leaving.
+  assert.equal(s.reads, 3);
+
+  let shown = 2;
+  const hidden = fastStore(() => [row(1, "pending")], {
+    visible: () => shown-- > 0,
+  });
+  await hidden.reply.send("مرحبا");
+  assert.equal(hidden.reads, 3);
 });
