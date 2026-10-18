@@ -14,6 +14,7 @@ import { StatusBadge } from "../../../shared/ui/status-badge.tsx";
 import { ordersApi } from "../api/orders-api.ts";
 import { useLiveOrders } from "../hooks/live-orders.tsx";
 import { useOrder } from "../hooks/use-order.ts";
+import { useKeyboard } from "../hooks/use-keyboard.ts";
 import { useOffsetTop } from "../hooks/use-offset-top.ts";
 import { useOrderMessages } from "../hooks/use-order-messages.ts";
 import { backTo, cancelOrder, type AdvanceOutcome } from "../lib/board.ts";
@@ -43,9 +44,12 @@ export function OrderDetails({ id, from }: Props) {
   const onSeen = useCallback(() => void refresh(), [refresh]);
   const messages = useOrderMessages(id, reportOffline, onSeen);
   const back = backTo(from);
+  // The phone's keyboard open over the field: the step's bar in the page.
+  const page = useRef<HTMLElement>(null);
+  useKeyboard(page);
 
   return (
-    <main className={styles.page}>
+    <main ref={page} className={styles.page}>
       <Link href={back.href} className={styles.back}>
         <BackArrow />
         {back.label}

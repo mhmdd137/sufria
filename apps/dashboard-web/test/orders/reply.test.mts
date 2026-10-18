@@ -27,6 +27,7 @@ import {
   seenUpTo,
 } from "../../features/orders/lib/details.ts";
 import {
+  afterSend,
   FAST_READS_MAX,
   FAST_READ_MS,
   FIELD_MAX_LENGTH,
@@ -36,6 +37,7 @@ import {
   enterSends,
   fieldHeight,
   fieldOverflow,
+  keyboardOpen,
   newStaffClientId,
   replyPanel,
   resumeOutcome,
@@ -624,14 +626,56 @@ test("the silence line and the closed line (§3): their lines, sizes and buttons
   assert.ok(rule(css, ".metaTime").includes("font-weight: 500;"));
 });
 
-// --- md-5: the keyboard ------------------------------------------------------
+// --- md-5, md9-4: the keyboard (brief م-د-9, decisions 5 and 6) -----------
 
-test("while the field has the focus, the step's bar is back in the page — no padding kept for it; from 1024 nothing changes", () => {
-  const css = read("order-details.module.css");
-  const back = rule(
-    css,
-    ".page:has([data-composer] textarea:focus) .stepBar[data-fixed]",
+test("keyboardOpen: the cursor in the field and the viewport 120px or more shorter than the window, not by a zoom", () => {
+  const at = { focused: true, innerHeight: 800, scale: 1 };
+  assert.equal(keyboardOpen({ ...at, viewportHeight: 500 }), true);
+  // A phone's address bar coming and going: about 60px.
+  assert.equal(keyboardOpen({ ...at, viewportHeight: 740 }), false);
+  assert.equal(keyboardOpen({ ...at, viewportHeight: 680 }), true);
+  assert.equal(keyboardOpen({ ...at, viewportHeight: 681 }), false);
+  // The back button closed it: the cursor is still in the field.
+  assert.equal(keyboardOpen({ ...at, viewportHeight: 800 }), false);
+});
+
+test("keyboardOpen: no cursor in the field → closed, whatever the viewport", () => {
+  assert.equal(
+    keyboardOpen({
+      focused: false,
+      innerHeight: 800,
+      viewportHeight: 500,
+      scale: 1,
+    }),
+    false,
   );
+});
+
+test("keyboardOpen: a two-finger zoom is not a keyboard", () => {
+  const at = { focused: true, innerHeight: 800, viewportHeight: 500 };
+  assert.equal(keyboardOpen({ ...at, scale: 1.5 }), false);
+  assert.equal(keyboardOpen({ ...at, scale: 1.01 }), true);
+});
+
+test("afterSend: on touch the cursor leaves the field; with a mouse it stays", () => {
+  assert.equal(afterSend(false), "blur");
+  assert.equal(afterSend(true), "keep");
+  const tsx = read("staff-composer.tsx");
+  // After a send alone — never on the empty press, which puts it in.
+  assert.match(
+    tsx,
+    /onSend\(decision\.text\);\s+if \(afterSend\(matchMedia\(FINE_POINTER\)\.matches\) === "blur"\)\s+field\.current\?\.blur\(\);/,
+  );
+  assert.equal([...tsx.matchAll(/\.blur\(\)/g)].length, 1);
+  assert.match(
+    tsx,
+    /const FINE_POINTER = "\(hover: hover\) and \(pointer: fine\)";/,
+  );
+});
+
+test("while the keyboard is open, the step's bar is back in the page — no padding kept for it; never on the focus alone; from 1024 nothing changes", () => {
+  const css = read("order-details.module.css");
+  const back = rule(css, ".page[data-keyboard] .stepBar[data-fixed]");
   for (const d of [
     "position: static;",
     "padding: 0;",
@@ -640,21 +684,34 @@ test("while the field has the focus, the step's bar is back in the page — no p
   ])
     assert.ok(back.includes(d), d);
   assert.ok(
-    rule(
-      css,
-      ".page:has(.stepBar[data-fixed]):has([data-composer] textarea:focus)",
-    ).includes("padding-block-end: 32px;"),
+    rule(css, ".page[data-keyboard]:has(.stepBar[data-fixed])").includes(
+      "padding-block-end: 32px;",
+    ),
   );
+  // Decision 5 replaces brief م-د's decision 10: no :focus inside :has.
+  assert.doesNotMatch(css, /textarea:focus/);
+  assert.doesNotMatch(css, /:has\([^)]*:focus/);
   // Both outside any media query: the bar is fixed below 1024 alone.
-  const before = css.slice(
-    0,
-    css.indexOf(".page:has([data-composer] textarea:focus)"),
-  );
+  const before = css.slice(0, css.indexOf(".page[data-keyboard]"));
   assert.equal(
     (before.match(/\{/g) ?? []).length,
     (before.match(/\}/g) ?? []).length,
   );
-  // The field is the one inside the form that carries the attribute.
+  // The page carries the attribute; the hook reads the field in the form.
+  assert.match(
+    read("order-details.tsx"),
+    /useKeyboard\(page\);[\s\S]*<main ref=\{page\} className=\{styles\.page\}>/,
+  );
+  const hook = readFileSync(
+    fileURLToPath(
+      new URL("../../features/orders/hooks/use-keyboard.ts", import.meta.url),
+    ),
+    "utf8",
+  );
+  assert.match(hook, /toggleAttribute\(\s*"data-keyboard"/);
+  assert.match(hook, /closest\("\[data-composer\]"\)/);
+  assert.match(hook, /viewport\.addEventListener\("resize", update\)/);
+  assert.match(hook, /if \(el === null \|\| !viewport\) return;/);
   assert.match(read("staff-composer.tsx"), /data-composer=""/);
 });
 

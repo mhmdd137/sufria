@@ -10,6 +10,7 @@ import {
 import { DASHBOARD_REPLY_UI_AR } from "@sufria/shared";
 import {
   FIELD_MAX_LENGTH,
+  afterSend,
   editInto,
   enterSends,
   fieldHeight,
@@ -19,6 +20,7 @@ import {
 import styles from "./staff-composer.module.css";
 
 const R = DASHBOARD_REPLY_UI_AR;
+const FINE_POINTER = "(hover: hover) and (pointer: fine)";
 
 /** What the conversation does to the field: «عدّل وأرسل». */
 export type ComposerHandle = { insert(text: string): void };
@@ -34,9 +36,10 @@ type Props = {
  * state: typing redraws this form alone, never the messages (INP).
  *
  * The field grows with its text up to 5 lines, then scrolls — no bar
- * before (brief م-د-9, decision 3). «أرسل» never
- * takes the focus from it — a press keeps the keyboard where it is — and
- * is never disabled (decision 7).
+ * before (brief م-د-9, decision 3). «أرسل» never takes the focus from it
+ * — a press keeps the keyboard where it is — and is never disabled
+ * (decision 7). On touch, once a text went, the cursor leaves the field:
+ * the keyboard closes and the step's bar is back (brief م-د-9, decision 6).
  */
 export function StaffComposer({ onSend, handle }: Props) {
   const [draft, setDraft] = useState("");
@@ -75,6 +78,8 @@ export function StaffComposer({ onSend, handle }: Props) {
     }
     setDraft("");
     onSend(decision.text);
+    if (afterSend(matchMedia(FINE_POINTER).matches) === "blur")
+      field.current?.blur();
   }
 
   return (
@@ -97,8 +102,7 @@ export function StaffComposer({ onSend, handle }: Props) {
               key: e.key,
               shiftKey: e.shiftKey,
               isComposing: e.nativeEvent.isComposing,
-              finePointer: matchMedia("(hover: hover) and (pointer: fine)")
-                .matches,
+              finePointer: matchMedia(FINE_POINTER).matches,
             })
           ) {
             e.preventDefault();

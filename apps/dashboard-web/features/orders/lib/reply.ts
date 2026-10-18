@@ -124,6 +124,41 @@ export function sendDecision(
   return text === "" ? { kind: "focus" } : { kind: "send", text };
 }
 
+/**
+ * After a text went (brief م-د-9, decision 6): on touch the cursor leaves
+ * the field, so the keyboard closes and the step's bar comes back; with a
+ * mouse it stays, to write the next one (brief م-د, decision 7).
+ */
+export function afterSend(finePointer: boolean): "keep" | "blur" {
+  return finePointer ? "keep" : "blur";
+}
+
+/**
+ * How much smaller the visual viewport must be than the window for a
+ * keyboard: a phone's address bar coming and going is about 60px.
+ */
+export const KEYBOARD_MIN_PX = 120;
+
+/**
+ * The phone's keyboard is open (brief م-د-9, decision 5) — not merely the
+ * cursor in the field: the field has the focus, the visual viewport is
+ * `KEYBOARD_MIN_PX` or more shorter than the window, and not because of a
+ * two-finger zoom. Closed by the back button with the cursor still in the
+ * field, it is closed. A browser with no `visualViewport` never opens it.
+ */
+export function keyboardOpen(v: {
+  focused: boolean;
+  innerHeight: number;
+  viewportHeight: number;
+  scale: number;
+}): boolean {
+  return (
+    v.focused &&
+    v.innerHeight - v.viewportHeight >= KEYBOARD_MIN_PX &&
+    v.scale <= 1.01
+  );
+}
+
 /** «عدّل وأرسل»: the text in the field — after what is there, on a new line. */
 export function editInto(draft: string, text: string): string {
   return draft.trim() === "" ? text : `${draft}\n${text}`;
