@@ -11,6 +11,7 @@
  * `check:numerals` walking every string.
  */
 import type { StaffMessageFailure } from "./dashboard-api.js";
+import { COUNT_SLOT } from "./dashboard-ui.js";
 
 /** A time, «14:30», in the silence line and under a staff bubble. */
 export const TIME_SLOT = "[الوقت]";
@@ -36,6 +37,16 @@ export const DASHBOARD_REPLY_UI_AR = {
   closed: "لا يمكن الرد من هنا: مرّت 24 ساعة على آخر رسالة من الزبون.",
   /** Under a staff bubble; with no name, the time alone. */
   meta: `${STAFF_NAME_SLOT} · ${TIME_SLOT}`,
+  /**
+   * The conversation before the order, folded into one line at the start
+   * (brief م-د-9, decision 7): «محادثة الطلب مع البوت (24)» and its button.
+   */
+  orderChat: {
+    title: "محادثة الطلب مع البوت",
+    count: `(${COUNT_SLOT})`,
+    show: "اعرضها",
+    hide: "اخفِها",
+  },
 } as const;
 
 /**
@@ -70,6 +81,19 @@ export function staffFailureAr(failure: StaffMessageFailure | "local"): string {
   return DASHBOARD_REPLY_UI_AR.failure[
     failure === "local" ? "send_failed" : failure
   ];
+}
+
+/**
+ * A text with one count in it, in three pieces — as `TimedText`: the
+ * screen sets `count` in the numbers' font.
+ */
+export type CountedText = { before: string; count: string; after: string };
+
+/** «(24)» after «محادثة الطلب مع البوت». */
+export function orderChatCountAr(count: number): CountedText {
+  const [before = "", after = ""] =
+    DASHBOARD_REPLY_UI_AR.orderChat.count.split(COUNT_SLOT);
+  return { before, count: String(count), after };
 }
 
 /** «أحمد · 14:30» under a staff bubble — «14:30» alone once the account is gone. */

@@ -160,37 +160,54 @@ export function messagesReady(res: OrderMessagesResponse): MessagesState {
 export const LONG_MESSAGE_LINES = 6;
 export const PREVIEW_LINES = 2;
 
+/**
+ * Folded at the start once there are this many messages from before the
+ * order (brief م-د-9): fewer show as they are — the line itself takes a
+ * bubble's place.
+ */
+export const FOLD_MIN = 4;
+
 export type ConversationView = {
   /**
    * The line above the messages: none kept at all, or the customer's alone —
    * an order from before the bot's replies were kept (0013).
    */
   notice: string | null;
-  messages: {
-    id: string;
-    /**
-     * The customer's at the start of the line, the bot's and staff's at its
-     * end (brief م-د): three voices, staff's filled once it reached them.
-     */
-    from: "customer" | "bot" | "staff";
-    /**
-     * As it arrived — Arabic-Indic digits included: it is what they wrote.
-     * `null` for a message with no text: `word` instead.
-     */
-    text: string | null;
-    /**
-     * A customer message with no text, by its kind (brief م-ب): «رسالة
-     * صوتية — لا تظهر هنا», «موقع»…; `null` for a text.
-     */
-    word: string | null;
-    /** A location's map link, when its point is known; else `null`. */
-    map: string | null;
-    /** The first lines of a long bot message; `null` for one shown whole. */
-    preview: string | null;
-    time: string;
-    /** A staff message alone; `null` for the customer's and the bot's. */
-    staff: StaffView | null;
-  }[];
+  /**
+   * The conversation with the bot that made the order (brief م-د-9,
+   * decision 7): the customer's and the bot's messages from before the
+   * order's `createdAt`, in their order — `FOLD_MIN` or more, folded into
+   * one line at the start; `null` when there is no line, and they are in
+   * `messages`.
+   */
+  beforeOrder: ConversationMessage[] | null;
+  messages: ConversationMessage[];
+};
+
+export type ConversationMessage = {
+  id: string;
+  /**
+   * The customer's at the start of the line, the bot's and staff's at its
+   * end (brief م-د): three voices, staff's filled once it reached them.
+   */
+  from: "customer" | "bot" | "staff";
+  /**
+   * As it arrived — Arabic-Indic digits included: it is what they wrote.
+   * `null` for a message with no text: `word` instead.
+   */
+  text: string | null;
+  /**
+   * A customer message with no text, by its kind (brief م-ب): «رسالة
+   * صوتية — لا تظهر هنا», «موقع»…; `null` for a text.
+   */
+  word: string | null;
+  /** A location's map link, when its point is known; else `null`. */
+  map: string | null;
+  /** The first lines of a long bot message; `null` for one shown whole. */
+  preview: string | null;
+  time: string;
+  /** A staff message alone; `null` for the customer's and the bot's. */
+  staff: StaffView | null;
 };
 
 /**
@@ -250,11 +267,15 @@ function staffView(
 
 /**
  * `open`: staff can still write to the customer (`replyOpenUntil`), so a
- * failed message can go back to the field.
+ * failed message can go back to the field. `orderCreatedAt`: the order's
+ * `createdAt` — what came before it folds (`beforeOrder`); `null`, nothing.
+ * Staff never write before the order, and a bubble of the screen's carries
+ * this device's clock: theirs never fold.
  */
 export function conversationView(
   messages: readonly ShownMessage[],
   open = true,
+  orderCreatedAt: string | null = null,
 ): ConversationView {
   const notice =
     messages.length === 0
@@ -262,50 +283,66 @@ export function conversationView(
       : messages.every((m) => m.direction === "inbound")
         ? DASHBOARD_UI_AR.conversation.customerOnly
         : null;
+  const created = orderCreatedAt === null ? null : Date.parse(orderCreatedAt);
+  const earlier = (m: ShownMessage) =>
+    created !== null &&
+    (m.direction === "inbound" || m.direction === "outbound") &&
+    Date.parse(m.at) < created;
+  const shown = messages.map((m) => ({
+    earlier: earlier(m),
+    view: messageView(m, open),
+  }));
+  const folded = shown.filter((s) => s.earlier).length >= FOLD_MIN;
   return {
     notice,
-    messages: messages.map((m) => {
-      const time = clockTime(m.at);
-      // Staff's are never folded, and always text (brief م-د).
-      if (m.direction === "staff" || m.direction === "local")
-        return {
-          id: m.direction === "local" ? `local:${m.clientId}` : m.id,
-          from: "staff",
-          text: m.text,
-          word: null,
-          map: null,
-          preview: null,
-          time,
-          staff: staffView(m, open),
-        };
-      const from = m.direction === "inbound" ? "customer" : "bot";
-      if (m.kind !== "text" || m.text === null) {
-        const kind = m.kind === "text" ? "other" : m.kind;
-        return {
-          id: m.id,
-          from,
-          text: null,
-          word: conversationKindAr(kind),
-          map: kind === "location" && m.location ? mapUrl(m.location) : null,
-          preview: null,
-          time,
-          staff: null,
-        };
-      }
-      const lines = m.text.split("\n");
-      const long =
-        m.direction === "outbound" && lines.length > LONG_MESSAGE_LINES;
-      return {
-        id: m.id,
-        from,
-        text: m.text,
-        word: null,
-        map: null,
-        preview: long ? lines.slice(0, PREVIEW_LINES).join("\n") : null,
-        time,
-        staff: null,
-      };
-    }),
+    beforeOrder: folded
+      ? shown.filter((s) => s.earlier).map((s) => s.view)
+      : null,
+    messages: (folded ? shown.filter((s) => !s.earlier) : shown).map(
+      (s) => s.view,
+    ),
+  };
+}
+
+function messageView(m: ShownMessage, open: boolean): ConversationMessage {
+  const time = clockTime(m.at);
+  // Staff's are never folded, and always text (brief م-د).
+  if (m.direction === "staff" || m.direction === "local")
+    return {
+      id: m.direction === "local" ? `local:${m.clientId}` : m.id,
+      from: "staff",
+      text: m.text,
+      word: null,
+      map: null,
+      preview: null,
+      time,
+      staff: staffView(m, open),
+    };
+  const from = m.direction === "inbound" ? "customer" : "bot";
+  if (m.kind !== "text" || m.text === null) {
+    const kind = m.kind === "text" ? "other" : m.kind;
+    return {
+      id: m.id,
+      from,
+      text: null,
+      word: conversationKindAr(kind),
+      map: kind === "location" && m.location ? mapUrl(m.location) : null,
+      preview: null,
+      time,
+      staff: null,
+    };
+  }
+  const lines = m.text.split("\n");
+  const long = m.direction === "outbound" && lines.length > LONG_MESSAGE_LINES;
+  return {
+    id: m.id,
+    from,
+    text: m.text,
+    word: null,
+    map: null,
+    preview: long ? lines.slice(0, PREVIEW_LINES).join("\n") : null,
+    time,
+    staff: null,
   };
 }
 

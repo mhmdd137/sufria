@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import {
   DASHBOARD_REPLY_UI_AR,
   STAFF_MESSAGE_FAILURES,
+  orderChatCountAr,
   silenceLineAr,
   staffFailureAr,
   staffMetaAr,
@@ -33,7 +34,26 @@ test("DASHBOARD_REPLY_UI_AR is Mohammed's text, verbatim", () => {
     editAndSend: "عدّل وأرسل",
     closed: "لا يمكن الرد من هنا: مرّت 24 ساعة على آخر رسالة من الزبون.",
     meta: "[الاسم] · [الوقت]",
+    orderChat: {
+      title: "محادثة الطلب مع البوت",
+      count: "([العدد])",
+      show: "اعرضها",
+      hide: "اخفِها",
+    },
   });
+});
+
+test("orderChatCountAr: «(24)», the number a piece of its own, in Western digits", () => {
+  assert.deepEqual(orderChatCountAr(24), {
+    before: "(",
+    count: "24",
+    after: ")",
+  });
+  const t = orderChatCountAr(4);
+  assert.equal(
+    `${DASHBOARD_REPLY_UI_AR.orderChat.title} ${t.before}${t.count}${t.after}`,
+    "محادثة الطلب مع البوت (4)",
+  );
 });
 
 test("silenceLineAr: the line with its time, the time a piece of its own", () => {

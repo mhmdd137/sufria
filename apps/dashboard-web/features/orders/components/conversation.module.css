@@ -85,6 +85,38 @@
   align-items: flex-end;
 }
 
+/* The conversation with the bot before the order, folded (brief م-د-9,
+   decision 7): one line at the start of the list, no line around it and
+   no ground — its text, its count in the numbers' font, and «اعرضها» (the
+   secondary button, .action). Opened, its messages under it in the
+   list's own column and gap. */
+.fold {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.foldTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.foldCount {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.earlier {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 /* As written: its own line breaks, and a long word wraps rather than
    pushing the page sideways. */
 .bubble {

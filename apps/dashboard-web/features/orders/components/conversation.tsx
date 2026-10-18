@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -13,13 +14,14 @@ import {
   DASHBOARD_REPLY_UI_AR,
   DASHBOARD_UI_AR,
   clockTime,
+  orderChatCountAr,
   silenceLineAr,
   type OrderMessage,
 } from "@sufria/shared";
 import { Skeleton } from "../../../shared/ui/skeleton.tsx";
 import { ordersApi } from "../api/orders-api.ts";
 import type { MessagesState } from "../hooks/use-order-messages.ts";
-import { conversationView } from "../lib/details.ts";
+import { conversationView, type ConversationMessage } from "../lib/details.ts";
 import {
   createReply,
   replyPanel,
@@ -36,6 +38,8 @@ const R = DASHBOARD_REPLY_UI_AR;
 type Props = {
   /** The order's id: the staff messages are written on it. */
   orderId: string;
+  /** The order's `createdAt`: the conversation before it folds. */
+  orderCreatedAt: string;
   state: MessagesState;
   /** The conversation, read again at once: its messages, `null` if it failed. */
   reload: () => Promise<readonly OrderMessage[] | null>;
@@ -63,9 +67,15 @@ type Props = {
  * sight under the list that scrolls by itself, below at the section's end,
  * never fixed: the silence line while the bot keeps quiet, and the field;
  * once the 24 hours passed, the closed line and «راسل الزبون» instead.
+ *
+ * The conversation with the bot before the order — 4 messages or more — is
+ * one line at the start, «محادثة الطلب مع البوت (24)», and «اعرضها» opens
+ * it under the line (brief م-د-9, decision 7): folded each time the page
+ * opens, nothing kept.
  */
 export function Conversation({
   orderId,
+  orderCreatedAt,
   state,
   reload,
   chat,
@@ -93,11 +103,14 @@ export function Conversation({
         ? conversationView(
             withLocal(state.messages, local),
             state.replyOpenUntil !== null,
+            orderCreatedAt,
           )
         : null,
-    [state, local],
+    [state, local, orderCreatedAt],
   );
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [showEarlier, setShowEarlier] = useState(false);
+  const earlierId = useId();
   const list = useRef<HTMLOListElement>(null);
   const opened = useRef(false);
   // Whether the list was at its end before the next answer (48px slack).
@@ -112,6 +125,89 @@ export function Conversation({
     list.current.scrollTop = list.current.scrollHeight;
     opened.current = true;
   }, [view]);
+
+  const earlierCount = orderChatCountAr(view?.beforeOrder?.length ?? 0);
+
+  function message(m: ConversationMessage) {
+    const open = expanded.has(m.id);
+    return (
+      <li
+        key={m.id}
+        className={styles.message}
+        data-from={m.from}
+        data-state={m.staff?.state}
+      >
+        {m.word !== null ? (
+          <p className={`${styles.bubble} ${styles.word}`}>
+            <span>{m.word}</span>
+            {m.map !== null && (
+              <a
+                href={m.map}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.map}
+              >
+                {M.openMap}
+              </a>
+            )}
+          </p>
+        ) : (
+          <p className={styles.bubble} dir="auto">
+            {m.preview !== null && !open ? m.preview : m.text}
+          </p>
+        )}
+        {m.staff?.meta && (
+          <span className={styles.meta}>
+            {m.staff.meta.before}
+            <span className={`num ${styles.metaTime}`}>
+              {m.staff.meta.time}
+            </span>
+            {m.staff.meta.after}
+          </span>
+        )}
+        {m.staff?.state === "pending" && (
+          <span className={styles.meta}>{m.staff.note}</span>
+        )}
+        {m.staff?.state === "failed" && (
+          <div className={styles.failure}>
+            <span className={styles.reason}>{m.staff.note}</span>
+            {m.staff.action === "edit" && (
+              <button
+                type="button"
+                className={styles.action}
+                onClick={() => reply.edit(m.text ?? "", m.staff?.local ?? null)}
+              >
+                {R.editAndSend}
+              </button>
+            )}
+            {m.staff.action === "contact" && (
+              <a
+                className={styles.action}
+                href={chat}
+                target="_blank"
+                rel="noopener"
+              >
+                {T.details.messageCustomer}
+              </a>
+            )}
+          </div>
+        )}
+        {m.preview !== null && (
+          <button
+            type="button"
+            className={styles.more}
+            aria-expanded={open}
+            onClick={() => toggle(m.id)}
+          >
+            {open ? T.conversation.hide : T.conversation.showAll}
+          </button>
+        )}
+        {m.staff === null && (
+          <span className={`num ${styles.time}`}>{m.time}</span>
+        )}
+      </li>
+    );
+  }
 
   function toggle(id: string) {
     setExpanded((open) => {
@@ -144,7 +240,7 @@ export function Conversation({
 
       {view?.notice && <p className={styles.notice}>{view.notice}</p>}
 
-      {view && view.messages.length > 0 && (
+      {view && (view.messages.length > 0 || view.beforeOrder !== null) && (
         <ol
           ref={list}
           className={styles.messages}
@@ -154,88 +250,33 @@ export function Conversation({
               el.scrollHeight - el.scrollTop - el.clientHeight < 48;
           }}
         >
-          {view.messages.map((m) => {
-            const open = expanded.has(m.id);
-            return (
-              <li
-                key={m.id}
-                className={styles.message}
-                data-from={m.from}
-                data-state={m.staff?.state}
+          {view.beforeOrder !== null && (
+            <li className={styles.fold}>
+              <span className={styles.foldTitle}>{R.orderChat.title}</span>
+              <span className={styles.foldCount}>
+                {earlierCount.before}
+                <span className="num">{earlierCount.count}</span>
+                {earlierCount.after}
+              </span>
+              <button
+                type="button"
+                className={styles.action}
+                aria-expanded={showEarlier}
+                aria-controls={earlierId}
+                onClick={() => setShowEarlier((v) => !v)}
               >
-                {m.word !== null ? (
-                  <p className={`${styles.bubble} ${styles.word}`}>
-                    <span>{m.word}</span>
-                    {m.map !== null && (
-                      <a
-                        href={m.map}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.map}
-                      >
-                        {M.openMap}
-                      </a>
-                    )}
-                  </p>
-                ) : (
-                  <p className={styles.bubble} dir="auto">
-                    {m.preview !== null && !open ? m.preview : m.text}
-                  </p>
-                )}
-                {m.staff?.meta && (
-                  <span className={styles.meta}>
-                    {m.staff.meta.before}
-                    <span className={`num ${styles.metaTime}`}>
-                      {m.staff.meta.time}
-                    </span>
-                    {m.staff.meta.after}
-                  </span>
-                )}
-                {m.staff?.state === "pending" && (
-                  <span className={styles.meta}>{m.staff.note}</span>
-                )}
-                {m.staff?.state === "failed" && (
-                  <div className={styles.failure}>
-                    <span className={styles.reason}>{m.staff.note}</span>
-                    {m.staff.action === "edit" && (
-                      <button
-                        type="button"
-                        className={styles.action}
-                        onClick={() =>
-                          reply.edit(m.text ?? "", m.staff?.local ?? null)
-                        }
-                      >
-                        {R.editAndSend}
-                      </button>
-                    )}
-                    {m.staff.action === "contact" && (
-                      <a
-                        className={styles.action}
-                        href={chat}
-                        target="_blank"
-                        rel="noopener"
-                      >
-                        {T.details.messageCustomer}
-                      </a>
-                    )}
-                  </div>
-                )}
-                {m.preview !== null && (
-                  <button
-                    type="button"
-                    className={styles.more}
-                    aria-expanded={open}
-                    onClick={() => toggle(m.id)}
-                  >
-                    {open ? T.conversation.hide : T.conversation.showAll}
-                  </button>
-                )}
-                {m.staff === null && (
-                  <span className={`num ${styles.time}`}>{m.time}</span>
-                )}
-              </li>
-            );
-          })}
+                {showEarlier ? R.orderChat.hide : R.orderChat.show}
+              </button>
+            </li>
+          )}
+          {view.beforeOrder !== null && (
+            <li id={earlierId} hidden={!showEarlier}>
+              <ol className={styles.earlier}>
+                {view.beforeOrder.map(message)}
+              </ol>
+            </li>
+          )}
+          {view.messages.map(message)}
         </ol>
       )}
 

@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
+  DASHBOARD_REPLY_UI_AR,
   WHATSAPP_TEXT_LIMIT,
   clockTime,
   type CreateStaffMessageRequest,
@@ -916,5 +917,156 @@ test("a failed bubble and its line: 8px apart — 6px over the line and the item
   assert.equal(
     (before.match(/\{/g) ?? []).length,
     (before.match(/\}/g) ?? []).length,
+  );
+});
+
+// --- md9-5: the conversation before the order, folded (brief م-د-9, decision 7)
+
+/** The order made at 20:00; its conversation's minute `m` (negative: before). */
+const CREATED = "2026-10-17T20:00:00.000Z";
+const minute = (m: number) =>
+  new Date(Date.parse(CREATED) + m * 60_000).toISOString();
+/** The customer and the bot in turn, `n` messages before the order. */
+const before = (n: number): OrderMessage[] =>
+  Array.from({ length: n }, (_, i) =>
+    customer(`b-${i}`, {
+      direction: i % 2 === 0 ? "inbound" : "outbound",
+      at: minute(-n + i),
+    }),
+  );
+const after = [
+  customer("a-1", { at: minute(1), text: "كم بدّه وقت؟" }),
+  staff("s-1", { at: minute(2) }),
+];
+const ids = (ms: readonly { id: string }[] | null) => ms?.map((m) => m.id);
+
+test("nothing before the order → no line", () => {
+  const view = conversationView(after, true, CREATED);
+  assert.equal(view.beforeOrder, null);
+  assert.deepEqual(ids(view.messages), ["a-1", "s-1"]);
+});
+
+test("3 before the order → no line: all of it shows, as it is", () => {
+  const view = conversationView([...before(3), ...after], true, CREATED);
+  assert.equal(view.beforeOrder, null);
+  assert.deepEqual(ids(view.messages), ["b-0", "b-1", "b-2", "a-1", "s-1"]);
+});
+
+test("4 before the order → the line with 4, and they are out of the list; opened, the four in their order", () => {
+  const view = conversationView([...before(4), ...after], true, CREATED);
+  assert.deepEqual(ids(view.beforeOrder), ["b-0", "b-1", "b-2", "b-3"]);
+  assert.deepEqual(
+    view.beforeOrder!.map((m) => m.from),
+    ["customer", "bot", "customer", "bot"],
+  );
+  assert.deepEqual(ids(view.messages), ["a-1", "s-1"]);
+  const many = conversationView([...before(24), ...after], true, CREATED);
+  assert.equal(many.beforeOrder!.length, 24);
+});
+
+test("a message at the order's very moment is not before it", () => {
+  const at = customer("at", { direction: "outbound", at: CREATED });
+  const view = conversationView([...before(4), at, ...after], true, CREATED);
+  assert.deepEqual(ids(view.beforeOrder), ["b-0", "b-1", "b-2", "b-3"]);
+  assert.deepEqual(ids(view.messages), ["at", "a-1", "s-1"]);
+});
+
+test("staff's never fold — a bubble of the screen's on a clock behind included", () => {
+  const view = conversationView(
+    withLocal(
+      [...before(4), staff("s-0", { at: minute(-1) })],
+      [local("c-early", { at: minute(-30) })],
+    ),
+    true,
+    CREATED,
+  );
+  assert.deepEqual(ids(view.beforeOrder), ["b-0", "b-1", "b-2", "b-3"]);
+  assert.deepEqual(ids(view.messages), ["s-0", "local:c-early"]);
+  // No order's time: nothing folds (the conversation as before).
+  assert.equal(conversationView(before(6)).beforeOrder, null);
+});
+
+test("«read» is the same folded or open: seenUpTo reads the server's messages, never the view", () => {
+  // Every customer message before the order: all folded, all marked read.
+  const messages = before(5);
+  assert.notEqual(conversationView(messages, true, CREATED).beforeOrder, null);
+  assert.equal(seenUpTo(messages, null), "b-4");
+  const hook = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../features/orders/hooks/use-order-messages.ts",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
+  assert.match(hook, /const \{ messages \} = res\.value;/);
+  assert.match(hook, /seenUpTo\(messages, marked\.current\)/);
+});
+
+test("the line: its text, its count in the numbers' font, «اعرضها»/«اخفِها» as the secondary button — folded on every opening, nothing kept", () => {
+  const tsx = read("conversation.tsx");
+  assert.match(tsx, /\{R\.orderChat\.title\}/);
+  assert.match(
+    tsx,
+    /\{earlierCount\.before\}\s+<span className="num">\{earlierCount\.count\}<\/span>\s+\{earlierCount\.after\}/,
+  );
+  assert.match(
+    tsx,
+    /\{showEarlier \? R\.orderChat\.hide : R\.orderChat\.show\}/,
+  );
+  assert.match(
+    tsx,
+    /aria-expanded=\{showEarlier\}\s+aria-controls=\{earlierId\}/,
+  );
+  assert.match(tsx, /<li id=\{earlierId\} hidden=\{!showEarlier\}>/);
+  assert.match(tsx, /useState\(false\);\s+const earlierId = useId\(\);/);
+  assert.doesNotMatch(tsx, /localStorage|sessionStorage/);
+  // At the start of the list: the line, the group, then the rest.
+  assert.ok(
+    tsx.indexOf("styles.fold}") < tsx.indexOf("{view.messages.map(message)}"),
+  );
+  assert.equal(DASHBOARD_REPLY_UI_AR.orderChat.show, "اعرضها");
+
+  const css = read("conversation.module.css");
+  const fold = rule(css, ".fold");
+  for (const d of [
+    "display: flex;",
+    "align-items: center;",
+    "flex-wrap: wrap;",
+    "justify-content: flex-start;",
+    "gap: 8px;",
+  ])
+    assert.ok(fold.includes(d), d);
+  assert.doesNotMatch(fold, /border|background/);
+  const title = rule(css, ".foldTitle");
+  for (const d of [
+    "font-size: 13px;",
+    "font-weight: 600;",
+    "color: var(--text-secondary);",
+  ])
+    assert.ok(title.includes(d), d);
+  const count = rule(css, ".foldCount");
+  for (const d of [
+    "font-size: 13px;",
+    "font-weight: 500;",
+    "color: var(--text-secondary);",
+  ])
+    assert.ok(count.includes(d), d);
+  // The button is the existing secondary one, its states and all.
+  assert.match(
+    tsx,
+    /className=\{styles\.action\}\s+aria-expanded=\{showEarlier\}/,
+  );
+  // Opened, in the list's own column and gap.
+  const earlier = rule(css, ".earlier");
+  assert.ok(earlier.includes("gap: 10px;"));
+  assert.ok(rule(css, ".messages").includes("gap: 10px;"));
+});
+
+test("the page hands the conversation its order's createdAt", () => {
+  assert.match(
+    read("order-details.tsx"),
+    /orderCreatedAt=\{order\.state\.order\.createdAt\}/,
   );
 });

@@ -88,6 +88,7 @@ export function OrderDetails({ id, from }: Props) {
             <Conversation
               key={id}
               orderId={id}
+              orderCreatedAt={order.state.order.createdAt}
               state={messages.state}
               reload={messages.reload}
               chat={waLink(order.state.order.customer.phone)}
