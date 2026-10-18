@@ -579,6 +579,13 @@ describe("the timer and the startup check", () => {
     expect(parseEnv(process.env).STAFF_REPLY_POLL_MS).toBe(0);
   });
 
+  it("the queue's cycle is a second by default (brief م-د-9, decision 1)", () => {
+    expect(
+      parseEnv({ ...process.env, STAFF_REPLY_POLL_MS: undefined })
+        .STAFF_REPLY_POLL_MS,
+    ).toBe(1000);
+  });
+
   it("15. 🔴 STAFF_REPLY_MAX_WAIT_SECONDS=30 with the default send timeout → the engine refuses to start", () => {
     const withWait = (wait: string, timeout?: string) => (): unknown =>
       parseEnv({

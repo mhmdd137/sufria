@@ -58,9 +58,11 @@ const EnvSchema = z
     /**
      * The staff-reply queue's cycle (brief م-ج §6): the engine sends the texts
      * staff write on the dashboard. `0` turns it off — and the tests do, and
-     * call `tick()` themselves.
+     * call `tick()` themselves. Every second by default (brief م-د-9,
+     * decision 1): one query a second whatever the number of restaurants,
+     * on the queue's partial index (`idx_staff_messages_queue`).
      */
-    STAFF_REPLY_POLL_MS: z.coerce.number().int().nonnegative().default(5000),
+    STAFF_REPLY_POLL_MS: z.coerce.number().int().nonnegative().default(1000),
     /**
      * Decision 9: a staff message that waited longer than this many seconds
      * before its send began is never sent — «your order in 10 minutes»
