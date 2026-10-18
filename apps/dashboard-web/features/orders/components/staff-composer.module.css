@@ -21,7 +21,8 @@
 }
 
 /* It grows with its text (staff-composer.tsx) up to 5 lines, then scrolls
-   — a textarea's own overflow, its bar thin in the tokens' grey from
+   — a textarea's own overflow, set inline by the same effect (no bar
+   before, brief م-د-9), its bar thin in the tokens' grey from
    globals.css; never resized by hand. With the focus, a 2px line and a pixel less
    padding: the box keeps its size. */
 .input {

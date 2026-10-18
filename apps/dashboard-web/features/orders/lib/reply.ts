@@ -90,6 +90,30 @@ export function enterSends(key: {
 }
 
 /**
+ * The field's height to its text (brief م-د-9, decision 3): the browser
+ * gives `scrollHeight` rounded to a whole pixel — the empty field's 43.25
+ * (a 23.25px line and its padding) reads 43, and a box of 43 has a quarter
+ * pixel to scroll, which Chrome on Windows answers with a bar and its
+ * arrows. Its text can be half a pixel taller than it says: the height is
+ * that, rounded up. `frame` is the borders (`offsetHeight - clientHeight`).
+ */
+export function fieldHeight(scrollHeight: number, frame: number): number {
+  return Math.ceil(scrollHeight + 0.5) + frame;
+}
+
+/**
+ * Its own overflow, set by the same effect: no scrolling while its text
+ * fits in its 5 lines (`max-height`), a bar once it does not. `needed` is
+ * the text's height with the borders, `scrollHeight + frame`.
+ */
+export function fieldOverflow(
+  needed: number,
+  maxHeight: number,
+): "hidden" | "auto" {
+  return needed > maxHeight ? "auto" : "hidden";
+}
+
+/**
  * «أرسل» is never disabled (decision 7): with nothing in the field but
  * spaces, the press puts the cursor in it and nothing else.
  */

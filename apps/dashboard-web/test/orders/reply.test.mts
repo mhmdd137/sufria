@@ -34,6 +34,8 @@ import {
   createReply,
   editInto,
   enterSends,
+  fieldHeight,
+  fieldOverflow,
   newStaffClientId,
   replyPanel,
   resumeOutcome,
@@ -815,4 +817,47 @@ test("the page left, or the tab hidden → the fast read stops", async () => {
   });
   await hidden.reply.send("مرحبا");
   assert.equal(hidden.reads, 3);
+});
+
+// --- md9-3: the field and the gap (brief م-د-9, decisions 3 and 4) ---------
+
+test("the field's height: what scrollHeight says, half a pixel more, rounded up — the empty field's 43.25 (read 43) gets 44 inside its borders", () => {
+  // Measured on Chrome at 1366 before: scrollHeight 43, the box 45 → 43
+  // inside, a quarter pixel short of 23.25 + 20.
+  assert.equal(fieldHeight(43, 2), 46);
+  assert.ok(fieldHeight(43, 2) - 2 >= 23.25 + 20);
+  // Five lines with the focus: 5 × 23.25 + 18 = 134.25, read 134.
+  assert.ok(fieldHeight(134, 4) - 4 >= 5 * 23.25 + 18);
+});
+
+test("the field's overflow: hidden while its text fits in its 5 lines, auto past them", () => {
+  const max = 5 * 23.25 + 22; // calc(5 * 1.55em + 22px) at 15px: 138.25
+  assert.equal(fieldOverflow(43 + 2, max), "hidden");
+  assert.equal(fieldOverflow(134 + 4, max), "hidden");
+  assert.equal(fieldOverflow(138, max), "hidden");
+  assert.equal(fieldOverflow(158 + 4, max), "auto");
+  assert.equal(fieldOverflow(139, max), "auto");
+});
+
+test("the overflow is set inline by the height's effect, never in the CSS: the conversation keeps one scroll box", () => {
+  const tsx = read("staff-composer.tsx");
+  assert.match(
+    tsx,
+    /el\.style\.height = `\$\{fieldHeight\(el\.scrollHeight, frame\)\}px`;/,
+  );
+  assert.match(tsx, /el\.style\.overflowY = fieldOverflow\(/);
+  assert.match(tsx, /getComputedStyle\(el\)\.maxHeight/);
+  assert.doesNotMatch(read("staff-composer.module.css"), /overflow(-[xy])?:/);
+});
+
+test("a failed bubble and its line: 8px apart — 6px over the line and the item's 2px gap — at every width", () => {
+  const css = read("conversation.module.css");
+  assert.ok(rule(css, ".failure").includes("margin-block-start: 6px;"));
+  assert.ok(rule(css, ".message").includes("gap: 2px;"));
+  // Outside any media query.
+  const before = css.slice(0, css.indexOf("\n.failure {"));
+  assert.equal(
+    (before.match(/\{/g) ?? []).length,
+    (before.match(/\}/g) ?? []).length,
+  );
 });

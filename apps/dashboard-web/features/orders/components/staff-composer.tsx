@@ -12,6 +12,8 @@ import {
   FIELD_MAX_LENGTH,
   editInto,
   enterSends,
+  fieldHeight,
+  fieldOverflow,
   sendDecision,
 } from "../lib/reply.ts";
 import styles from "./staff-composer.module.css";
@@ -31,7 +33,8 @@ type Props = {
  * The field under the conversation (brief م-د §3). Its text is its own
  * state: typing redraws this form alone, never the messages (INP).
  *
- * The field grows with its text up to 5 lines, then scrolls. «أرسل» never
+ * The field grows with its text up to 5 lines, then scrolls — no bar
+ * before (brief م-د-9, decision 3). «أرسل» never
  * takes the focus from it — a press keeps the keyboard where it is — and
  * is never disabled (decision 7).
  */
@@ -50,12 +53,18 @@ export function StaffComposer({ onSend, handle }: Props) {
     [],
   );
 
-  // Its height to its text: the CSS caps it at 5 lines.
+  // Its height to its text, the CSS capping it at 5 lines; a bar only past
+  // them (brief م-د-9) — inline, never in the CSS.
   useLayoutEffect(() => {
     const el = field.current;
     if (el === null) return;
     el.style.height = "auto";
-    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+    const frame = el.offsetHeight - el.clientHeight;
+    el.style.height = `${fieldHeight(el.scrollHeight, frame)}px`;
+    el.style.overflowY = fieldOverflow(
+      el.scrollHeight + frame,
+      parseFloat(getComputedStyle(el).maxHeight),
+    );
   }, [draft]);
 
   function submit() {

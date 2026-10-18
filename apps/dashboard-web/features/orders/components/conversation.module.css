@@ -138,8 +138,10 @@
   font-weight: 500;
 }
 
-/* A failed one: why, and its button, on one line that wraps. */
+/* A failed one: why, and its button, on one line that wraps — 8px under
+   the bubble (brief م-د-9, decision 4: 6 and the item's 2px gap). */
 .failure {
+  margin-block-start: 6px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
