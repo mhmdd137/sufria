@@ -39,7 +39,8 @@ export type LiveLists = {
 
 /**
  * What rings after a read of the live list (brief م-ب):
- * - `order`: a pending order younger than three hours, and one of them new
+ * - `order`: a pending order younger than three hours that no staff
+ *   message was written on (brief م-د, decision 12), and one of them new
  *   since the read before, or a minute since the last order ring;
  * - `message`: an order — on its way or returned — with more unread than the
  *   read before, or a returned order new to the group. Once per read,
@@ -64,6 +65,8 @@ export function soundFor({
   const waiting = next.orders.filter(
     (o) =>
       o.status === "pending_acceptance" &&
+      // Staff wrote to its customer: they know of it (brief م-د, decision 12).
+      o.staffMessagedAt === null &&
       now - Date.parse(o.createdAt) < ORDER_RING_FOR_MS,
   );
   if (waiting.length > 0) {

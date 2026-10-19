@@ -18,3 +18,4 @@ export * from "./dashboard-ui.js";
 export * from "./dashboard-menu-ui.js";
 export * from "./dashboard-messages-ui.js";
 export * from "./dashboard-sound-ui.js";
+export * from "./dashboard-reply-ui.js";

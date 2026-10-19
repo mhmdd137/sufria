@@ -6,15 +6,14 @@ import { sound } from "../../../shared/sound/sound-store.ts";
 import { ordersApi } from "../api/orders-api.ts";
 import {
   MESSAGES_POLL_MS,
+  messagesReady,
   newCustomerMessage,
   seenUpTo,
+  type MessagesState,
 } from "../lib/details.ts";
 import { usePolling } from "./use-polling.ts";
 
-export type MessagesState =
-  | { kind: "loading" }
-  | { kind: "ready"; messages: OrderMessage[] }
-  | { kind: "failed" };
+export type { MessagesState };
 
 /**
  * The order's conversation, read now and every 5 seconds while the tab is
@@ -36,7 +35,11 @@ export function useOrderMessages(
   id: string,
   reportOffline: (offline: boolean) => void,
   onSeen: () => void,
-): { state: MessagesState; reload: () => Promise<void> } {
+): {
+  state: MessagesState;
+  /** Read now: the messages it brought, `null` when it failed. */
+  reload: () => Promise<readonly OrderMessage[] | null>;
+} {
   const [state, setState] = useState<MessagesState>({ kind: "loading" });
   const marked = useRef<string | null>(null);
   const last = useRef<{
@@ -48,7 +51,7 @@ export function useOrderMessages(
     const res = await ordersApi.orderMessages(id);
     if (res.ok) {
       const { messages } = res.value;
-      setState({ kind: "ready", messages });
+      setState(messagesReady(res.value));
       const prev = last.current?.id === id ? last.current.messages : null;
       last.current = { id, messages };
       if (newCustomerMessage(prev, messages)) void sound.alert("message");
@@ -60,12 +63,13 @@ export function useOrderMessages(
           onSeen();
         }
       }
-      return;
+      return messages;
     }
     // 401: the gate takes the page to login. 404: the order says so itself.
-    if (res.error.kind === "unauthorized") return;
+    if (res.error.kind === "unauthorized") return null;
     if (res.error.kind === "network") reportOffline(true);
     setState((prev) => (prev.kind === "ready" ? prev : { kind: "failed" }));
+    return null;
   }, [id, reportOffline, onSeen]);
 
   usePolling(() => void reload(), MESSAGES_POLL_MS);

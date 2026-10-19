@@ -12,6 +12,8 @@ import type {
   OrderStatus,
   OrderStatusConflictBody,
   RefreshResult,
+  StaffMessageConflictBody,
+  StaffMessageConflictCode,
 } from "@sufria/shared";
 import type { SessionStore } from "./session-store.ts";
 
@@ -36,6 +38,11 @@ export type ApiError =
       limit: number;
     }
   | { kind: "menu_conflict"; code: "item_archived" }
+  /**
+   * A 409 of `POST /orders/:id/messages` (brief م-ج, §9.12): the 24 hours
+   * passed, or this `clientId` is another order's.
+   */
+  | { kind: "staff_conflict"; code: StaffMessageConflictCode }
   /** No answer at all: the API is down or the connection dropped. */
   | { kind: "network" }
   /** An answer that is none of the above (400, 403, 404, 5xx). */
@@ -145,7 +152,7 @@ export function createHttp({
 async function conflictOf(res: Response): Promise<ApiError> {
   try {
     const body = (await res.json()) as
-      OrderStatusConflictBody | MenuConflictBody;
+      OrderStatusConflictBody | MenuConflictBody | StaffMessageConflictBody;
     if (body.code === "status_conflict")
       return { kind: "status_conflict", currentStatus: body.currentStatus };
     if (
@@ -162,8 +169,10 @@ async function conflictOf(res: Response): Promise<ApiError> {
       };
     if (body.code === "item_archived")
       return { kind: "menu_conflict", code: body.code };
+    if (body.code === "reply_window_closed" || body.code === "client_id_reused")
+      return { kind: "staff_conflict", code: body.code };
   } catch {
-    // Not a §9.3 or §9.10 body: fall through to a plain HTTP error.
+    // Not a §9.3, §9.10 or §9.12 body: fall through to a plain HTTP error.
   }
   return { kind: "http", status: 409 };
 }

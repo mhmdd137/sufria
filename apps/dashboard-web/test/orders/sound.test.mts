@@ -264,3 +264,70 @@ test("usePolling with whileHidden: hiding the tab does not stop it", () => {
   fake.elapse();
   assert.equal(ticks, 2);
 });
+
+// --- brief م-د, decision 12: a staff message stops a pending order's ring ---
+
+test("a pending order staff wrote to: no order ring — on the first read, as new, or a minute on", () => {
+  const written = order("p1", {
+    status: "pending_acceptance",
+    createdAt: minutes(2),
+    staffMessagedAt: minutes(1),
+  });
+  assert.equal(
+    soundFor({
+      prev: null,
+      next: lists([written]),
+      now: NOW,
+      lastOrderRingAt: null,
+    }),
+    null,
+  );
+  assert.equal(
+    soundFor({
+      prev: lists([]),
+      next: lists([written]),
+      now: NOW,
+      lastOrderRingAt: NOW - 120_000,
+    }),
+    null,
+  );
+  // Without it, as before: the order rings.
+  assert.equal(
+    soundFor({
+      prev: lists([pending("p1")]),
+      next: lists([pending("p1")]),
+      now: NOW,
+      lastOrderRingAt: NOW - 60_000,
+    }),
+    "order",
+  );
+  // Another pending order, unwritten, still rings.
+  assert.equal(
+    soundFor({
+      prev: lists([written]),
+      next: lists([written, pending("p2")]),
+      now: NOW,
+      lastOrderRingAt: NOW - 1_000,
+    }),
+    "order",
+  );
+});
+
+test("a customer message on that order still rings its tick (م-ج, decision 14)", () => {
+  const written = (unread: number) =>
+    order("p1", {
+      status: "pending_acceptance",
+      createdAt: minutes(2),
+      staffMessagedAt: minutes(1),
+      unreadMessages: unread,
+    });
+  assert.equal(
+    soundFor({
+      prev: lists([written(0)]),
+      next: lists([written(1)]),
+      now: NOW,
+      lastOrderRingAt: null,
+    }),
+    "message",
+  );
+});

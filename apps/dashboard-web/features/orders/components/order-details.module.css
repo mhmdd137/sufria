@@ -322,6 +322,22 @@
   padding-block-end: calc(32px + 102px + env(safe-area-inset-bottom));
 }
 
+/* While the phone's keyboard is open over the field (brief م-د-9,
+   decision 5 — `data-keyboard`, use-keyboard.ts): the bar goes back to its
+   place in the page, so the keyboard does not lift it over the field; once
+   the keyboard closes, the back button included, fixed again — the cursor
+   in the field or not. From 1024px up it is in the page already. */
+.page[data-keyboard] .stepBar[data-fixed] {
+  position: static;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.page[data-keyboard]:has(.stepBar[data-fixed]) {
+  padding-block-end: 32px;
+}
+
 @media (min-width: 1024px) {
   .stepBar[data-fixed] {
     position: static;

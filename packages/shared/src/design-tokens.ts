@@ -31,7 +31,9 @@ export type ColorToken =
   | "accent-hover"
   | "accent-press"
   | "inverse-hover"
-  | "inverse-press";
+  | "inverse-press"
+  | "staff-bubble"
+  | "on-staff-bubble";
 
 /**
  * `on-accent` is not in the brief's table: it is the white of the bench's
@@ -49,6 +51,15 @@ export type ColorToken =
  * 30%, dark 10% · 18%), the inverted «شغّل» (`text-primary`) toward `bg`
  * (light 5.5% · 11%, dark 8.5% · 16.5%). Hover ΔE≈4, press ΔE≈8 — the same
  * strength in both modes. `bg-press` is also the view switch's chosen side.
+ *
+ * `staff-bubble` and `on-staff-bubble` (brief م-د, Mohammed, 17 October): a
+ * staff member's message once it reached the customer, filled — the
+ * conversation's third voice, at the bot's end of the line. In dark a grey
+ * (L* 34), not the white that was tried (L* 95): the dark mode is for a dim
+ * kitchen, and a white bubble glares. Measured before the brief: the text on
+ * it 16.88 light · 7.04 dark; ΔE2000 from the bot's bubble (`surface`, the
+ * same side, our rule ≥ 12) 89.7 · 16.3, from the customer's (`bg`) 88.7 ·
+ * 18.8.
  */
 export const COLOR_TOKENS: Record<ColorMode, Record<ColorToken, string>> = {
   light: {
@@ -70,6 +81,8 @@ export const COLOR_TOKENS: Record<ColorMode, Record<ColorToken, string>> = {
     "accent-press": "#521C34",
     "inverse-hover": "#222221",
     "inverse-press": "#2F2F2E",
+    "staff-bubble": "#161615",
+    "on-staff-bubble": "#F7F7F5",
   },
   dark: {
     bg: "#171715",
@@ -90,6 +103,8 @@ export const COLOR_TOKENS: Record<ColorMode, Record<ColorToken, string>> = {
     "accent-press": "#943B5F",
     "inverse-hover": "#DFDEDC",
     "inverse-press": "#CECDCA",
+    "staff-bubble": "#52514C",
+    "on-staff-bubble": "#F2F1EE",
   },
 };
 
@@ -136,6 +151,8 @@ export const TEXT_ON_BACKGROUND: Readonly<
   "paused-text": ["paused-bg"],
   /** The card's unread count, inverted (brief م-ب, decision 1). */
   surface: ["text-primary"],
+  /** A staff message that reached the customer (brief م-د, decision 1). */
+  "on-staff-bubble": ["staff-bubble"],
 };
 
 /** A status badge: its text on its own background, nothing else. */
