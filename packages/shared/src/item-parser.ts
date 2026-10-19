@@ -1,7 +1,10 @@
 import {
+  FINISH_INPUTS,
   matchCommand,
   normalizeArabic,
+  normalizeWithOrigins,
   type CustomerCommand,
+  type NormalizedChar,
 } from "./normalize.js";
 
 /**
@@ -43,6 +46,13 @@ export interface ParsedItem {
   readonly number: number;
   readonly itemId: string;
   readonly qty: number;
+  /**
+   * The customer's note for this line (brief ن §2): the raw text after the
+   * item's number — and its quantity — up to the next number, cleaned
+   * (`cleanNote`), or `null`. The item's name is not taken off here: the
+   * engine does it (`noteWithoutName`), where the name is known.
+   */
+  readonly note: string | null;
 }
 
 export interface ParseProblems {
@@ -95,6 +105,14 @@ export type MenuMap = Readonly<Record<string, string>>;
 // التقطيع
 // ---------------------------------------------------------------------------
 
+/** A token of the message: its normalized text, and where it sits in the raw one. */
+interface Token {
+  readonly text: string;
+  /** `raw.slice(start, end)` is the customer's own text of this token. */
+  readonly start: number;
+  readonly end: number;
+}
+
 /**
  * `normalizeArabic` بتقصّ الرموز من طرف الرسالة — و`×` و`*` رموز. فعلامة
  * بأول الرسالة («×3 و2») كانت بتختفي وبتصير «3» = **صنف 3**. زبون ما طلب
@@ -104,15 +122,18 @@ export type MenuMap = Readonly<Record<string, string>>;
  * الطرفين هو اللي بيخلّي «تم 👍» = «تم». بنرجّع العلامة المقصوصة بس.
  * (`x` حرف، فالتطبيع ما بيقصّها أصلا.)
  */
-function restoreLeadingMarker(raw: string, normalized: string): string {
+function restoreLeadingMarker(
+  raw: string,
+  units: readonly NormalizedChar[],
+): readonly NormalizedChar[] {
   const lead = /^[^\p{L}\p{N}]*/u.exec(raw)?.[0] ?? "";
   const at = Math.max(lead.lastIndexOf("×"), lead.lastIndexOf("*"));
-  if (at === -1) return normalized;
-  const marker = lead[at];
+  if (at === -1) return units;
+  const marker: NormalizedChar = { c: lead[at]!, start: at, end: at + 1 };
   // ملزوقة بالرقم («×3») بتضل ملزوقة؛ غير هيك بتصير رمزا لحالها («× 3»).
   return at === lead.length - 1
-    ? `${marker}${normalized}`
-    : `${marker} ${normalized}`;
+    ? [marker, ...units]
+    : [marker, { c: " ", start: at + 1, end: at + 1 }, ...units];
 }
 
 /**
@@ -121,15 +142,170 @@ function restoreLeadingMarker(raw: string, normalized: string): string {
  * 🔴 `و` فاصل **بس لما تكون منفصلة أو ملزوقة برقم**. شطبها من أول كل كلمة
  *    بيحوّل «واحد» لـ«احد» — والنص غير المفهوم بيرجع للزبون حرفيا، فتشويهه
  *    بيخلّيه يقرأ كلمة ما كتبها.
+ *
+ * Every replacement below is one character for one, so each character of the
+ * text keeps its raw span; a token's span runs from its first character's to
+ * its last's. A separator is never inside a token, so a note — the raw text
+ * from its first token to its last — has none at its two ends, and keeps
+ * those between its words (brief ن §2.1).
  */
-function tokenize(raw: string): string[] {
-  return restoreLeadingMarker(raw, normalizeArabic(raw))
+function tokenize(raw: string): Token[] {
+  const units = restoreLeadingMarker(raw, normalizeWithOrigins(raw));
+  const starts: number[] = [];
+  const ends: number[] = [];
+  for (const u of units) {
+    for (let k = 0; k < u.c.length; k++) {
+      starts.push(u.start);
+      ends.push(u.end);
+    }
+  }
+  const text = units
+    .map((u) => u.c)
+    .join("")
     .replace(/[,،+]/gu, " ")
     .replace(/(?<=[0-9])و(?=[0-9])/gu, " ") // 2و3
     .replace(/(^|\s)و(?=[0-9])/gu, "$1 ") // 2 و3
-    .replace(/(^|\s)و(?=\s|$)/gu, "$1 ") // 2 و 3
+    .replace(/(^|\s)و(?=\s|$)/gu, "$1 "); // 2 و 3
+  return [...text.matchAll(/\S+/gu)].map((m) => ({
+    text: m[0],
+    start: starts[m.index]!,
+    end: ends[m.index + m[0].length - 1]!,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// الملاحظة — بريف ن §2
+// ---------------------------------------------------------------------------
+
+/** Characters a note never keeps: direction marks, zero-width, BOM (§2.5). */
+const INVISIBLE = /[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/gu;
+/** Control characters other than white space, which turns into a space. */
+const CONTROL = /(?!\s)\p{Cc}/gu;
+
+/**
+ * A note as it is kept and shown (brief ن §2.5): the invisible and control
+ * characters gone, every run of white space one space, both ends trimmed —
+ * and nothing left is no note. The words stay exactly as written.
+ */
+export function cleanNote(raw: string): string | null {
+  const note = raw
+    .replace(INVISIBLE, "")
+    .replace(CONTROL, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+  return note === "" ? null : note;
+}
+
+/**
+ * What two notes are compared by (§2.1): «زيادة» and «زياده» are one note.
+ * Only compared — the note kept and shown is the first raw text that came.
+ */
+export function noteKey(note: string | null): string | null {
+  return note === null ? null : normalizeArabic(note);
+}
+
+/** A note's length as the database counts it (`char_length`): code points. */
+export function noteLength(note: string): number {
+  return [...note].length;
+}
+
+/** A second note for the same pieces joins the first (brief ن, Claude's call). */
+export function joinNotes(first: string, second: string): string {
+  return `${first}، ${second}`;
+}
+
+/** Never taken off a note's start, whatever the item's name (§2.3). */
+const NEGATION_WORDS: ReadonlySet<string> = new Set([
+  "بدون",
+  "بلا",
+  "بلاش",
+  "غير",
+  "من",
+]);
+
+/**
+ * The note without the item's own name (brief ن §2.3, decision 5 with its
+ * safety fix): «1 شاورما دجاج بدون بصل» on «شاورما دجاج» is «بدون بصل».
+ *
+ * 🔴 From the note's **start**, and **in the name's order**: a word goes
+ *    while it equals the name's next word (normalized). The first that does
+ *    not stops it — «1 دجاج» keeps «دجاج», it is not the name's start.
+ * 🔴 **A word of negation never goes**, even inside the name: on «قهوة بدون
+ *    سكر», «3 قهوة بدون هيل» keeps «بدون هيل». Taking words off one by one
+ *    would leave «هيل» — the opposite of what the customer asked.
+ *
+ * `null` when nothing is left.
+ */
+export function noteWithoutName(note: string, itemName: string): string | null {
+  const nameWords = itemName
     .split(/\s+/u)
-    .filter((t) => t !== "");
+    .map(normalizeArabic)
+    .filter((w) => w !== "");
+  const words = note.split(/\s+/u);
+  let taken = 0;
+  while (taken < words.length && taken < nameWords.length) {
+    const word = normalizeArabic(words[taken]!);
+    if (NEGATION_WORDS.has(word) || word !== nameWords[taken]) break;
+    taken++;
+  }
+  if (taken === 0) return cleanNote(note);
+  // What the name leaves may start with a separator: «شاورما و بدون بصل».
+  let rest = words.slice(taken);
+  while (rest.length > 0 && ["", "و"].includes(normalizeArabic(rest[0]!))) {
+    rest = rest.slice(1);
+  }
+  return cleanNote(rest.join(" "));
+}
+
+/** «2 بدون بصل تم» — the finish word ends the note, and is not part of it. */
+const FINISH_WORDS: ReadonlySet<string> = new Set(FINISH_INPUTS);
+const LONGEST_FINISH = Math.max(
+  ...FINISH_INPUTS.map((w) => w.split(" ").length),
+);
+
+/**
+ * A line's note from its tokens (§2.1): the finish words at its end taken
+ * off, then the raw text of each run of consecutive tokens — a quantity
+ * between two runs («2 بدون بصل ×2 زيادة») is the line's, not the note's —
+ * joined by a space, and cleaned.
+ */
+function noteOf(
+  raw: string,
+  tokens: readonly Token[],
+  indices: readonly number[],
+): string | null {
+  let kept = [...indices];
+  for (let found = true; found && kept.length > 0;) {
+    found = false;
+    for (let n = Math.min(LONGEST_FINISH, kept.length); n > 0; n--) {
+      const tail = kept
+        .slice(-n)
+        .map((i) => tokens[i]!.text)
+        .join(" ");
+      if (FINISH_WORDS.has(tail)) {
+        kept = kept.slice(0, -n);
+        found = true;
+        break;
+      }
+    }
+  }
+  if (kept.length === 0) return null;
+
+  const runs: number[][] = [];
+  for (const i of kept) {
+    const run = runs.at(-1);
+    if (run !== undefined && run.at(-1) === i - 1) run.push(i);
+    else runs.push([i]);
+  }
+  return cleanNote(
+    runs
+      .map((run) => {
+        const first = tokens[run[0]!]!;
+        const last = tokens[run.at(-1)!]!;
+        return raw.slice(first.start, last.end);
+      })
+      .join(" "),
+  );
 }
 
 const BARE_NUMBER = /^[0-9]+$/u;
@@ -151,13 +327,28 @@ const MARKER_ONLY = new RegExp(`^[${QTY_MARKERS}]$`, "iu");
  *   - `×3 و2` → الصنف 2 وبس. **علامة الكمية لازم يسبقها رقم صنف**
  *   - الصنف اللي مجموعه فوق السقف بينرفض كله؛ حجم الطلب ما إله سقف
  *   - رقم برّا الخريطة بيتسمّى وما بيسقّط الصحيح
- *   - نص غير رقمي بيرجع للزبون
+ *   - نص قبل أول رقم بيرجع للزبون؛ وبعد الرقم هو ملاحظته (بريف ن §2)
+ *   - `2 بدون بصل 2` → سطران: المفتاح (الرقم، الملاحظة المطبَّعة)
  */
 export function parseItems(raw: string, menuMap: MenuMap): ParseResult {
   const menuSize = Object.keys(menuMap).length;
+  const tokens = tokenize(raw);
 
-  /** الكميات متجمّعة برقم الصنف، وبترتيب أول ظهور. */
-  const quantities = new Map<number, number>();
+  /**
+   * Every item number the message wrote opens a line (brief ن §2.1): its
+   * quantity, and the tokens of its note — what follows it up to the next
+   * number. A number off the menu opens one too, `known: false`: its note
+   * goes with it, neither to another item nor back as «غير واضح».
+   */
+  interface Line {
+    readonly number: number;
+    readonly known: boolean;
+    qty: number;
+    readonly noteTokens: number[];
+  }
+  const lines: Line[] = [];
+  /** The line a note token joins. `null` before the first number. */
+  let current = null as Line | null;
   const unknownNumbers: number[] = [];
   const unclearParts: string[] = [];
   const overCapItems: { number: number; requestedQty: number }[] = [];
@@ -191,10 +382,6 @@ export function parseItems(raw: string, menuMap: MenuMap): ParseResult {
   /** علامة **بلا رقم قبلها** («× 3»): الرقم اللي بعدها كمية لولا شي، مش صنف. */
   let orphanMarker = false;
 
-  const addQty = (number: number, qty: number): void => {
-    quantities.set(number, (quantities.get(number) ?? 0) + qty);
-  };
-
   const forgetLast = (swallow: boolean): void => {
     lastNumber = null;
     lastContribution = 0;
@@ -203,22 +390,24 @@ export function parseItems(raw: string, menuMap: MenuMap): ParseResult {
 
   /** كمية وصلت بعلامة منفصلة: بتستبدل مساهمة الرمز السابق. */
   const applySeparatedQty = (qty: number): void => {
-    if (lastNumber === null) {
+    if (lastNumber === null || current === null) {
       forgetLast(false); // كانت مبلوعة — الرقم انسمّى
       return;
     }
-    addQty(lastNumber, qty - lastContribution);
+    current.qty += qty - lastContribution;
     lastContribution = qty;
   };
 
   const acceptNumber = (number: number, qty: number): void => {
     flushUnclear();
-    if (menuMap[String(number)] === undefined) {
+    const known = menuMap[String(number)] !== undefined;
+    current = { number, known, qty, noteTokens: [] };
+    lines.push(current);
+    if (!known) {
       unknownNumbers.push(number);
       forgetLast(true);
       return;
     }
-    addQty(number, qty);
     lastNumber = number;
     lastContribution = qty;
     swallowNextQty = false;
@@ -226,7 +415,7 @@ export function parseItems(raw: string, menuMap: MenuMap): ParseResult {
 
   const hasAnchor = (): boolean => lastNumber !== null || swallowNextQty;
 
-  for (const token of tokenize(raw)) {
+  for (const [index, { text: token }] of tokens.entries()) {
     // 🔴 كمية بعد علامة منفصلة: الرقم **مش مجرّد**، قبله علامة صريحة كتبها
     //    الزبون. قاعدة «رقم مجرّد = صنف» بتنطبق على المجرّد وبس.
     if (pendingMarker && BARE_NUMBER.test(token)) {
@@ -278,23 +467,53 @@ export function parseItems(raw: string, menuMap: MenuMap): ParseResult {
       continue;
     }
 
+    // 🔴 Text after a number is that line's note (brief ن, decision 2), and
+    //    the number stays the anchor: «2 بدون بصل ×2» is item 2 ×2. Text
+    //    before the first number has no line to join, and is «غير واضح» as
+    //    it always was.
+    if (current !== null) {
+      current.noteTokens.push(index);
+      continue;
+    }
     unclearRun.push(token);
     forgetLast(false);
   }
   flushUnclear();
 
-  // 🔴 السقف **بعد** التجميع: «2 ×30 و2 ×30» = 60 للصنف 2، فبينرفض كله.
-  //    فحص كل رمز لحاله بيمرّقها — وهاد بالضبط الالتفاف اللي خلّى السقف
-  //    ينرجع للتجميع. §13.1
+  // 🔴 Lines merge by (number, normalized note), not by number (decision 8):
+  //    «2 بدون بصل 2» is two lines. The note kept is the first raw text met.
+  // 🔴 السقف **بعد** التجميع، **على الصنف كله**: «2 ×30 و2 ×30» = 60 للصنف 2،
+  //    فبينرفض كله — ومهما تقسّم على ملاحظات. فحص كل رمز لحاله بيمرّقها،
+  //    وهاد بالضبط الالتفاف اللي خلّى السقف ينرجع للتجميع. §13.1
+  const merged = new Map<
+    string,
+    { number: number; qty: number; note: string | null }
+  >();
+  const totalOf = new Map<number, number>();
+  for (const line of lines) {
+    if (!line.known) continue;
+    const note = noteOf(raw, tokens, line.noteTokens);
+    const key = `${line.number}|${note === null ? "" : `+${noteKey(note)}`}`;
+    const kept = merged.get(key);
+    if (kept === undefined) {
+      merged.set(key, { number: line.number, qty: line.qty, note });
+    } else {
+      kept.qty += line.qty;
+    }
+    totalOf.set(line.number, (totalOf.get(line.number) ?? 0) + line.qty);
+  }
+
+  for (const [number, qty] of totalOf) {
+    if (qty > MAX_QTY_PER_ITEM)
+      overCapItems.push({ number, requestedQty: qty });
+  }
+
   const items: ParsedItem[] = [];
-  for (const [number, qty] of quantities) {
+  for (const { number, qty, note } of merged.values()) {
     const itemId = menuMap[String(number)];
     if (itemId === undefined || qty <= 0) continue;
-    if (qty > MAX_QTY_PER_ITEM) {
-      overCapItems.push({ number, requestedQty: qty });
-      continue;
-    }
-    items.push({ number, itemId, qty });
+    if ((totalOf.get(number) ?? 0) > MAX_QTY_PER_ITEM) continue;
+    items.push({ number, itemId, qty, note });
   }
 
   const problems: ParseProblems = {

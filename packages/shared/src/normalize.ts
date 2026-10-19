@@ -40,8 +40,7 @@ const DIACRITICS_AND_TATWEEL = /[ً-ْـ]/gu;
 const ARABIC_INDIC_DIGITS = /[٠-٩]/gu;
 
 /** كل ما ليس حرفا ولا رقما، على الطرفين فقط: ترقيم · إيموجي · رموز · مسافات. */
-const NON_ALNUM_HEAD = /^[^\p{L}\p{N}]+/u;
-const NON_ALNUM_TAIL = /[^\p{L}\p{N}]+$/u;
+const ALNUM = /[\p{L}\p{N}]/u;
 
 /**
  * الشكل المعياري لمدخل الزبون. سبع خطوات بالترتيب:
@@ -64,15 +63,61 @@ const NON_ALNUM_TAIL = /[^\p{L}\p{N}]+$/u;
  *    مسافة واحدة كافٍ، وحذفها يخلط الأمر بغيره.
  */
 export function normalizeArabic(input: string): string {
-  return input
-    .replace(/[أإآ]/gu, "ا") // أ إ آ → ا
-    .replace(/ة/gu, "ه") // ة → ه
-    .replace(/ى/gu, "ي") // ى → ي
-    .replace(DIACRITICS_AND_TATWEEL, "")
-    .replace(ARABIC_INDIC_DIGITS, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/\s+/gu, " ")
-    .replace(NON_ALNUM_HEAD, "")
-    .replace(NON_ALNUM_TAIL, "");
+  return normalizeWithOrigins(input)
+    .map((u) => u.c)
+    .join("");
+}
+
+/** A character of `normalizeArabic`'s result, and the raw span it came from. */
+export interface NormalizedChar {
+  readonly c: string;
+  /** `raw.slice(start, end)` is what the customer wrote for it. */
+  readonly start: number;
+  readonly end: number;
+}
+
+/**
+ * The seven steps, character by character, keeping for each character of the
+ * result where it came from in the raw text — **the** normalization:
+ * `normalizeArabic` is its text. Brief ن: a note is cut from the customer's
+ * own text (`item-parser.ts`), «زيادة» and not «زياده», so the parser needs
+ * the spans — and a second copy of these rules is the silent failure this
+ * file exists to prevent.
+ *
+ * Steps 1–5 map one character to one or none, so they run per character;
+ * 6 and 7 run on the sequence.
+ */
+export function normalizeWithOrigins(input: string): NormalizedChar[] {
+  const out: { c: string; start: number; end: number }[] = [];
+  let at = 0;
+  for (const ch of input) {
+    const start = at;
+    at += ch.length;
+    const c = ch
+      .replace(/[أإآ]/gu, "ا") // أ إ آ → ا
+      .replace(/ة/gu, "ه") // ة → ه
+      .replace(/ى/gu, "ي") // ى → ي
+      .replace(DIACRITICS_AND_TATWEEL, "")
+      .replace(ARABIC_INDIC_DIGITS, (d) => String(d.charCodeAt(0) - 0x0660));
+    if (c === "") continue;
+    // 6. a run of white space is one space, spanning the whole run.
+    if (/\s/u.test(c)) {
+      const last = out.at(-1);
+      if (last?.c === " ") {
+        last.end = at;
+        continue;
+      }
+      out.push({ c: " ", start, end: at });
+      continue;
+    }
+    out.push({ c, start, end: at });
+  }
+  // 7. punctuation, emoji and spaces off both ends.
+  let from = 0;
+  while (from < out.length && !ALNUM.test(out[from]!.c)) from++;
+  let to = out.length;
+  while (to > from && !ALNUM.test(out[to - 1]!.c)) to--;
+  return out.slice(from, to);
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +179,49 @@ export const MODIFY_INPUTS = ["عدل", "تعديل"] as const;
 
 /** إلغاء السلّة قبل إنشاء الطلب. لا علاقة له بحالة `abandoned` (ج §3). */
 export const CANCEL_INPUTS = ["الغ", "الغي", "الغاء"] as const;
+
+/**
+ * Words of reply — brief ن §2.4 (Mohammed's decision 6). A message that is
+ * one of these, whole, is never a note: «2» then «تمام» is the customer
+ * answering, not asking the kitchen for «تمام».
+ *
+ * 🔴 **Inputs, not outputs** — the dialect's ban list governs what we send,
+ *    and has nothing to do with this one. Stored normalized, matched on the
+ *    whole message (`isReplyWord`), Latin letters without case.
+ *
+ * 🔴 Not a command: none of these does anything. In `browsing` they are
+ *    answered as today («غير مفهوم», and the streak counts them) — they only
+ *    keep a note from sticking, and the note hint from showing.
+ */
+export const REPLY_WORD_INPUTS = [
+  "تمام",
+  "تمام تمام",
+  "شكرا",
+  "مشكور",
+  "يسلمو",
+  "اوكي",
+  "اوك",
+  "ok",
+  "طيب",
+  "ماشي",
+  "حلو",
+  "اه",
+  "اي",
+  "ايوه",
+  "نعم",
+  "لا",
+  "مرحبا",
+  "هلا",
+  "السلام عليكم",
+  "يعطيك العافيه",
+] as const;
+
+const REPLY_WORDS = new Set<string>(REPLY_WORD_INPUTS);
+
+/** The whole message, normalized and without Latin case, is a word of reply. */
+export function isReplyWord(raw: string): boolean {
+  return REPLY_WORDS.has(normalizeArabic(raw).toLowerCase());
+}
 
 const COMMAND_TABLE: ReadonlyArray<
   readonly [CustomerCommand, ReadonlySet<string>]
