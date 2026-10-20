@@ -31,7 +31,12 @@ export const ORDER_TAB_STATUSES: Record<OrderTab, readonly OrderStatus[]> = {
  * snapshot taken when the order was placed. Brief G §3 (G-4), for the
  * card's summary («شاورما ×2 · بطاطا»).
  */
-export type OrderListLine = { name: string; quantity: number };
+export type OrderListLine = {
+  name: string;
+  quantity: number;
+  /** The customer's note for the line, as written (brief ن), or `null`. */
+  note: string | null;
+};
 
 /**
  * An item of `GET /orders` — brief D §3.1, with the three fields brief G §3
@@ -113,6 +118,8 @@ export type OrderDetailItem = {
   unitPrice: string;
   /** `quantity * unitPrice`, computed in SQL. */
   lineTotal: string;
+  /** The customer's note for the line, as written (brief ن), or `null`. */
+  note: string | null;
 };
 
 export type OrderHistoryEntry = {

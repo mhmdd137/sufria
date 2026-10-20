@@ -36,8 +36,8 @@ const ORDER: OrderListItem = {
   createdAt: ago(6 * 60_000),
   customer: { name: null, phone: "+962790004321" },
   items: [
-    { name: "شاورما", quantity: 2 },
-    { name: "بطاطا", quantity: 1 },
+    { name: "شاورما", quantity: 2, note: null },
+    { name: "بطاطا", quantity: 1, note: null },
   ],
   statusChangedAt: ago(30_000),
   cancellationReason: null,

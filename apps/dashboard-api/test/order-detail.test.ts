@@ -253,6 +253,58 @@ afterAll(async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Brief ن — an item's note, as the engine wrote it at «أكّد».
+// ---------------------------------------------------------------------------
+describe("GET /orders/:id — an item's note (brief ن)", () => {
+  async function notedOrder(): Promise<string> {
+    const id = await createOrder({
+      status: "accepted",
+      fulfillment: "pickup",
+      lines: [
+        { item: menu["كنافة"]!, name: "كنافة", price: "3.00", quantity: 2 },
+        { item: menu["حمص"]!, name: "حمص", price: "2.35", quantity: 1 },
+      ],
+      history: [
+        { from: null, to: "pending_acceptance", actor: "customer", at: at(30) },
+      ],
+    });
+    await audit.query(
+      `UPDATE order_items SET notes = 'بدون فستق، زيادة قطر' WHERE order_id = $1 AND item_name_snapshot = 'كنافة'`,
+      [id],
+    );
+    return id;
+  }
+
+  it("each line carries its note: the text as written, or null", async () => {
+    const id = await notedOrder();
+    const body = await detailOk(id, staffTest, restaurantId);
+    expect(body.items).toEqual([
+      {
+        name: "حمص",
+        quantity: 1,
+        unitPrice: "2.35",
+        lineTotal: "2.35",
+        note: null,
+      },
+      {
+        name: "كنافة",
+        quantity: 2,
+        unitPrice: "3.00",
+        lineTotal: "6.00",
+        note: "بدون فستق، زيادة قطر",
+      },
+    ]);
+  });
+
+  it("the noted order of restaurant A, asked by restaurant B's staff, is 404", async () => {
+    const id = await notedOrder();
+    await expectNotFound(
+      await getOrder(id, { staff: staffOnlyB, restaurantId: RESTAURANT_B }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 🔴 Isolation — brief §2.9 and §8.1. Another restaurant's order is 404, with
 //    the very body a non-existent id gets.
 // ---------------------------------------------------------------------------
@@ -360,12 +412,19 @@ describe("GET /orders/:id — contract", () => {
       customer: { name: null, phone: "+962791234567" },
       items: [
         // 3 × 2.35 is 7.050000000000001 in a float: this line is computed in SQL.
-        { name: "حمص", quantity: 3, unitPrice: "2.35", lineTotal: "7.05" },
+        {
+          name: "حمص",
+          quantity: 3,
+          unitPrice: "2.35",
+          lineTotal: "7.05",
+          note: null,
+        },
         {
           name: "شاورما دجاج",
           quantity: 2,
           unitPrice: "2.50",
           lineTotal: "5.00",
+          note: null,
         },
       ],
       history: [
@@ -404,7 +463,13 @@ describe("GET /orders/:id — contract", () => {
     expect(body.subtotal).toBe("3.00");
     expect(body.total).toBe("3.00");
     expect(body.items).toEqual([
-      { name: "كنافة", quantity: 1, unitPrice: "3.00", lineTotal: "3.00" },
+      {
+        name: "كنافة",
+        quantity: 1,
+        unitPrice: "3.00",
+        lineTotal: "3.00",
+        note: null,
+      },
     ]);
   });
 
@@ -495,7 +560,13 @@ describe("GET /orders/:id — contract", () => {
     const body = await detailOk(id, staffTest, restaurantId);
 
     expect(body.items).toEqual([
-      { name: "فلافل", quantity: 4, unitPrice: "1.00", lineTotal: "4.00" },
+      {
+        name: "فلافل",
+        quantity: 4,
+        unitPrice: "1.00",
+        lineTotal: "4.00",
+        note: null,
+      },
     ]);
     expect(body.subtotal).toBe("4.00");
     expect(body.total).toBe("4.00");

@@ -52,8 +52,20 @@ const ORDER: OrderDetail = {
   createdAt: "2026-10-05T11:54:00.000Z",
   customer: { name: null, phone: PHONE },
   items: [
-    { name: "شاورما", quantity: 2, unitPrice: "5.00", lineTotal: "10.00" },
-    { name: "بطاطا", quantity: 1, unitPrice: "2.00", lineTotal: "2.00" },
+    {
+      name: "شاورما",
+      quantity: 2,
+      unitPrice: "5.00",
+      lineTotal: "10.00",
+      note: null,
+    },
+    {
+      name: "بطاطا",
+      quantity: 1,
+      unitPrice: "2.00",
+      lineTotal: "2.00",
+      note: null,
+    },
   ],
   history: [
     {
