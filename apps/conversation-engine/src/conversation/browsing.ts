@@ -6,6 +6,7 @@ import {
   type SummaryFulfillment,
   HANDOFF_STREAK,
   MAX_QTY_PER_ITEM,
+  NOTE_MAX_LENGTH,
   handoffMessageAr,
   interpretMessage,
   itemNotInCartAr,
@@ -13,6 +14,10 @@ import {
   itemsUnavailableLineAr,
   nextUnparsedStreak,
   nothingUnderstoodAr,
+  noteKey,
+  noteLength,
+  noteTooLongItemAr,
+  noteWithoutName,
   overCapLineAr,
   parseItems,
   unclearPartsLineAr,
@@ -35,6 +40,7 @@ import {
   toSummaryFulfillment,
   writeSessionData,
   type CartLine,
+  type LastAdded,
   type SessionData,
   type StoredReorder,
 } from "./session-data.js";
@@ -156,8 +162,15 @@ function withReply(
 }
 
 export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
-  const { data, intent, catalog, contactPhone, offersDelivery } = input;
+  const { intent, catalog, contactPhone, offersDelivery } = input;
   const { deliveryFeeMinor, currency } = input;
+  /**
+   * 🔴 «آخر إضافة» is emptied by **every** message (brief ن §4) — a command,
+   *    «سلة», «شيل», «منيو», a message not understood: each branch starts
+   *    from this `data`. The items branch writes the lines it added; a note
+   *    alone that sticks keeps them (ن-3).
+   */
+  const data: SessionData = { ...input.data, last_added: [] };
 
   /** الملخّص ← `cart_review`. */
   const summaryDecision = (
@@ -245,6 +258,8 @@ export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
           name: entry.name,
           unit_price_minor: entry.unitPriceMinor,
           qty: item.qty,
+          // The old line's note comes along (brief ن, decision 4).
+          note: item.note,
         });
       }
 
@@ -327,45 +342,106 @@ export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
 
       // parsed · partial — تعرّفنا على صنف حقيقي، فالعدّاد صفر (§13.3).
       const cart = [...data.cart];
-      const added: { name: string; qty: number }[] = [];
+      const added: { name: string; qty: number; note: string | null }[] = [];
+      const lastAdded: LastAdded[] = [];
       const unknownNumbers = [...result.problems.unknownNumbers];
       const unavailable: string[] = [];
       const overCap = result.problems.overCapItems.map((o) => o.requestedQty);
+      /** ن4أ — items whose note is over the limit: not added at all. */
+      const tooLong: string[] = [];
+      const once = <T>(list: T[], value: T): void => {
+        if (!list.includes(value)) list.push(value);
+      };
 
+      // 1. Each line the parser read: its item, live, and its note without
+      //    the item's own name (brief ن §2.3) — the length is checked on
+      //    what is left. Two lines the name made one («2 شاورما 2») are one.
+      const accepted: {
+        itemId: string;
+        name: string;
+        unitPriceMinor: number;
+        qty: number;
+        note: string | null;
+      }[] = [];
       for (const item of result.items) {
         const entry = catalog.get(item.itemId);
         if (entry === undefined) {
           // الصف انمسح كليا — ما في اسم نقول عنه «غير متوفر».
-          unknownNumbers.push(item.number);
+          once(unknownNumbers, item.number);
           continue;
         }
         if (!entry.available) {
-          unavailable.push(entry.name);
+          once(unavailable, entry.name);
           continue;
         }
-        const at = cart.findIndex((l) => l.item_id === item.itemId);
+        const note =
+          item.note === null ? null : noteWithoutName(item.note, entry.name);
+        if (note !== null && noteLength(note) > NOTE_MAX_LENGTH) {
+          once(tooLong, entry.name);
+          continue;
+        }
+        const same = accepted.find(
+          (a) => a.itemId === item.itemId && noteKey(a.note) === noteKey(note),
+        );
+        if (same !== undefined) same.qty += item.qty;
+        else {
+          accepted.push({
+            itemId: item.itemId,
+            name: entry.name,
+            unitPriceMinor: entry.unitPriceMinor,
+            qty: item.qty,
+            note,
+          });
+        }
+      }
+
+      // 2. 🔴 السقف على **السلّة**، لا على الرسالة وحدها (§14.7): «2 ×30» ثم
+      //    «2 ×30» = 60 — **وعلى الصنف كله** (brief ن §4): every line of the
+      //    item in the cart, and every line this message adds to it. Over it,
+      //    the item is refused whole; the number said is the total refused.
+      const refused = new Set<string>();
+      for (const a of accepted) {
+        if (refused.has(a.itemId)) continue;
+        const inCart = cart
+          .filter((l) => l.item_id === a.itemId)
+          .reduce((sum, l) => sum + l.qty, 0);
+        const inMessage = accepted
+          .filter((b) => b.itemId === a.itemId)
+          .reduce((sum, b) => sum + b.qty, 0);
+        if (inCart + inMessage > MAX_QTY_PER_ITEM) {
+          refused.add(a.itemId);
+          overCap.push(inCart + inMessage);
+        }
+      }
+
+      // 3. A line is (item, note normalized): the same key adds to it, and
+      //    its first snapshot stays; a new key is a line at today's price.
+      for (const a of accepted) {
+        if (refused.has(a.itemId)) continue;
+        const at = cart.findIndex(
+          (l) => l.item_id === a.itemId && noteKey(l.note) === noteKey(a.note),
+        );
         const existing = at === -1 ? undefined : cart[at];
-        const total = (existing?.qty ?? 0) + item.qty;
-        // 🔴 السقف على **السلّة**، لا على الرسالة وحدها (§14.7): «2 ×30» ثم
-        //    «2 ×30» = 60. الرقم اللي بينقال هو المجموع المرفوض فعلا (§13.1).
-        if (total > MAX_QTY_PER_ITEM) {
-          overCap.push(total);
-          continue;
-        }
         if (existing === undefined) {
           // السعر والاسم snapshot لحظة الإضافة — وعد للزبون (§14.5).
           cart.push({
-            item_id: item.itemId,
-            name: entry.name,
-            unit_price_minor: entry.unitPriceMinor,
-            qty: item.qty,
+            item_id: a.itemId,
+            name: a.name,
+            unit_price_minor: a.unitPriceMinor,
+            qty: a.qty,
+            note: a.note,
           });
-          added.push({ name: entry.name, qty: item.qty });
+          added.push({ name: a.name, qty: a.qty, note: a.note });
+          lastAdded.push({ item_id: a.itemId, note: a.note, qty: a.qty });
         } else {
-          // سطر موجود: الكمية بتزيد، والـsnapshot الأول بيضل — سطر واحد لكل
-          // صنف بسعر واحد (§7).
-          cart[at] = { ...existing, qty: total };
-          added.push({ name: existing.name, qty: item.qty });
+          // سطر موجود: الكمية بتزيد، والـsnapshot الأول بيضل — ونص ملاحظته.
+          cart[at] = { ...existing, qty: existing.qty + a.qty };
+          added.push({ name: existing.name, qty: a.qty, note: existing.note });
+          lastAdded.push({
+            item_id: a.itemId,
+            note: existing.note,
+            qty: a.qty,
+          });
         }
       }
 
@@ -381,6 +457,7 @@ export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
         lines.push(itemsUnavailableLineAr(unavailable));
       }
       if (overCap.length > 0) lines.push(overCapLineAr(overCap));
+      for (const name of tooLong) lines.push(noteTooLongItemAr(name));
       if (result.problems.unclearParts.length > 0) {
         lines.push(unclearPartsLineAr(result.problems.unclearParts));
       }
@@ -397,6 +474,7 @@ export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
         cart,
         unparsed_streak: streak,
         finish_hint_sent: finishHintSent,
+        last_added: lastAdded,
       };
       return withReply(next, lines.length > 0 ? lines.join("\n") : null);
     }

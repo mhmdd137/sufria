@@ -448,6 +448,36 @@ export const CART_EMPTY_ON_FINISH_AR =
 export const HANDOFF_AR = `للطلب مباشرة: ${RESTAURANT_PHONE_SLOT}`;
 
 // ---------------------------------------------------------------------------
+// ملاحظات الأصناف — بريف ن §3، حرفيا (محمد وافق، 19 أكتوبر 11:44).
+// ---------------------------------------------------------------------------
+
+/** The customer's note for a line, as written (brief ن, decision 7). */
+export const NOTE_SLOT = "[الملاحظة]";
+
+/** ن1's label alone — the dashboard shows it on its own (brief ن §8). */
+export const NOTE_LABEL_AR = "ملاحظة:";
+/** ن1 — under the item, in «أضفت», «سلة», the summary and «آخر طلب لك». */
+export const NOTE_LINE_AR = `${NOTE_LABEL_AR} ${NOTE_SLOT}`;
+/** ن3 — a note in a message of its own stuck to the last item added. */
+export const NOTE_ADDED_HEADER_AR = "أضفت الملاحظة:";
+/**
+ * ن4أ — a note over the limit with its number: **the item is not added**.
+ * «الصنف [الاسم] …», the name never the subject (cart brief §14.6).
+ */
+export const NOTE_TOO_LONG_ITEM_AR = `الصنف ${ITEM_NAME_SLOT} لم يُضف: ملاحظته أطول من 100 حرف. اكتب رقمه وملاحظة أقصر.`;
+/** ن4ب — a note alone over the limit, or once joined to the one it has. */
+export const NOTE_TOO_LONG_AR = "الملاحظة أطول من 100 حرف. اكتبها أقصر.";
+/** ن5 — once in a session (`note_hint_sent`), when a note did not stick. */
+export const NOTE_HINT_AR = "للملاحظة، اكتبها بعد رقم الصنف في نفس الرسالة.";
+
+/**
+ * A note's limit, in characters as `char_length` counts them — the same as
+ * 0019's CHECK. The 100 is written in ن4أ and ن4ب themselves, like the 50 of
+ * the quantity cap; a test ties them to this constant.
+ */
+export const NOTE_MAX_LENGTH = 100;
+
+// ---------------------------------------------------------------------------
 // ما بعد السلّة — طريقة الاستلام، والعنوان، والملخّص (ج §6)
 // ---------------------------------------------------------------------------
 
@@ -543,6 +573,12 @@ export const CART_TEXT_TEMPLATES_AR: readonly string[] = [
   CART_EMPTY_AR,
   CART_EMPTY_ON_FINISH_AR,
   HANDOFF_AR,
+  // ملاحظات الأصناف (بريف ن).
+  NOTE_LINE_AR,
+  NOTE_ADDED_HEADER_AR,
+  NOTE_TOO_LONG_ITEM_AR,
+  NOTE_TOO_LONG_AR,
+  NOTE_HINT_AR,
   // كتلة إعادة الطلب (بريف ك) — جنب سطور السلّة اللي بتتركّب منها.
   REORDER_HEADER_AR,
   REORDER_HINT_AR,
@@ -627,15 +663,30 @@ export function menuLineAr(
   });
 }
 
-/** سطر الإضافة — صنف واحد بسطر، أو رأس + أسطر + مجموع. فاضي لو ما انضاف شي. */
+/** ن1 — the note's line, under its item. The note is printed as written. */
+export function noteLineAr(note: string): string {
+  return fillSlots(NOTE_LINE_AR, { [NOTE_SLOT]: note });
+}
+
+/** The item's line and, when it has a note, ن1 under it. */
+const withNoteLine = (line: string, note: string | null | undefined) =>
+  note == null ? [line] : [line, noteLineAr(note)];
+
+/**
+ * سطر الإضافة — صنف واحد بسطر، أو رأس + أسطر + مجموع. فاضي لو ما انضاف شي.
+ *
+ * ن2 (brief ن §3): when any line added carries a note, always the multiple
+ * form — ن1 under each line that has one. With no note, exactly as before.
+ */
 export function itemsAddedLinesAr(
-  added: readonly { name: string; qty: number }[],
+  added: readonly { name: string; qty: number; note?: string | null }[],
   cartTotalMinor: number,
   currency: Currency,
 ): string[] {
   const total = formatMinor(cartTotalMinor);
   if (added.length === 0) return [];
-  if (added.length === 1) {
+  const noted = added.some((a) => a.note != null);
+  if (added.length === 1 && !noted) {
     const [only] = added;
     return [
       fillSlots(ITEM_ADDED_AR, {
@@ -648,11 +699,14 @@ export function itemsAddedLinesAr(
   }
   return [
     ITEMS_ADDED_HEADER_AR,
-    ...added.map((a) =>
-      fillSlots(ITEMS_ADDED_LINE_AR, {
-        [ITEM_NAME_SLOT]: a.name,
-        [QUANTITY_SLOT]: String(a.qty),
-      }),
+    ...added.flatMap((a) =>
+      withNoteLine(
+        fillSlots(ITEMS_ADDED_LINE_AR, {
+          [ITEM_NAME_SLOT]: a.name,
+          [QUANTITY_SLOT]: String(a.qty),
+        }),
+        a.note,
+      ),
     ),
     fillSlots(CART_TOTAL_LINE_AR, {
       [TOTAL_SLOT]: total,
@@ -728,13 +782,45 @@ export function itemNotInCartAr(name: string): string {
   return fillSlots(ITEM_NOT_IN_CART_AR, { [ITEM_NAME_SLOT]: name });
 }
 
+/** ن3 — the note stuck: the pieces it went to, and the note whole. */
+export function noteAddedAr(name: string, qty: number, note: string): string {
+  return [
+    NOTE_ADDED_HEADER_AR,
+    fillSlots(ITEMS_ADDED_LINE_AR, {
+      [ITEM_NAME_SLOT]: name,
+      [QUANTITY_SLOT]: String(qty),
+    }),
+    noteLineAr(note),
+  ].join("\n");
+}
+
+/** ن4أ — one line per item whose note was too long, so not added. */
+export function noteTooLongItemAr(name: string): string {
+  return fillSlots(NOTE_TOO_LONG_ITEM_AR, { [ITEM_NAME_SLOT]: name });
+}
+
 export interface CartDisplayLine {
   /** رقم الصنف بالخريطة **الحالية**. `null` لو ما عاد إله رقم. */
   readonly menuNumber: number | null;
   readonly name: string;
   readonly qty: number;
   readonly lineTotalMinor: number;
+  /** The line's note (brief ن): ن1 under it. Absent or `null`: none. */
+  readonly note?: string | null;
 }
+
+/** A cart line as «سلة» and the summary write it, with ن1 under a note. */
+const cartLineAr = (l: CartDisplayLine, currency: Currency): string[] =>
+  withNoteLine(
+    fillSlots(l.menuNumber === null ? CART_LINE_UNNUMBERED_AR : CART_LINE_AR, {
+      [MENU_NUMBER_SLOT]: String(l.menuNumber),
+      [ITEM_NAME_SLOT]: l.name,
+      [QUANTITY_SLOT]: String(l.qty),
+      [LINE_PRICE_SLOT]: formatMinor(l.lineTotalMinor),
+      ...currencySlot(currency),
+    }),
+    l.note,
+  );
 
 /**
  * عرض السلّة كاملة، أو نص السلّة الفارغة.
@@ -752,18 +838,7 @@ export function cartMessageAr(
   if (lines.length === 0) return CART_EMPTY_AR;
   return [
     CART_HEADER_AR,
-    ...lines.map((l) =>
-      fillSlots(
-        l.menuNumber === null ? CART_LINE_UNNUMBERED_AR : CART_LINE_AR,
-        {
-          [MENU_NUMBER_SLOT]: String(l.menuNumber),
-          [ITEM_NAME_SLOT]: l.name,
-          [QUANTITY_SLOT]: String(l.qty),
-          [LINE_PRICE_SLOT]: formatMinor(l.lineTotalMinor),
-          ...currencySlot(currency),
-        },
-      ),
-    ),
+    ...lines.flatMap((l) => cartLineAr(l, currency)),
     fillSlots(CART_TOTAL_LINE_AR, {
       [TOTAL_SLOT]: formatMinor(cartTotalMinor),
       ...currencySlot(currency),
@@ -777,6 +852,8 @@ export interface ReorderBlockLine {
   readonly name: string;
   readonly qty: number;
   readonly lineTotalMinor: number;
+  /** The old line's note (brief ن, decision 4): ن1 under it. */
+  readonly note?: string | null;
 }
 
 /**
@@ -803,14 +880,7 @@ export function reorderBlockAr(
   const totalMinor = lines.reduce((sum, l) => sum + l.lineTotalMinor, 0);
   return [
     REORDER_HEADER_AR,
-    ...lines.map((l) =>
-      fillSlots(CART_LINE_UNNUMBERED_AR, {
-        [ITEM_NAME_SLOT]: l.name,
-        [QUANTITY_SLOT]: String(l.qty),
-        [LINE_PRICE_SLOT]: formatMinor(l.lineTotalMinor),
-        ...currencySlot(currency),
-      }),
-    ),
+    ...lines.flatMap((l) => cartLineAr({ ...l, menuNumber: null }, currency)),
     fillSlots(CART_TOTAL_LINE_AR, {
       [TOTAL_SLOT]: formatMinor(totalMinor),
       ...currencySlot(currency),
@@ -866,18 +936,7 @@ export function buildOrderSummary(
 
   return [
     SUMMARY_HEADER_AR,
-    ...lines.map((l) =>
-      fillSlots(
-        l.menuNumber === null ? CART_LINE_UNNUMBERED_AR : CART_LINE_AR,
-        {
-          [MENU_NUMBER_SLOT]: String(l.menuNumber),
-          [ITEM_NAME_SLOT]: l.name,
-          [QUANTITY_SLOT]: String(l.qty),
-          [LINE_PRICE_SLOT]: formatMinor(l.lineTotalMinor),
-          ...currencySlot(currency),
-        },
-      ),
-    ),
+    ...lines.flatMap((l) => cartLineAr(l, currency)),
     ...(feeMinor > 0
       ? [
           fillSlots(SUMMARY_FEE_LINE_AR, {

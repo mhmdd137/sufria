@@ -29,9 +29,29 @@ const cartLineSchema = z.object({
    */
   unit_price_minor: z.number().int().nonnegative(),
   qty: z.number().int().positive(),
+  /**
+   * The customer's note for this line (brief ن), as written, or `null`. A
+   * line is (`item_id`, the note normalized — `noteKey`): the same item with
+   * two notes is two lines. A session written before brief ن reads `null`.
+   */
+  note: z.string().nullable().default(null),
 });
 
 export type CartLine = z.infer<typeof cartLineSchema>;
+
+/**
+ * What the last message added (brief ن §4): one entry per line it added to,
+ * with the pieces it added — not the line's whole quantity. A note in a
+ * message of its own sticks to it when it holds exactly one (ن-3). Every
+ * other message empties it.
+ */
+const lastAddedSchema = z.object({
+  item_id: z.string().uuid(),
+  note: z.string().nullable(),
+  qty: z.number().int().positive(),
+});
+
+export type LastAdded = z.infer<typeof lastAddedSchema>;
 
 /**
  * طريقة الاستلام واللي بيتبعها — ج §4.
@@ -112,6 +132,8 @@ const reorderSchema = z.object({
         item_id: z.string().uuid(),
         name: z.string(),
         qty: z.number().int().positive(),
+        /** The old line's note (brief ن, decision 4); before brief ن, none. */
+        note: z.string().nullable().default(null),
       }),
     )
     .min(1),
@@ -133,6 +155,10 @@ const sessionDataSchema = z.object({
   unparsed_streak: z.number().int().nonnegative().default(0),
   handoff_sent: z.boolean().default(false),
   finish_hint_sent: z.boolean().default(false),
+  /** ن5, the note hint — once in a session, like «تم»'s (brief ن §3). */
+  note_hint_sent: z.boolean().default(false),
+  /** What the last message added (brief ن §4); `[]` after any other. */
+  last_added: z.array(lastAddedSchema).default([]),
   /**
    * ⚠️ فجوة قياس مقصود سدّها: `orders.outbound_msg_count` هو مدخل تسعير
    * الاشتراك، بس رسائل ما قبل إنشاء الطلب ما بتنعدّ عليه — الطلب لسا ما انخلق.

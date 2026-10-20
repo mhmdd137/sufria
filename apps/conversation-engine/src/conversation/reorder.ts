@@ -219,6 +219,7 @@ export function buildReorderSuggestion(
         item_id: l.itemId,
         name: l.name,
         qty: l.qty,
+        note: null,
       })),
     },
   };
