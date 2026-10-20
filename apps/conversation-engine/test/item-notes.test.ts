@@ -479,3 +479,133 @@ describe("ن-3 · a note in a message of its own", () => {
     expect(await s.cart()).toEqual([["شاورما دجاج", 1, null]]);
   });
 });
+
+// ===========================================================================
+describe("ن-4 · the summary, «أكّد», «آخر طلب لك» and «نفسه»", () => {
+  const SUMMARY_TAIL = [
+    "الاستلام من المطعم",
+    "الدفع نقدا.",
+    "اكتب «أكّد» لإرسال الطلب، أو «عدّل» أو «ألغِ».",
+  ];
+
+  it("the summary: ن1 under each line with a note; «أكّد» writes order_items.notes", async () => {
+    const s = await shop("summary");
+    await s.say("2 بدون بصل 2 1");
+    await s.say("تم");
+    expect(s.last()).toBe(
+      [
+        "ملخّص طلبك:",
+        "2 · شاورما دجاج ×1 — 3.50 د.أ",
+        "ملاحظة: بدون بصل",
+        "2 · شاورما دجاج ×1 — 3.50 د.أ",
+        "1 · حمص ×1 — 2.50 د.أ",
+        "المجموع 9.50 د.أ",
+        ...SUMMARY_TAIL,
+      ].join("\n"),
+    );
+    await s.say("اكد");
+    const { rows } = await audit.query<{
+      name: string;
+      quantity: number;
+      notes: string | null;
+    }>(
+      `SELECT oi.item_name_snapshot AS name, oi.quantity, oi.notes
+         FROM order_items oi JOIN orders o ON o.id = oi.order_id
+        WHERE o.restaurant_id = $1
+        ORDER BY oi.item_name_snapshot, oi.notes NULLS FIRST`,
+      [s.restaurantId],
+    );
+    expect(rows).toEqual([
+      { name: "حمص", quantity: 1, notes: null },
+      { name: "شاورما دجاج", quantity: 1, notes: null },
+      { name: "شاورما دجاج", quantity: 1, notes: "بدون بصل" },
+    ]);
+  });
+
+  /** A finished order 5 hours old, its lines as given, for a new customer. */
+  async function pastOrder(
+    s: Shop,
+    from: string,
+    lines: { item: string; qty: number; note: string | null }[],
+  ): Promise<void> {
+    const customer = await audit.query<{ id: string }>(
+      `INSERT INTO customers (restaurant_id, phone_number) VALUES ($1, $2) RETURNING id`,
+      [s.restaurantId, from],
+    );
+    const order = await audit.query<{ id: string }>(
+      `INSERT INTO orders (restaurant_id, customer_id, order_number, fulfillment_type,
+                           payment_method, status, payment_status, notified,
+                           subtotal, total, created_at, updated_at)
+       VALUES ($1, $2, 900, 'pickup', 'cash', 'completed', 'collected', true,
+               10.00, 10.00, now() - interval '5 hours', now() - interval '5 hours')
+       RETURNING id`,
+      [s.restaurantId, customer.rows[0]?.id],
+    );
+    for (const line of lines) {
+      await audit.query(
+        `INSERT INTO order_items (order_id, restaurant_id, menu_item_id,
+                                  item_name_snapshot, unit_price_snapshot, quantity, notes)
+         VALUES ($1, $2, $3, $4, 1.00, $5, $6)`,
+        [
+          order.rows[0]?.id,
+          s.restaurantId,
+          s.ids[line.item],
+          line.item,
+          line.qty,
+          line.note,
+        ],
+      );
+    }
+  }
+
+  it("«آخر طلب لك» shows ن1; «نفسه» copies the notes, line by line, to the summary", async () => {
+    const s = await shop("reorder");
+    const from = nextCustomer();
+    await pastOrder(s, from, [
+      { item: "شاورما دجاج", qty: 2, note: "بدون بصل" },
+      { item: "شاورما دجاج", qty: 1, note: null },
+      { item: "حمص", qty: 1, note: null },
+    ]);
+    await s.sayAs(from, "مرحبا");
+    const first = replies.forRestaurant(s.restaurantId).at(-1)?.body ?? "";
+    expect(first).toContain(
+      [
+        "آخر طلب لك:",
+        "حمص ×1 — 2.50 د.أ",
+        "شاورما دجاج ×1 — 3.50 د.أ",
+        "شاورما دجاج ×2 — 7 د.أ",
+        "ملاحظة: بدون بصل",
+        "المجموع 13 د.أ",
+        "اكتب «نفسه» لتكرار الطلب.",
+      ].join("\n"),
+    );
+
+    await s.sayAs(from, "نفسه");
+    expect(replies.forRestaurant(s.restaurantId).at(-1)?.body).toBe(
+      [
+        "ملخّص طلبك:",
+        "1 · حمص ×1 — 2.50 د.أ",
+        "2 · شاورما دجاج ×1 — 3.50 د.أ",
+        "2 · شاورما دجاج ×2 — 7 د.أ",
+        "ملاحظة: بدون بصل",
+        "المجموع 13 د.أ",
+        ...SUMMARY_TAIL,
+      ].join("\n"),
+    );
+  });
+
+  it("an order from before brief ن (no notes): the block as today", async () => {
+    const s = await shop("reorder-old");
+    const from = nextCustomer();
+    await pastOrder(s, from, [
+      { item: "شاورما دجاج", qty: 1, note: null },
+      { item: "شاورما دجاج", qty: 1, note: null },
+    ]);
+    await s.sayAs(from, "مرحبا");
+    const first = replies.forRestaurant(s.restaurantId).at(-1)?.body ?? "";
+    expect(first).toContain(
+      "آخر طلب لك:\nشاورما دجاج ×2 — 7 د.أ\nالمجموع 7 د.أ\n",
+    );
+    expect(first).not.toContain("ملاحظة:");
+  });
+});

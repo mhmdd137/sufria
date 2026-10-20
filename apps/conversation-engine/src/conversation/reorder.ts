@@ -10,6 +10,7 @@ import {
 import {
   MAX_QTY_PER_ITEM,
   customers,
+  noteKey,
   orderItems,
   orders,
   reorderBlockAr,
@@ -54,13 +55,18 @@ const DEAD_STATUSES = [
 
 /**
  * The customer's last accepted order, as today's menu will read it: one
- * entry per item, quantities summed across lines (`order_items` may hold
- * one item twice), capped at `MAX_QTY_PER_ITEM`, and a line whose
- * `menu_item_id` is NULL (the row was deleted) left out.
+ * entry per (item, note) — brief ن, decision 4: the notes come along —
+ * quantities summed across lines that share both, the item's lines together
+ * capped at `MAX_QTY_PER_ITEM`, and a line whose `menu_item_id` is NULL (the
+ * row was deleted) left out.
  */
 export interface ReorderSource {
   readonly orderId: string;
-  readonly items: readonly { readonly itemId: string; readonly qty: number }[];
+  readonly items: readonly {
+    readonly itemId: string;
+    readonly qty: number;
+    readonly note: string | null;
+  }[];
 }
 
 /**
@@ -121,27 +127,46 @@ export async function findReorderSource(
     .limit(1);
   if (last === undefined) return null;
 
+  // The line without a note first, then by note: `order_items` has no order
+  // column, and the block must read the same each time.
   const lines = await tx
-    .select({ itemId: orderItems.menuItemId, qty: orderItems.quantity })
+    .select({
+      itemId: orderItems.menuItemId,
+      qty: orderItems.quantity,
+      note: orderItems.notes,
+    })
     .from(orderItems)
     .where(
       and(eq(orderItems.orderId, last.id), isNotNull(orderItems.menuItemId)),
-    );
+    )
+    .orderBy(sql`${orderItems.notes} NULLS FIRST`, orderItems.id);
 
-  const qtyOf = new Map<string, number>();
+  const entries = new Map<
+    string,
+    { itemId: string; qty: number; note: string | null }
+  >();
   for (const line of lines) {
     if (line.itemId === null) continue;
-    qtyOf.set(line.itemId, (qtyOf.get(line.itemId) ?? 0) + line.qty);
+    const key = `${line.itemId}|${line.note === null ? "" : `+${noteKey(line.note)}`}`;
+    const kept = entries.get(key);
+    if (kept === undefined) {
+      entries.set(key, { itemId: line.itemId, qty: line.qty, note: line.note });
+    } else kept.qty += line.qty;
   }
-  if (qtyOf.size === 0) return null;
+  if (entries.size === 0) return null;
 
-  return {
-    orderId: last.id,
-    items: [...qtyOf].map(([itemId, qty]) => ({
-      itemId,
-      qty: Math.min(qty, MAX_QTY_PER_ITEM),
-    })),
-  };
+  // The cap on the item's lines together, as in the cart: each line takes
+  // what is left of it, in the order above (an order the engine wrote never
+  // passes it — its cart could not).
+  const left = new Map<string, number>();
+  const items: { itemId: string; qty: number; note: string | null }[] = [];
+  for (const entry of entries.values()) {
+    const room = left.get(entry.itemId) ?? MAX_QTY_PER_ITEM;
+    const qty = Math.min(entry.qty, room);
+    left.set(entry.itemId, room - qty);
+    if (qty > 0) items.push({ ...entry, qty });
+  }
+  return { orderId: last.id, items };
 }
 
 /** The block as the first message shows it, and what the session keeps. */
@@ -178,15 +203,17 @@ export function buildReorderSuggestion(
     name: string;
     qty: number;
     unitPriceMinor: number;
+    note: string | null;
   }[] = [];
   const missing: string[] = [];
 
-  for (const { itemId, qty } of source.items) {
+  for (const { itemId, qty, note } of source.items) {
     const entry = catalog.get(itemId);
     // A row gone entirely has no name to say «غير متوفر» about.
     if (entry === undefined) continue;
     if (!entry.available) {
-      missing.push(entry.name);
+      // Named once, whatever its lines (brief ن §4).
+      if (!missing.includes(entry.name)) missing.push(entry.name);
       continue;
     }
     shown.push({
@@ -194,6 +221,7 @@ export function buildReorderSuggestion(
       name: entry.name,
       qty,
       unitPriceMinor: entry.unitPriceMinor,
+      note,
     });
   }
   if (shown.length === 0) return null;
@@ -209,6 +237,7 @@ export function buildReorderSuggestion(
         name: l.name,
         qty: l.qty,
         lineTotalMinor: l.qty * l.unitPriceMinor,
+        note: l.note,
       })),
       missing,
       currency,
@@ -219,7 +248,7 @@ export function buildReorderSuggestion(
         item_id: l.itemId,
         name: l.name,
         qty: l.qty,
-        note: null,
+        note: l.note,
       })),
     },
   };

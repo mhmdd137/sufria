@@ -8,8 +8,9 @@
 // Section 7 does the same for 0011's order number and currency, and section 8
 // for 0014's «an archived item is never available».
 // Section 9 checks 0015's partial index for the reorder suggestion, and
-// section 10 0016's columns for a customer's message after an order, and
-// section 11 0017's column for when they were read.
+// section 10 0016's columns for a customer's message after an order,
+// section 11 0017's column for when they were read, and section 12 0019's
+// limit on an item's note.
 //
 // Every order inserted here carries an explicit order_number (0011: NOT NULL,
 // no default), and no two orders of the same restaurant in one section share
@@ -847,6 +848,41 @@ async function main() {
       ? "missing"
       : `${seenColumn.data_type}, nullable ${seenColumn.is_nullable}`,
   );
+
+  // --- 12. 0019 an item's note: 1 to 100 characters, or NULL (brief ن §6.4) -
+  // On the fixture's order 101: each insert is rolled back, accepted or not.
+  const insertItemNote = (note: string) =>
+    sql.raw(`
+    INSERT INTO order_items (order_id, restaurant_id, menu_item_id,
+                             item_name_snapshot, unit_price_snapshot, quantity, notes)
+    VALUES ('f0000000-0000-4000-8000-00000000000a', '${RID}',
+            'e0000000-0000-4000-8000-00000000000a', 'شاورما دجاج', 2.50, 1, ${note})`);
+
+  await rejects(
+    "12. order_items_notes_length: a note of 101 characters",
+    "order_items_notes_length",
+    insertItemNote("repeat('ب', 101)"),
+  );
+  await rejects(
+    "12. order_items_notes_length: an empty note ('')",
+    "order_items_notes_length",
+    insertItemNote("''"),
+  );
+  for (const [label, note] of [
+    ["100 characters", "repeat('ب', 100)"],
+    ["NULL", "NULL"],
+  ] as const) {
+    let noted = false;
+    await db
+      .transaction(async (tx) => {
+        await withTenant(tx);
+        await tx.execute(insertItemNote(note) as never);
+        noted = true;
+        tx.rollback();
+      })
+      .catch(() => {});
+    check(`12. order_items_notes_length: ${label} is accepted`, noted);
+  }
 
   console.log(
     `\n${failures === 0 ? "ALL PRIMITIVES VERIFIED" : failures + " FAILED"}`,

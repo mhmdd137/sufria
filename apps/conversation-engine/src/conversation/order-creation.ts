@@ -203,6 +203,9 @@ export async function insertOrder(
       itemNameSnapshot: line.name,
       unitPriceSnapshot: sql`${line.unit_price_minor}::numeric / 100`,
       quantity: line.qty,
+      // The customer's note for the line, as written, or NULL (brief ن) —
+      // never '' and never over 100: 0019's CHECK is the net.
+      notes: line.note,
     })),
   );
 
