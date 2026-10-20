@@ -355,7 +355,9 @@ describe("الإضافة والمجموع", () => {
 describe("ترتيب الأسطر و partial", () => {
   it("🔴 النجاح أولا ثم المشاكل: إضافة · رقم غلط · سقف · جزء غير واضح", async () => {
     const s = await shop({ label: "order", items: TWO });
-    await s.say("1 و15 و2 ×60 بدون بصل");
+    // Brief ن: after a number the text is its note, so the unclear part
+    // goes before the first number (approved, 19 October).
+    await s.say("بدون بصل 1 و15 و2 ×60");
     expect(s.last()?.split("\n")).toEqual([
       "أضفت: حمص ×1 — المجموع 2.50 د.أ",
       "الرقم 15 غير موجود في المنيو. الأرقام من 1 إلى 2.",

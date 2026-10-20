@@ -250,12 +250,43 @@ export async function writeSessionData(
   data: SessionData,
   touchedAt?: Date,
 ): Promise<void> {
+  const context = storedForm(data);
   await tx
     .update(conversationSessions)
     .set(
       touchedAt === undefined
-        ? { context: data }
-        : { context: data, lastMessageAt: touchedAt },
+        ? { context }
+        : { context, lastMessageAt: touchedAt },
     )
     .where(eq(conversationSessions.id, sessionId));
+}
+
+/** `{ ...line }` without its `note` when it has none. */
+function withoutNullNote<L extends { note: string | null }>(
+  line: L,
+): Omit<L, "note"> | L {
+  if (line.note !== null) return line;
+  const rest: Partial<L> = { ...line };
+  delete rest.note;
+  return rest as Omit<L, "note">;
+}
+
+/**
+ * The shape written (brief ن): a line or a suggested item **with no note
+ * carries no `note` key**, so a session without notes is written exactly as
+ * before brief ن — the read gives it back `null` (`.default(null)`).
+ */
+function storedForm(data: SessionData): unknown {
+  return {
+    ...data,
+    cart: data.cart.map(withoutNullNote),
+    ...(data.reorder === undefined
+      ? {}
+      : {
+          reorder: {
+            ...data.reorder,
+            items: data.reorder.items.map(withoutNullNote),
+          },
+        }),
+  };
 }
