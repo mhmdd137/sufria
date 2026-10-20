@@ -181,6 +181,14 @@ function Ready({
                 <li key={i} className={styles.lineItem}>
                   <span className={styles.lineLabel}>{l.label}</span>
                   <span className={`num ${styles.amount}`}>{l.amount}</span>
+                  {l.note !== null && (
+                    <p className={styles.lineNote}>
+                      <span className={styles.noteLabel}>{view.noteLabel}</span>{" "}
+                      <bdi dir="auto" className={styles.noteText}>
+                        {l.note}
+                      </bdi>
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

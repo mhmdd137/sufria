@@ -6,7 +6,10 @@
  */
 import {
   DASHBOARD_UI_AR,
+  ITEM_NAME_SLOT,
+  NOTE_LABEL_AR,
   ORDER_STATUS_LABEL_AR,
+  QUANTITY_SLOT,
   amountAr,
   customerLabelAr,
   itemsSummaryAr,
@@ -17,6 +20,7 @@ import {
   unreadLabelAr,
   type Currency,
   type OrderListItem,
+  type OrderListLine,
   type OrderTab,
   type StaffAction,
 } from "@sufria/shared";
@@ -82,6 +86,35 @@ export type CardMessage = {
   label: string;
 };
 
+/**
+ * A line with a note, on a line of its own under the grey one (brief ن §8,
+ * option ب): «شاورما ×2 ملاحظة: بدون بصل» — the quantity always, in the
+ * numbers' font; the note whole, never cut.
+ */
+export type NotedLine = {
+  /** «شاورما ×» — `itemLine` up to its quantity. */
+  item: string;
+  quantity: string;
+  /** «ملاحظة:» — `NOTE_LABEL_AR`. */
+  label: string;
+  /** The customer's words, as written: shown in a `<bdi dir="auto">`. */
+  note: string;
+};
+
+/** «شاورما ×» and «2»: the item's line split at its quantity. */
+export function notedLine(line: OrderListLine & { note: string }): NotedLine {
+  const [lead = ""] = DASHBOARD_UI_AR.itemLine.split(QUANTITY_SLOT);
+  return {
+    item: lead.split(ITEM_NAME_SLOT).join(line.name),
+    quantity: String(line.quantity),
+    label: NOTE_LABEL_AR,
+    note: line.note,
+  };
+}
+
+const hasNote = (l: OrderListLine): l is OrderListLine & { note: string } =>
+  l.note !== null;
+
 export type CardView = {
   /** The details page the card opens — on its number, stretched over it. */
   href: string;
@@ -89,8 +122,13 @@ export type CardView = {
   customer: string;
   /** `customer` is the masked number: set in the numbers' font. */
   customerMasked: boolean;
-  /** «استلام · شاورما ×2 · بطاطا» — grey, cut with … when long. */
+  /**
+   * «استلام · شاورما ×2 · بطاطا» — grey, cut with … when long. The items
+   * with no note alone (brief ن §8.1): a noted one is in `notes`.
+   */
   details: string;
+  /** Under the grey line, one per line with a note, in the items' order. */
+  notes: NotedLine[];
   /** Under the details, in history, for a cancellation with a reason. */
   reason: string | null;
   badge: string;
@@ -128,7 +166,7 @@ export function cardView(
   currency: Currency,
   now: number,
 ): CardView {
-  const summary = itemsSummaryAr(order.items);
+  const summary = itemsSummaryAr(order.items.filter((l) => !hasNote(l)));
   const kind = DASHBOARD_UI_AR.fulfillment[order.fulfillmentType];
   return {
     href: orderHref(order.id, place === "history" ? "history" : "active"),
@@ -138,6 +176,7 @@ export function cardView(
     details: summary
       ? `${kind}${DASHBOARD_UI_AR.itemSeparator}${summary}`
       : kind,
+    notes: order.items.filter(hasNote).map(notedLine),
     reason:
       place !== "active" && order.status === "cancelled"
         ? order.cancellationReason

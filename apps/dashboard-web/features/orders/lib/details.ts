@@ -7,6 +7,7 @@ import {
   DASHBOARD_REPLY_UI_AR,
   DASHBOARD_UI_AR,
   MAX_CANCELLATION_REASON_LENGTH,
+  NOTE_LABEL_AR,
   ORDER_STATUS_LABEL_AR,
   PAYMENT_STATUS_LABEL_AR,
   STAFF_TRANSITIONS,
@@ -55,8 +56,13 @@ export type DetailView = {
   /** `customer` is the masked number: set in the numbers' font. */
   customerMasked: boolean;
   since: string;
-  /** One per item: «شاورما ×2» and its line total with the currency. */
-  lines: { label: string; amount: string }[];
+  /**
+   * One per item: «شاورما ×2» and its line total with the currency — and,
+   * under it, its note (brief ن §8.2), or `null`.
+   */
+  lines: { label: string; amount: string; note: string | null }[];
+  /** «ملاحظة:» before a line's note. */
+  noteLabel: string;
   /** «رسوم التوصيل» — for a delivery alone. */
   deliveryFee: string | null;
   total: string;
@@ -109,7 +115,9 @@ export function detailView(
     lines: order.items.map((item) => ({
       label: itemsSummaryAr([item]),
       amount: amountAr(item.lineTotal, currency),
+      note: item.note,
     })),
+    noteLabel: NOTE_LABEL_AR,
     deliveryFee: delivery ? amountAr(order.deliveryFee, currency) : null,
     total: amountAr(order.total, currency),
     payment: PAYMENT_STATUS_LABEL_AR[order.paymentStatus] ?? null,

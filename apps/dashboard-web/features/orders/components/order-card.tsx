@@ -27,6 +27,9 @@ type Props = {
  * — a button inside a link is two controls in one — and sits above that
  * layer, so pressing it acts without opening.
  *
+ * Under the grey line, a line of its own for each item with a note (brief ن
+ * §8.1): the item, «ملاحظة:», and the note whole — it wraps, never cut.
+ *
  * Under the details, while a message is unread (brief م-ب): the customer's
  * latest, in the conversation's customer bubble cut to one line — or the
  * word of its kind, in grey — and the unread count beside it.
@@ -64,6 +67,16 @@ export function OrderCard({ order, place, currency, now, onOutcome }: Props) {
             </bdi>
           </div>
           <div className={styles.details}>{view.details}</div>
+          {view.notes.map((n, i) => (
+            <p key={i} className={styles.note}>
+              {n.item}
+              <span className="num">{n.quantity}</span>{" "}
+              <span className={styles.noteLabel}>{n.label}</span>{" "}
+              <bdi dir="auto" className={styles.noteText}>
+                {n.note}
+              </bdi>
+            </p>
+          ))}
           {view.reason && (
             <div className={styles.details} dir="auto">
               {view.reason}

@@ -76,6 +76,7 @@ test("cardView: the brief's card, right to left, all from shared", () => {
     customer: "•••• 4321",
     customerMasked: true,
     details: "توصيل · شاورما ×2 · بطاطا",
+    notes: [],
     reason: null,
     badge: "قيد التحضير",
     amount: "13.50 د.أ",

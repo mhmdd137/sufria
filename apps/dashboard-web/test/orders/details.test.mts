@@ -212,8 +212,8 @@ test("the order, in its words: lines, the fee for a delivery alone, the total, p
   assert.equal(view.kind, "توصيل");
   assert.equal(view.since, "منذ 6 دقائق");
   assert.deepEqual(view.lines, [
-    { label: "شاورما ×2", amount: "10 د.أ" },
-    { label: "بطاطا", amount: "2 د.أ" },
+    { label: "شاورما ×2", amount: "10 د.أ", note: null },
+    { label: "بطاطا", amount: "2 د.أ", note: null },
   ]);
   assert.equal(view.deliveryFee, "1.50 د.أ");
   assert.equal(view.total, "13.50 د.أ");
