@@ -196,6 +196,8 @@ test("the details page: the note inside the line's li, across both columns, wrap
   assert.match(block, /<p className=\{styles\.lineNote\}>/);
   assert.match(block, /<bdi dir="auto" className=\{styles\.noteText\}>/);
   const css = read("order-details.module.css");
+  // 2px under its own line — the 12px column gap is not the row's.
+  assert.match(rule(css, ".lineItem"), /gap: 2px 12px;/);
   const note = rule(css, ".lineNote");
   assert.match(note, /grid-column: 1 \/ -1;/);
   assert.match(note, /font-size: 15px;/);
