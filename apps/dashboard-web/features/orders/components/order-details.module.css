@@ -182,7 +182,7 @@
 .lineItem {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
+  gap: 2px 12px;
   align-items: baseline;
   font-size: 15px;
 }
@@ -193,6 +193,28 @@
 
 .amount {
   white-space: nowrap;
+}
+
+/* An item's note, under its line, across both columns (brief ن §8.2): the
+   card's note without the item — «ملاحظة:» 13/600 in grey, the note
+   15/600 in the primary text. It wraps, never cut. 2px under its line, as
+   the card's notes are apart (`.lineItem`'s row gap): at 12 it sat nearer
+   the next item than its own. */
+.lineNote {
+  grid-column: 1 / -1;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.noteLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.noteText {
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .total {

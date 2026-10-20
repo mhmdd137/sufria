@@ -58,7 +58,7 @@ const ORDER: OrderListItem = {
   itemCount: 1,
   createdAt: "2026-10-05T09:00:00.000Z",
   customer: { name: null, phone: "+962790004321" },
-  items: [{ name: "شاورما", quantity: 1 }],
+  items: [{ name: "شاورما", quantity: 1, note: null }],
   statusChangedAt: "2026-10-05T09:00:00.000Z",
   cancellationReason: null,
   unreadMessages: 0,

@@ -224,8 +224,8 @@ const itemOf = (
   customer: { name: null, phone: CUSTOMER_PHONE },
   // By name, then id — «حمص» sorts before «شاورما دجاج».
   items: [
-    { name: "حمص", quantity: 1 },
-    { name: "شاورما دجاج", quantity: 1 },
+    { name: "حمص", quantity: 1, note: null },
+    { name: "شاورما دجاج", quantity: 1, note: null },
   ],
   statusChangedAt: expect.any(String) as unknown as string,
   cancellationReason: null,

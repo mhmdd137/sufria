@@ -35,6 +35,7 @@ export function displayLines(data: SessionData): CartDisplayLine[] {
     name: l.name,
     qty: l.qty,
     lineTotalMinor: l.unit_price_minor * l.qty,
+    note: l.note,
   }));
 }
 

@@ -36,8 +36,8 @@ const ORDER: OrderListItem = {
   createdAt: ago(6 * 60_000),
   customer: { name: null, phone: "+962790004321" },
   items: [
-    { name: "شاورما", quantity: 2 },
-    { name: "بطاطا", quantity: 1 },
+    { name: "شاورما", quantity: 2, note: null },
+    { name: "بطاطا", quantity: 1, note: null },
   ],
   statusChangedAt: ago(30_000),
   cancellationReason: null,
@@ -76,6 +76,7 @@ test("cardView: the brief's card, right to left, all from shared", () => {
     customer: "•••• 4321",
     customerMasked: true,
     details: "توصيل · شاورما ×2 · بطاطا",
+    notes: [],
     reason: null,
     badge: "قيد التحضير",
     amount: "13.50 د.أ",

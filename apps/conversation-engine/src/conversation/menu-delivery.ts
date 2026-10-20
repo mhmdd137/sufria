@@ -168,8 +168,8 @@ function menuMapFrom(lines: readonly MenuLine[]): Record<string, string> {
 }
 
 /** نتيجة فحص التوفّر على سلّة قائمة. */
-export interface PrunedCart {
-  readonly cart: CartLine[];
+export interface PrunedCart<L = CartLine> {
+  readonly cart: L[];
   /** أسماء اللي انحذفوا، بترتيب السلّة. فاضية = ما تغيّر إشي. */
   readonly removed: string[];
 }
@@ -188,16 +188,16 @@ export interface PrunedCart {
  * عاد موجودا ما بيقدر يوصل المطبخ، والاسم محفوظ بالسطر فالرسالة صادقة.
  * (مسار **الإضافة** بيتصرّف غير هيك — §14.8 — لأنه ما عنده اسم محفوظ.)
  */
-export function pruneUnavailable(
-  cart: readonly CartLine[],
-  catalog: Catalog,
-): PrunedCart {
-  const kept: CartLine[] = [];
+export function pruneUnavailable<
+  L extends Pick<CartLine, "item_id" | "name"> = CartLine,
+>(cart: readonly L[], catalog: Catalog): PrunedCart<L> {
+  const kept: L[] = [];
   const removed: string[] = [];
   for (const line of cart) {
     const entry = catalog.get(line.item_id);
-    if (entry === undefined || !entry.available) removed.push(line.name);
-    else kept.push(line);
+    if (entry !== undefined && entry.available) kept.push(line);
+    // 🔴 An item on two lines (two notes, brief ن) is named once.
+    else if (!removed.includes(line.name)) removed.push(line.name);
   }
   return { cart: kept, removed };
 }

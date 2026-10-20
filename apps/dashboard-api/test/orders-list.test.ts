@@ -422,9 +422,9 @@ describe("GET /orders — tabs and ordering", () => {
       createdAt: at(0),
       customer: { name: null, phone: "+962791234567" },
       items: [
-        { name: "صنف 1", quantity: 1 },
-        { name: "صنف 2", quantity: 1 },
-        { name: "صنف 3", quantity: 1 },
+        { name: "صنف 1", quantity: 1, note: null },
+        { name: "صنف 2", quantity: 1, note: null },
+        { name: "صنف 3", quantity: 1, note: null },
       ],
       // No history row in this fixture: the creation time stands in.
       statusChangedAt: at(0),
@@ -487,11 +487,32 @@ describe("GET /orders — tabs and ordering", () => {
 
     const body = await listOk("?tab=active", staffTest, shop.restaurantId);
     expect(body.orders.find((x) => x.id === id)?.items).toEqual([
-      { name: "بطاطا", quantity: 1 },
-      { name: "شاورما", quantity: 2 },
-      { name: "عصير", quantity: 3 },
+      { name: "بطاطا", quantity: 1, note: null },
+      { name: "شاورما", quantity: 2, note: null },
+      { name: "عصير", quantity: 3, note: null },
     ]);
     expect(body.orders.find((x) => x.id === o["ready"])?.items).toEqual([]);
+  });
+
+  it("each line carries its note (brief ن): the text as written, or null", async () => {
+    const id = await addToShop(shop, { status: "accepted", createdAt: at(41) });
+    for (const [name, qty, note] of [
+      ["شاورما", 1, "بدون بصل"],
+      ["بطاطا", 2, null],
+    ] as const) {
+      await audit.query(
+        `INSERT INTO order_items (order_id, restaurant_id, item_name_snapshot,
+                                  unit_price_snapshot, quantity, notes)
+         VALUES ($1, $2, $3, 1.00, $4, $5)`,
+        [id, shop.restaurantId, name, qty, note],
+      );
+    }
+
+    const body = await listOk("?tab=active", staffTest, shop.restaurantId);
+    expect(body.orders.find((x) => x.id === id)?.items).toEqual([
+      { name: "بطاطا", quantity: 2, note: null },
+      { name: "شاورما", quantity: 1, note: "بدون بصل" },
+    ]);
   });
 
   it("history keeps a trailing-zero total as text too", async () => {

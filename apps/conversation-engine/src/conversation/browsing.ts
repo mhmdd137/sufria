@@ -6,13 +6,27 @@ import {
   type SummaryFulfillment,
   HANDOFF_STREAK,
   MAX_QTY_PER_ITEM,
+  NOTE_HINT_AR,
+  NOTE_MAX_LENGTH,
+  NOTE_TOO_LONG_AR,
+  cleanNote,
   handoffMessageAr,
+  isReplyWord,
+  joinNotes,
+  matchCommand,
+  matchOrderCommand,
+  normalizeArabic,
+  noteAddedAr,
   interpretMessage,
   itemNotInCartAr,
   itemsAddedLinesAr,
   itemsUnavailableLineAr,
   nextUnparsedStreak,
   nothingUnderstoodAr,
+  noteKey,
+  noteLength,
+  noteTooLongItemAr,
+  noteWithoutName,
   overCapLineAr,
   parseItems,
   unclearPartsLineAr,
@@ -35,6 +49,7 @@ import {
   toSummaryFulfillment,
   writeSessionData,
   type CartLine,
+  type LastAdded,
   type SessionData,
   type StoredReorder,
 } from "./session-data.js";
@@ -137,6 +152,8 @@ export interface BrowsingInput {
   readonly deliveryFeeMinor: number;
   /** `restaurants.currency` — لكل نص فيه مبلغ (بريف د §2.2). */
   readonly currency: Currency;
+  /** The message's text as written — `""` for an image or a voice note. */
+  readonly body: string;
 }
 
 /** كل رد صادر بينعدّ — فجوة القياس بـ§4. الصمت ما بينعدّ. */
@@ -155,9 +172,124 @@ function withReply(
       };
 }
 
+/** What a message with no item number does with «آخر إضافة» (brief ن §5). */
+export type StuckNote =
+  /** It stuck: the cart moved, ن3 is the reply, «آخر إضافة» is kept. */
+  | {
+      readonly kind: "stuck";
+      readonly cart: CartLine[];
+      readonly lastAdded: LastAdded[];
+      readonly reply: string;
+    }
+  /** ن4ب: the note alone, or joined to the one there, is over the limit. */
+  | { readonly kind: "too-long" }
+  /** It is no note: today's reply. */
+  | { readonly kind: "none" };
+
+/**
+ * A message with no item number, as a note for the pieces the last message
+ * added (brief ن §5, decision 3) — **pure**.
+ *
+ * Every condition, or no note: the message is no command (of browsing or of
+ * the steps after it), no word of reply (§2.4), not empty once normalized
+ * (an emoji, an image), and «آخر إضافة» holds **exactly one** line. Why one:
+ * every number is one more piece, so a customer told to send «2 بدون بصل»
+ * again gets two sandwiches — a note must stick to the one thing just added.
+ *
+ * Then, by Claude's decisions on the brief:
+ * - the note is the raw message cleaned, the item's name off it (§2.3); a
+ *   note there already: «القديمة، الجديدة», and over 100 is ن4ب, nothing
+ *   changed;
+ * - 🔴 **the note goes to the pieces the last message added alone** — when
+ *   «2» added to a line already in the cart, that line keeps its other
+ *   pieces: it loses `qty`, and (item, new note) gains them, at the line's
+ *   own price (the same pieces, not today's);
+ * - those pieces stay «آخر إضافة», with their new note.
+ */
+export function stickNote(
+  data: SessionData,
+  lastAdded: readonly LastAdded[],
+  body: string,
+): StuckNote {
+  if (lastAdded.length !== 1) return { kind: "none" };
+  if (matchCommand(body) !== null || matchOrderCommand(body) !== null) {
+    return { kind: "none" };
+  }
+  if (isReplyWord(body) || normalizeArabic(body) === "") {
+    return { kind: "none" };
+  }
+  const [last] = lastAdded as [LastAdded];
+  const at = data.cart.findIndex(
+    (l) =>
+      l.item_id === last.item_id &&
+      noteKey(l.note) === noteKey(last.note) &&
+      l.qty >= last.qty,
+  );
+  const source = data.cart[at];
+  if (source === undefined) return { kind: "none" };
+
+  const cleaned = cleanNote(body);
+  const added = cleaned === null ? null : noteWithoutName(cleaned, source.name);
+  if (added === null) return { kind: "none" };
+  const note = last.note === null ? added : joinNotes(last.note, added);
+  if (noteLength(note) > NOTE_MAX_LENGTH) return { kind: "too-long" };
+
+  const cart = [...data.cart];
+  if (source.qty === last.qty) cart.splice(at, 1);
+  else cart[at] = { ...source, qty: source.qty - last.qty };
+  const into = cart.findIndex(
+    (l) => l.item_id === last.item_id && noteKey(l.note) === noteKey(note),
+  );
+  const target = cart[into];
+  let kept: string;
+  if (target !== undefined) {
+    cart[into] = { ...target, qty: target.qty + last.qty };
+    kept = target.note ?? note;
+  } else {
+    // Where the pieces were: in the line's place, or right after it.
+    const place = source.qty === last.qty ? at : at + 1;
+    cart.splice(place, 0, { ...source, qty: last.qty, note });
+    kept = note;
+  }
+  return {
+    kind: "stuck",
+    cart,
+    lastAdded: [{ item_id: last.item_id, note: kept, qty: last.qty }],
+    reply: noteAddedAr(source.name, last.qty, kept),
+  };
+}
+
+/**
+ * ن5 goes on a reply (brief ن §3) only with a cart, never for a word of reply
+ * or an empty message, and once in the session — nor for a command word read
+ * as plain text («نفسه» without its conditions, «اكد» in browsing): those
+ * are answered exactly as before (brief ك).
+ */
+function noteHintDue(
+  data: SessionData,
+  cart: readonly CartLine[],
+  body: string,
+): boolean {
+  return (
+    !data.note_hint_sent &&
+    cart.length > 0 &&
+    !isReplyWord(body) &&
+    normalizeArabic(body) !== "" &&
+    matchCommand(body) === null &&
+    matchOrderCommand(body) === null
+  );
+}
+
 export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
-  const { data, intent, catalog, contactPhone, offersDelivery } = input;
-  const { deliveryFeeMinor, currency } = input;
+  const { intent, catalog, contactPhone, offersDelivery } = input;
+  const { deliveryFeeMinor, currency, body } = input;
+  /**
+   * 🔴 «آخر إضافة» is emptied by **every** message (brief ن §4) — a command,
+   *    «سلة», «شيل», «منيو», a message not understood: each branch starts
+   *    from this `data`. The items branch writes the lines it added; a note
+   *    alone that sticks keeps them (ن-3).
+   */
+  const data: SessionData = { ...input.data, last_added: [] };
 
   /** الملخّص ← `cart_review`. */
   const summaryDecision = (
@@ -245,6 +377,8 @@ export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
           name: entry.name,
           unit_price_minor: entry.unitPriceMinor,
           qty: item.qty,
+          // The old line's note comes along (brief ن, decision 4).
+          note: item.note,
         });
       }
 
@@ -310,6 +444,36 @@ export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
       const streak = nextUnparsedStreak(data.unparsed_streak, result.outcome);
 
       if (result.outcome === "unparsed") {
+        // A note in a message of its own (brief ن §5): no number at all —
+        // a number off the menu is still a number, and today's reply.
+        if (result.problems.unknownNumbers.length === 0) {
+          const stuck = stickNote(data, input.data.last_added, body);
+          if (stuck.kind === "stuck") {
+            // A message understood: the streak is 0.
+            return withReply(
+              {
+                ...data,
+                cart: stuck.cart,
+                last_added: stuck.lastAdded,
+                unparsed_streak: 0,
+              },
+              stuck.reply,
+            );
+          }
+          if (stuck.kind === "too-long") {
+            // ن4ب, nothing changed — «آخر إضافة» kept, so a shorter one
+            // sent next sticks («اكتبها أقصر»).
+            return withReply(
+              {
+                ...data,
+                last_added: input.data.last_added,
+                unparsed_streak: 0,
+              },
+              NOTE_TOO_LONG_AR,
+            );
+          }
+        }
+
         const next = { ...data, unparsed_streak: streak };
         // 🔴 بعد الاستسلام: صمت على غير المفهوم **وحده** (§14.7). رقم صحيح
         //    بعدها بيمرق من فرع الأصناف تحت ويتخدم عاديا.
@@ -322,50 +486,118 @@ export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
             contactPhone === null ? null : handoffMessageAr(contactPhone),
           );
         }
+        // ن5 at the end, once (brief ن §3): the note did not stick.
+        if (noteHintDue(data, data.cart, body)) {
+          return withReply(
+            { ...next, note_hint_sent: true },
+            `${nothingUnderstoodAr(lastMenuNumber)}\n${NOTE_HINT_AR}`,
+          );
+        }
         return withReply(next, nothingUnderstoodAr(lastMenuNumber));
       }
 
       // parsed · partial — تعرّفنا على صنف حقيقي، فالعدّاد صفر (§13.3).
       const cart = [...data.cart];
-      const added: { name: string; qty: number }[] = [];
+      const added: { name: string; qty: number; note: string | null }[] = [];
+      const lastAdded: LastAdded[] = [];
       const unknownNumbers = [...result.problems.unknownNumbers];
       const unavailable: string[] = [];
       const overCap = result.problems.overCapItems.map((o) => o.requestedQty);
+      /** ن4أ — items whose note is over the limit: not added at all. */
+      const tooLong: string[] = [];
+      const once = <T>(list: T[], value: T): void => {
+        if (!list.includes(value)) list.push(value);
+      };
 
+      // 1. Each line the parser read: its item, live, and its note without
+      //    the item's own name (brief ن §2.3) — the length is checked on
+      //    what is left. Two lines the name made one («2 شاورما 2») are one.
+      const accepted: {
+        itemId: string;
+        name: string;
+        unitPriceMinor: number;
+        qty: number;
+        note: string | null;
+      }[] = [];
       for (const item of result.items) {
         const entry = catalog.get(item.itemId);
         if (entry === undefined) {
           // الصف انمسح كليا — ما في اسم نقول عنه «غير متوفر».
-          unknownNumbers.push(item.number);
+          once(unknownNumbers, item.number);
           continue;
         }
         if (!entry.available) {
-          unavailable.push(entry.name);
+          once(unavailable, entry.name);
           continue;
         }
-        const at = cart.findIndex((l) => l.item_id === item.itemId);
+        const note =
+          item.note === null ? null : noteWithoutName(item.note, entry.name);
+        if (note !== null && noteLength(note) > NOTE_MAX_LENGTH) {
+          once(tooLong, entry.name);
+          continue;
+        }
+        const same = accepted.find(
+          (a) => a.itemId === item.itemId && noteKey(a.note) === noteKey(note),
+        );
+        if (same !== undefined) same.qty += item.qty;
+        else {
+          accepted.push({
+            itemId: item.itemId,
+            name: entry.name,
+            unitPriceMinor: entry.unitPriceMinor,
+            qty: item.qty,
+            note,
+          });
+        }
+      }
+
+      // 2. 🔴 السقف على **السلّة**، لا على الرسالة وحدها (§14.7): «2 ×30» ثم
+      //    «2 ×30» = 60 — **وعلى الصنف كله** (brief ن §4): every line of the
+      //    item in the cart, and every line this message adds to it. Over it,
+      //    the item is refused whole; the number said is the total refused.
+      const refused = new Set<string>();
+      for (const a of accepted) {
+        if (refused.has(a.itemId)) continue;
+        const inCart = cart
+          .filter((l) => l.item_id === a.itemId)
+          .reduce((sum, l) => sum + l.qty, 0);
+        const inMessage = accepted
+          .filter((b) => b.itemId === a.itemId)
+          .reduce((sum, b) => sum + b.qty, 0);
+        if (inCart + inMessage > MAX_QTY_PER_ITEM) {
+          refused.add(a.itemId);
+          overCap.push(inCart + inMessage);
+        }
+      }
+
+      // 3. A line is (item, note normalized): the same key adds to it, and
+      //    its first snapshot stays; a new key is a line at today's price.
+      for (const a of accepted) {
+        if (refused.has(a.itemId)) continue;
+        const at = cart.findIndex(
+          (l) => l.item_id === a.itemId && noteKey(l.note) === noteKey(a.note),
+        );
         const existing = at === -1 ? undefined : cart[at];
-        const total = (existing?.qty ?? 0) + item.qty;
-        // 🔴 السقف على **السلّة**، لا على الرسالة وحدها (§14.7): «2 ×30» ثم
-        //    «2 ×30» = 60. الرقم اللي بينقال هو المجموع المرفوض فعلا (§13.1).
-        if (total > MAX_QTY_PER_ITEM) {
-          overCap.push(total);
-          continue;
-        }
         if (existing === undefined) {
           // السعر والاسم snapshot لحظة الإضافة — وعد للزبون (§14.5).
           cart.push({
-            item_id: item.itemId,
-            name: entry.name,
-            unit_price_minor: entry.unitPriceMinor,
-            qty: item.qty,
+            item_id: a.itemId,
+            name: a.name,
+            unit_price_minor: a.unitPriceMinor,
+            qty: a.qty,
+            note: a.note,
           });
-          added.push({ name: entry.name, qty: item.qty });
+          added.push({ name: a.name, qty: a.qty, note: a.note });
+          lastAdded.push({ item_id: a.itemId, note: a.note, qty: a.qty });
         } else {
-          // سطر موجود: الكمية بتزيد، والـsnapshot الأول بيضل — سطر واحد لكل
-          // صنف بسعر واحد (§7).
-          cart[at] = { ...existing, qty: total };
-          added.push({ name: existing.name, qty: item.qty });
+          // سطر موجود: الكمية بتزيد، والـsnapshot الأول بيضل — ونص ملاحظته.
+          cart[at] = { ...existing, qty: existing.qty + a.qty };
+          added.push({ name: existing.name, qty: a.qty, note: existing.note });
+          lastAdded.push({
+            item_id: a.itemId,
+            note: existing.note,
+            qty: a.qty,
+          });
         }
       }
 
@@ -381,8 +613,18 @@ export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
         lines.push(itemsUnavailableLineAr(unavailable));
       }
       if (overCap.length > 0) lines.push(overCapLineAr(overCap));
+      for (const name of tooLong) lines.push(noteTooLongItemAr(name));
       if (result.problems.unclearParts.length > 0) {
         lines.push(unclearPartsLineAr(result.problems.unclearParts));
+      }
+      // ن5 after «غير واضح» — text before the first number (brief ن §3).
+      let noteHintSent = data.note_hint_sent;
+      if (
+        result.problems.unclearParts.length > 0 &&
+        noteHintDue(data, cart, body)
+      ) {
+        lines.push(NOTE_HINT_AR);
+        noteHintSent = true;
       }
 
       // تذكير «تم» على تأكيد الصنف الأول وحده — مرة بالجلسة كلها (§2).
@@ -397,6 +639,8 @@ export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
         cart,
         unparsed_streak: streak,
         finish_hint_sent: finishHintSent,
+        note_hint_sent: noteHintSent,
+        last_added: lastAdded,
       };
       return withReply(next, lines.length > 0 ? lines.join("\n") : null);
     }
@@ -469,6 +713,7 @@ export async function handleBrowsingMessage(
     offersDelivery: message.offersDelivery,
     deliveryFeeMinor: message.deliveryFeeMinor,
     currency: message.currency,
+    body: message.body ?? "",
   });
 
   if (decision.resendMenu) {

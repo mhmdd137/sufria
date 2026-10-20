@@ -728,6 +728,7 @@ describe("PATCH /menu-items/:id — price", () => {
         quantity: 2,
         unitPrice: "2.50",
         lineTotal: "5.00",
+        note: null,
       },
     ]);
     expect(detail.total).toBe("5.00");

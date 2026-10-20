@@ -65,7 +65,8 @@ const orderListColumns = () => sql`
   COALESCE(
     (SELECT json_agg(json_build_object(
               'name', oi.item_name_snapshot,
-              'quantity', oi.quantity)
+              'quantity', oi.quantity,
+              'note', oi.notes)
             ORDER BY oi.item_name_snapshot, oi.id)
        FROM order_items oi
       WHERE oi.order_id = o.id),
@@ -197,7 +198,7 @@ type OrderListRow = {
   created_at: string;
   customer_name: string | null;
   customer_phone: string;
-  items: { name: string; quantity: number }[];
+  items: { name: string; quantity: number; note: string | null }[];
   status_changed_at: string;
   cancellation_reason: string | null;
   unread_messages: number;
@@ -240,6 +241,7 @@ type OrderDetailRow = {
     quantity: number;
     unit_price: string;
     line_total: string;
+    note: string | null;
   }[];
   history: {
     from: OrderStatus | null;
@@ -381,7 +383,8 @@ export class OrdersService {
                            'name', oi.item_name_snapshot,
                            'quantity', oi.quantity,
                            'unit_price', oi.unit_price_snapshot::text,
-                           'line_total', (oi.quantity * oi.unit_price_snapshot)::text)
+                           'line_total', (oi.quantity * oi.unit_price_snapshot)::text,
+                           'note', oi.notes)
                          ORDER BY oi.item_name_snapshot, oi.id)
                     FROM order_items oi
                    WHERE oi.order_id = o.id),
@@ -424,6 +427,7 @@ export class OrdersService {
         quantity: i.quantity,
         unitPrice: i.unit_price,
         lineTotal: i.line_total,
+        note: i.note,
       })),
       history: r.history,
     };

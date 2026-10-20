@@ -232,8 +232,10 @@ test("🔴 رقم برّا menu_map بيتسمّى، وما بيسقّط الأ�
   assert.equal(result.outcome, "partial");
 });
 
-test("🔴 نص غير رقمي بيرجع للزبون — لا ملاحظة ولا حذف صامت", () => {
-  const result = parseItems("2 بدون بصل", MENU);
+test("🔴 نص قبل أول رقم بيرجع للزبون — لا ملاحظة ولا حذف صامت", () => {
+  // Brief ن (approved, 19 October): after a number the text is its note
+  // («2 بدون بصل»); before the first number there is no line to join it.
+  const result = parseItems("بدون بصل 2", MENU);
   assert.deepEqual(
     result.items.map((i) => i.number),
     [2],
@@ -267,7 +269,9 @@ test("المعرّفات بتجي من الخريطة نفسها", () => {
 test("🔴 ثلاث حالات لا اثنتان: parsed · partial · unparsed", () => {
   assert.equal(parseItems("2", MENU).outcome, "parsed");
   assert.equal(parseItems("2 و15", MENU).outcome, "partial");
-  assert.equal(parseItems("2 بدون بصل", MENU).outcome, "partial");
+  // Brief ن: «2 بدون بصل» is item 2 with its note — nothing wrong in it.
+  assert.equal(parseItems("2 بدون بصل", MENU).outcome, "parsed");
+  assert.equal(parseItems("بدون بصل 2", MENU).outcome, "partial");
   assert.equal(parseItems("مرحبا كيفك", MENU).outcome, "unparsed");
   assert.equal(parseItems("15", MENU).outcome, "unparsed");
 });
