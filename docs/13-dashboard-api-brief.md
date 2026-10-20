@@ -658,6 +658,7 @@ ALTER TABLE orders
   - `returned` (بالرد كله، جنب `orders`): **مع `active` بس** — طلبات حالتها من `history` (`completed` · `cancelled` · `expired`) وإلها رسالة غير مقروءة `received_at > now() - interval '24 hours'` (ساعة القاعدة)؛ الأحدث رسالة غير مقروءة أول، وبعدها `id`. **مش بـ`orders`، ومش بعدّاد الراس.** مع `history` ← `[]` دايما، والطلب لسا بالسجل. باستعلام تاني بنفس معاملة `runInTenant`.
 - **أضاف بريف م-ج (17 أكتوبر) حقلا لكل بند** (كُتب من الكود على الفرع `feat/staff-reply`)، بـ`orders` و`returned` وبرد `PATCH /orders/:id/status` (نفس الإسقاط):
   - `staffMessagedAt`: `created_at` لآخر رسالة موظف على هالطلب **ما فشلت** (`staff_messages`، هجرة `0018`؛ `send_state <> 'failed'`)، ISO بـUTC، و`null` إذا ما في. الشاشة (م-د) بتوقف فيه رنين الطلب المعلّق (قرار 14). فهرس `idx_staff_messages_order`.
+- **أضاف بريف ن (19 أكتوبر) حقلا لكل سطر من `items`:** `note` — ملاحظة الزبون على السطر كما كتبها (`order_items.notes`، 1–100 حرف بهجرة `0019`)، أو `null`. `OrderListLine` = `{ name, quantity, note }`. الترتيب ما تغيّر.
 - **الأخطاء:** 400 · 401 · 403 (§9.0).
 
 ### 9.2 · `GET /orders/:id`
@@ -693,6 +694,7 @@ ALTER TABLE orders
 
 - `items[].name` و`unitPrice` من الـsnapshot لحظة الطلب، **بلا ربط مع `menu_items`**. `lineTotal` = `quantity * unit_price_snapshot` في SQL.
 - `items` **مرتّبة بالاسم ثم `id`** — لا بترتيب السلّة، لأنه لا يُحفظ (§10). قد تكون `[]`.
+- **أضاف بريف ن (19 أكتوبر):** `items[].note` — ملاحظة الزبون على السطر كما كتبها (`order_items.notes`، هجرة `0019`: 1–100 حرف أو NULL)، أو `null`. نفس الصنف بملاحظتين = سطرين.
 - `history` بالترتيب الزمني (`changed_at` ثم `id`). سطر الإنشاء `from: null` و`actor: "customer"`. **لا `actor_staff_id` ولا اسم الموظف في الرد.**
 - الاستلام: `deliveryFee: "0.00"` و`deliveryAddress: null`.
 - الطلب كله من جملة SQL واحدة، فالحالة والتاريخ من نفس اللحظة.

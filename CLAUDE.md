@@ -21,9 +21,9 @@ with `ERR_PNPM_BAD_PM_VERSION`).
 | Path | Package | What it is |
 |---|---|---|
 | `packages/shared` | `@sufria/shared` | Drizzle schema mirror + domain logic shared by every app |
-| `apps/dashboard-api` | `@sufria/dashboard-api` | NestJS REST API for the restaurant dashboard: orders and their status (with their unread customer messages and `returned`, and `POST /orders/:id/messages/seen` — brief م-ب, `docs/13` §9.1 and §9.11), a staff member's message to the order's customer — `POST /orders/:id/messages` (a `pending` row, nothing sent), `POST /orders/:id/resume-bot`, the staff messages in the conversation with `botSilence` and `replyOpenUntil`, and `staffMessagedAt` on every list item (brief م-ج, `docs/brief-mc-staff-reply-backend.md`, `docs/13` §9.9 and §9.12), restaurant settings (task D); the menu — `GET`/`POST /menu-items`, `PATCH /menu-items/:id` (name, price, availability, archive and bring back), `POST /menu-items/enable-all`, `GET /menu-categories` — and `PATCH /restaurant/orders-pause`, all under the 4096 guard where they can lengthen the menu (brief ي-أ, `docs/brief-ja-menu-backend.md`). Contracts as built: `docs/13-dashboard-api-brief.md` §9 (§9.10 for ي-أ) |
-| `apps/conversation-engine` | `@sufria/conversation-engine` | WhatsApp webhooks, business-hours gate, session, browsing cart, pickup-or-delivery, address, and order creation (task C); the customer-notification poller (task F, `src/notify/`); the 60-minute session timeout (task H, `docs/17-session-timeout-brief.md`); orders paused and the empty menu (brief ي-أ §4, `src/conversation/orders-paused.ts`); «آخر طلب لك» in a returning customer's first message, and «نفسه» (FR-08, brief ك, `docs/brief-ka-reorder.md`, `src/conversation/reorder.ts`); a customer's message after an order reaches the restaurant — the relay line instead of the menu, the message linked to the order, a reaction stored and nothing else (brief م-أ, `docs/brief-ma-customer-messages.md`, `src/conversation/customer-relay.ts`); the bot keeping quiet for a customer staff are talking to (`src/conversation/bot-silence.ts`), and the queue that sends staff messages (`src/notify/staff-replies.ts`) — brief م-ج |
-| `apps/dashboard-web` | `@sufria/dashboard-web` | Next.js staff UI: login, the orders screen (task G, `docs/16-orders-screen-brief.md`), an order's details with its conversation (task I, `docs/brief-i-order-details.md`), and the menu screen with the orders pause — `/menu`, `/menu/removed`, the pause strip on every page (brief ي-ب, `docs/brief-jb-menu-screen.md`); a customer's messages (brief م-ب, `docs/brief-mb-customer-messages-screen.md`) — the latest unread one on its card with the count, closed orders a message brought back in a group of their own above «الطلبات», every kind of message in the conversation (read every 5 s, marked read on the server), and the alert sound: O2 for a pending order (each minute, up to 3 h), M1 for a message, the header's «اكتم الصوت» and two strips (`shared/sound/`); a staff member writing to the order's customer (brief م-د, `docs/brief-md-staff-reply-screen.md`) — the field under the conversation, the staff bubble in its three states, the silence line and «شغّل الرد الآلي», the closed line after 24 hours, and a pending order's ring stopped by a staff message; after the laptop trial (brief م-د-9, `docs/brief-md9-after-trial.md`) the read every second after a send, the step's bar on the real keyboard, and the conversation before the order folded. Feature-based: `app/` (routes) · `features/<x>/` · `shared/` — see *Dashboard structure*. Talks to `dashboard-api` at `NEXT_PUBLIC_API_URL` |
+| `apps/dashboard-api` | `@sufria/dashboard-api` | NestJS REST API for the restaurant dashboard: orders and their status (with their unread customer messages and `returned`, and `POST /orders/:id/messages/seen` — brief م-ب, `docs/13` §9.1 and §9.11), a staff member's message to the order's customer — `POST /orders/:id/messages` (a `pending` row, nothing sent), `POST /orders/:id/resume-bot`, the staff messages in the conversation with `botSilence` and `replyOpenUntil`, and `staffMessagedAt` on every list item (brief م-ج, `docs/brief-mc-staff-reply-backend.md`, `docs/13` §9.9 and §9.12), restaurant settings (task D); the menu — `GET`/`POST /menu-items`, `PATCH /menu-items/:id` (name, price, availability, archive and bring back), `POST /menu-items/enable-all`, `GET /menu-categories` — and `PATCH /restaurant/orders-pause`, all under the 4096 guard where they can lengthen the menu (brief ي-أ, `docs/brief-ja-menu-backend.md`). Each order line carries its `note` in `GET /orders` and `GET /orders/:id` (brief ن). Contracts as built: `docs/13-dashboard-api-brief.md` §9 (§9.10 for ي-أ) |
+| `apps/conversation-engine` | `@sufria/conversation-engine` | WhatsApp webhooks, business-hours gate, session, browsing cart, pickup-or-delivery, address, and order creation (task C); the customer-notification poller (task F, `src/notify/`); the 60-minute session timeout (task H, `docs/17-session-timeout-brief.md`); orders paused and the empty menu (brief ي-أ §4, `src/conversation/orders-paused.ts`); «آخر طلب لك» in a returning customer's first message, and «نفسه» (FR-08, brief ك, `docs/brief-ka-reorder.md`, `src/conversation/reorder.ts`); a customer's message after an order reaches the restaurant — the relay line instead of the menu, the message linked to the order, a reaction stored and nothing else (brief م-أ, `docs/brief-ma-customer-messages.md`, `src/conversation/customer-relay.ts`); the bot keeping quiet for a customer staff are talking to (`src/conversation/bot-silence.ts`), and the queue that sends staff messages (`src/notify/staff-replies.ts`) — brief م-ج; a customer's note for an item — after its number, or in a message of its own — from the cart to `order_items.notes` (brief ن, `docs/brief-n-item-notes.md` on `main`) |
+| `apps/dashboard-web` | `@sufria/dashboard-web` | Next.js staff UI: login, the orders screen (task G, `docs/16-orders-screen-brief.md`), an order's details with its conversation (task I, `docs/brief-i-order-details.md`), and the menu screen with the orders pause — `/menu`, `/menu/removed`, the pause strip on every page (brief ي-ب, `docs/brief-jb-menu-screen.md`); a customer's messages (brief م-ب, `docs/brief-mb-customer-messages-screen.md`) — the latest unread one on its card with the count, closed orders a message brought back in a group of their own above «الطلبات», every kind of message in the conversation (read every 5 s, marked read on the server), and the alert sound: O2 for a pending order (each minute, up to 3 h), M1 for a message, the header's «اكتم الصوت» and two strips (`shared/sound/`); a staff member writing to the order's customer (brief م-د, `docs/brief-md-staff-reply-screen.md`) — the field under the conversation, the staff bubble in its three states, the silence line and «شغّل الرد الآلي», the closed line after 24 hours, and a pending order's ring stopped by a staff message; after the laptop trial (brief م-د-9, `docs/brief-md9-after-trial.md`) the read every second after a send, the step's bar on the real keyboard, and the conversation before the order folded. An item's note: a line of its own under the card's grey line, and under its line on the details page (brief ن §8). Feature-based: `app/` (routes) · `features/<x>/` · `shared/` — see *Dashboard structure*. Talks to `dashboard-api` at `NEXT_PUBLIC_API_URL` |
 | `db/migrations` | — | Raw SQL. The single source of truth for the schema |
 | `db/seed` | — | Dev-only fixtures |
 | `tests/security` | — | Chain-isolation gate (mandatory) |
@@ -309,6 +309,20 @@ inside one transaction, passes the two-cycles test — the suite's single
 connection runs the two claims one after the other. The deterministic break,
 a claim that trusts the listing's read, drops it.
 
+Brief ن's suites: `shared/test/item-notes.test.mts` (the parser's table
+§2.2 row by row, §2.3's name rule, §2.4's words, `cleanNote`,
+`normalizeWithOrigins`), `shared/test/note-texts.test.mts` (ن1–ن5 letter
+for letter, and where they show), `conversation-engine/test/item-notes.test.ts`
+(the cart line per (item, note), ن-3's twelve scenarios, the summary, «أكّد»
+and «نفسه», on a real database), `dashboard-web/test/orders/notes.test.mts`,
+and `test:db` section 12 (0019). Nine breaks, each predicted in a file before
+it ran: the key by number alone · the note from the normalized text · the
+name taken off word by word · the cart line by `item_id` alone · no §2.4
+list · the note on a merged line whole · «آخر إضافة» never emptied · 0019
+dropped · the grey line counting every item. Two of `item-parser.test.mts`
+changed by Mohammed's decision (19 October): «2 بدون بصل» is now a note and
+`parsed`; the «غير واضح» case is text before the first number.
+
 🔴 **Never count a whole table in a test** (`SELECT count(*) FROM orders`).
 The engine and API suites run in parallel under `pnpm -r test`; count only the
 rows of the order or restaurant the test itself created.
@@ -410,6 +424,16 @@ hidden>`); folded on every opening, nothing stored. Staff's bubbles never
 fold. `seenUpTo` still reads the server's messages, so the folded ones are
 read as before. Its texts are `dashboard-reply-ui.ts`, on the order's page
 alone.
+
+**An item's note (brief ن §8, option ب).** On the card, a line with a note
+leaves the grey line (`cardView`'s `details` lists the others alone; every
+item noted → the kind alone) for a `<p>` of its own under it, inside
+`.who` and before the message bubble: «[الاسم] ×[الكمية]» (the quantity
+always, `.num`), «ملاحظة:» (`NOTE_LABEL_AR`, 13/600 `text-secondary`) and
+the note in a `<bdi dir="auto">` (600, `text-primary`), 15px, wrapping —
+never `…`: a note is never cut. 4px under the grey line, 2px between. No
+new colour. On the details page the same, without the item, under its line
+inside the `li` (`grid-column: 1 / -1`), 2px under it.
 
 **The RTL and width contract, on every file touched** — from 375px to 1440px,
 right to left by `dir="rtl"` on `<html>` alone, no horizontal scroll:
@@ -735,6 +759,10 @@ into the same `.next` that `next start` serves: restart a running one after.
   is its code and about 688 Turbopack splitting `board.ts` out of the page's
   chunk (one chunk, 28217 bytes / 9060 gzip, became two: 25582 + 4236 /
   8169 + 2023), past the brief's 1500 by that split.
+  **Brief ن (19 October), within its thresholds, set to the measure:**
+  JS `/login` 138642 · `/orders` 148304 · `/history` 148455 ·
+  `/orders/[id]` 155817 · `/menu` 151767 · `/menu/removed` 149679 (+14 on
+  every page, +239/+240/+226 on the three that show notes); fonts 123204.
 - **Under the pointer and pressed (brief ل §3, decision 2).** Eight tokens
   in `design-tokens.ts`, each named by the ground it changes:
   `surface-hover`/`-press`, `bg-hover`/`-press` (`bg-press` is also the view
@@ -909,6 +937,49 @@ into the same `.next` that `next start` serves: restart a running one after.
   - Index `idx_orders_customer_recent` (0015) serves both queries;
     `test/reorder.test.ts` holds the brief's 20 cases, and eight breaks were
     each predicted before they ran (`docs/brief-ka-reorder.md`, «كما انبنى»).
+- **Item notes — «2 بدون بصل» (brief ن, Mohammed's decisions 1–11, 19
+  October).** `order_items.notes` (0001) is written at «أكّد» since brief ن;
+  0019 holds it to 1–100 characters or NULL.
+  - **The parser** (`item-parser.ts`): the raw text after an item's number —
+    and its quantity — up to the next number is that line's note; text
+    before the first number is «غير واضح» as before; a number off the menu
+    takes its note with it. Cut from the customer's own text through
+    `normalizeWithOrigins` (`normalize.ts`), which `normalizeArabic` is now
+    built on — one normalization, with where each character came from.
+    Separators off the note's two ends, kept inside; finish words off its
+    end («2 بدون بصل تم» does not finish). Lines merge by (number, note
+    normalized): «2 بدون بصل 2» is two lines; the cap is on the item whole.
+  - **The item's name is not a note** (`noteWithoutName`, in the engine
+    where the name is known): words off the note's start while they equal
+    the name's, in order; a negation word (`بدون` · `بلا` · `بلاش` · `غير`
+    · `من`) never goes — «3 قهوة بدون هيل» on «قهوة بدون سكر» keeps «بدون
+    هيل».
+  - **The cart** is a line per (`item_id`, note normalized), the first text
+    kept; a note over 100 after the name → the item is not added (ن4أ).
+    «شيل 2» takes every line of 2. An item off is named once. A line with
+    no note is **written** with no `note` key (`writeSessionData`), so a
+    session without notes is exactly as before; reading defaults it `null`.
+  - **A note in a message of its own** sticks only when `context.last_added`
+    — what the previous message added — holds exactly one line, and the
+    message is no command (browsing's or the steps after), no word of
+    reply (`REPLY_WORD_INPUTS`, §2.4, Latin without case), not empty once
+    normalized. It goes to the pieces that message added alone (a merged
+    line is split, at its own price); a second joins with «، ». Every
+    other message empties `last_added`. ن5 («للملاحظة، اكتبها بعد رقم
+    الصنف…») once a session (`note_hint_sent`), with «غير مفهوم» or «غير
+    واضح», only with a cart, never for a reply word, an empty message or a
+    command word read as text.
+  - «آخر طلب لك» groups by (item, note) and «نفسه» copies the notes; the
+    summary shows them. **Limits, accepted:** a note after «تم» is lost (the
+    way back: «عدّل» · «شيل 2» · «2 بدون بصل», or a message after the order)
+    · a number inside a note starts an item («2 مع 2 خبز»; the summary shows
+    it) · no note for the whole order · the restaurant cannot refuse or edit
+    a note · two messages arriving out of order: the note does not stick ·
+    «تمام» after an add is «غير مفهوم» and counts toward the handoff · a
+    summary with 100-character notes passes 4096 at about 29 noted lines
+    (21 with long names, delivery and a 300-character address) · a session
+    left untouched (the paused text, «منيو» on an empty menu, the silence)
+    keeps its `last_added`, so a note after it can stick to the line before.
 - **A split shift shows only its first window** in the closing message: the text
   has two slots, not four. Showing the *next* window would be a computed promise,
   which is the thing that text deliberately avoids.
