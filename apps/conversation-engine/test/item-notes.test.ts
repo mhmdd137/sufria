@@ -16,7 +16,12 @@ import {
 } from "@jest/globals";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
-import { FINISH_HINT_AR } from "@sufria/shared";
+import {
+  FINISH_HINT_AR,
+  NOTE_HINT_AR,
+  NOTE_TOO_LONG_AR,
+  nothingUnderstoodAr,
+} from "@sufria/shared";
 
 import {
   ConversationService,
@@ -314,5 +319,163 @@ describe("ن-2 · the cart line per (item, note)", () => {
     expect(before[0]).not.toHaveProperty("note");
     await s.say("1");
     expect(await s.cart()).toEqual([["حمص", 2, null]]);
+  });
+});
+
+// ===========================================================================
+describe("ن-3 · a note in a message of its own", () => {
+  const NOTHING = nothingUnderstoodAr(MENU.length);
+
+  it("«2» ← «بدون بصل»: 2 ×1 «بدون بصل», ن3", async () => {
+    const s = await shop("alone");
+    await s.say("2");
+    await s.say("بدون بصل");
+    expect(s.last()).toBe("أضفت الملاحظة:\nشاورما دجاج ×1\nملاحظة: بدون بصل");
+    expect(await s.cart()).toEqual([["شاورما دجاج", 1, "بدون بصل"]]);
+    expect((await s.context())["unparsed_streak"]).toBe(0);
+  });
+
+  it("«2» ← «تمام»: no note, today's reply, no ن5", async () => {
+    const s = await shop("reply-word");
+    await s.say("2");
+    await s.say("تمام");
+    expect(s.last()).toBe(NOTHING);
+    expect(await s.cart()).toEqual([["شاورما دجاج", 1, null]]);
+  });
+
+  it("«2» ← «👍»: no note", async () => {
+    const s = await shop("emoji");
+    await s.say("2");
+    await s.say("👍");
+    expect(s.last()).toBe(NOTHING);
+    expect(await s.cart()).toEqual([["شاورما دجاج", 1, null]]);
+  });
+
+  it("«2 5» ← «بدون بصل»: no note (two lines), ن5", async () => {
+    const s = await shop("two-added");
+    await s.say("2 3");
+    await s.say("بدون بصل");
+    expect(s.last()).toBe(`${NOTHING}\n${NOTE_HINT_AR}`);
+    expect(await s.cart()).toEqual([
+      ["شاورما دجاج", 1, null],
+      ["فلافل", 1, null],
+    ]);
+  });
+
+  it("«2» onto a line already ×1 (now ×2) ← «بدون بصل»: 1 without + 1 with", async () => {
+    const s = await shop("merged");
+    await s.say("2");
+    await s.say("2");
+    await s.say("بدون بصل");
+    expect(await s.cart()).toEqual([
+      ["شاورما دجاج", 1, null],
+      ["شاورما دجاج", 1, "بدون بصل"],
+    ]);
+    expect(s.last()).toBe("أضفت الملاحظة:\nشاورما دجاج ×1\nملاحظة: بدون بصل");
+  });
+
+  it("the moved pieces keep the line's price, not today's", async () => {
+    const s = await shop("price");
+    await s.say("2 ×2");
+    await audit.query("UPDATE menu_items SET price = 9.00 WHERE id = $1", [
+      s.ids["شاورما دجاج"],
+    ]);
+    await s.say("2");
+    await s.say("بدون بصل");
+    const cart = (await s.context())["cart"] as CartRow[];
+    // ×2 at 3.50 then ×1 at 3.50 on the same line: the note's line is 3.50.
+    expect(
+      cart.map((l) => [l.qty, l.unit_price_minor, l.note ?? null]),
+    ).toEqual([
+      [2, 350, null],
+      [1, 350, "بدون بصل"],
+    ]);
+  });
+
+  it("«2 بدون بصل» ← «زيادة صوص»: «بدون بصل، زيادة صوص»", async () => {
+    const s = await shop("join");
+    await s.say("2 بدون بصل");
+    await s.say("زيادة صوص");
+    expect(await s.cart()).toEqual([["شاورما دجاج", 1, "بدون بصل، زيادة صوص"]]);
+  });
+
+  it("«2» ← «بدون بصل» ← «زيادة صوص»: «بدون بصل، زيادة صوص»", async () => {
+    const s = await shop("twice");
+    await s.say("2");
+    await s.say("بدون بصل");
+    await s.say("زيادة صوص");
+    expect(await s.cart()).toEqual([["شاورما دجاج", 1, "بدون بصل، زيادة صوص"]]);
+    expect(s.last()).toBe(
+      "أضفت الملاحظة:\nشاورما دجاج ×1\nملاحظة: بدون بصل، زيادة صوص",
+    );
+  });
+
+  it("«2» ← «سلة» ← «بدون بصل»: no note («سلة» emptied it), ن5", async () => {
+    const s = await shop("cleared");
+    await s.say("2");
+    await s.say("سلة");
+    await s.say("بدون بصل");
+    expect(s.last()).toBe(`${NOTHING}\n${NOTE_HINT_AR}`);
+    expect(await s.cart()).toEqual([["شاورما دجاج", 1, null]]);
+  });
+
+  it("«2» ← «شاورما بدون بصل» (2 = شاورما دجاج): «بدون بصل», the name off", async () => {
+    const s = await shop("alone-name");
+    await s.say("2");
+    await s.say("شاورما بدون بصل");
+    expect(await s.cart()).toEqual([["شاورما دجاج", 1, "بدون بصل"]]);
+  });
+
+  it("«2» ← 101 characters: ن4ب, the line without a note — and a shorter one then sticks", async () => {
+    const s = await shop("alone-long");
+    await s.say("2");
+    await s.say(LONG_NOTE);
+    expect(s.last()).toBe(NOTE_TOO_LONG_AR);
+    expect(await s.cart()).toEqual([["شاورما دجاج", 1, null]]);
+    await s.say("بدون بصل");
+    expect(await s.cart()).toEqual([["شاورما دجاج", 1, "بدون بصل"]]);
+  });
+
+  it("joined over 100: ن4ب, the old note stays", async () => {
+    const s = await shop("join-long");
+    await s.say(`2 ${"ب".repeat(90)}`);
+    await s.say("زيادة صوص كتير");
+    expect(s.last()).toBe(NOTE_TOO_LONG_AR);
+    expect(await s.cart()).toEqual([["شاورما دجاج", 1, "ب".repeat(90)]]);
+  });
+
+  it("«بدون بصل» on an empty cart: today's reply, no ن5", async () => {
+    const s = await shop("empty");
+    await s.say("بدون بصل");
+    expect(s.last()).toBe(NOTHING);
+  });
+
+  it("ن5 once in a session", async () => {
+    const s = await shop("hint-once");
+    await s.say("2 3");
+    await s.say("بدون بصل");
+    expect(s.last()).toBe(`${NOTHING}\n${NOTE_HINT_AR}`);
+    await s.say("بدون ثوم");
+    expect(s.last()).toBe(NOTHING);
+  });
+
+  it("ن5 with «غير واضح»: text before the first number, before «تم»'s hint", async () => {
+    const s = await shop("hint-unclear");
+    await s.say("بدون بصل 2");
+    expect(s.last()).toBe(
+      [
+        "أضفت: شاورما دجاج ×1 — المجموع 3.50 د.أ",
+        "الجزء «بدون بصل» غير واضح — الطلب بالأرقام فقط.",
+        NOTE_HINT_AR,
+        FINISH_HINT_AR,
+      ].join("\n"),
+    );
+  });
+
+  it("an order command is no note: «اكد» after «2» leaves the line as it was", async () => {
+    const s = await shop("command");
+    await s.say("2");
+    await s.say("اكد");
+    expect(await s.cart()).toEqual([["شاورما دجاج", 1, null]]);
   });
 });

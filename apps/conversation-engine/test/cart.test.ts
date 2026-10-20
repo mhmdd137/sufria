@@ -27,6 +27,7 @@ import {
   FINISH_HINT_AR,
   MENU_HEADER_AR,
   MENU_COMMANDS_TAIL_AR,
+  NOTE_HINT_AR,
   RESTAURANT_NAME_SLOT,
   WELCOME_AR,
   handoffMessageAr,
@@ -363,6 +364,7 @@ describe("ترتيب الأسطر و partial", () => {
       "الرقم 15 غير موجود في المنيو. الأرقام من 1 إلى 2.",
       "الكمية 60 أكثر من الحد. الأقصى 50 للصنف الواحد.",
       "الجزء «بدون بصل» غير واضح — الطلب بالأرقام فقط.",
+      NOTE_HINT_AR,
       FINISH_HINT_AR,
     ]);
   });

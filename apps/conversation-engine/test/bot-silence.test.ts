@@ -545,6 +545,9 @@ describe("the silence beats everything but a reaction — decision 3", () => {
     });
     expect((await c.say("منيو")).outcome).toBe("greeted");
     expect((await c.say("2")).outcome).toBe("browsing");
+    // Brief ن: right after «2», «شو هاد؟» would stick as its note (decision
+    // 3); «سلة» in between, and it is text not understood, as it was.
+    expect((await c.say("سلة")).outcome).toBe("browsing");
     expect((await c.say("شو هاد؟")).outcome).toBe("browsing");
     await staffMessage(s, order, { ageMinutes: 0 });
     return { s, c, order };
