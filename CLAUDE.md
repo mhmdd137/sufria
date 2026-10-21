@@ -43,7 +43,7 @@ pnpm db:seed          # load dev fixtures
 # After ANY database rebuild, recreate the demo restaurant (brief E) — prints its staff password once:
 node --env-file-if-exists=.env --import @swc-node/register/esm-register apps/dashboard-api/src/scripts/setup-restaurant.ts db/restaurants/demo.json
 pnpm dev              # run all services in parallel
-pnpm test:security    # chain-isolation gate — 19 assertions + 4 negative controls
+pnpm test:security    # chain-isolation gate — 23 assertions + 4 negative controls
 pnpm test:db          # critical primitives + schema drift + the migration tool
 pnpm check:rtl        # dashboard-web: logical properties only, no reversing (in verify and CI)
 pnpm check:budget     # dashboard-web: JS + fonts before first paint, per page, vs perf-budget.json
@@ -62,6 +62,10 @@ node --env-file=.env scripts/demo-menu.mjs price 1 ٣٫٧٥  # also: on <n> · o
 # does (brief م-ج §7). <n> is the order's number:
 node --env-file=.env scripts/demo-staff-message.mjs 101 "مرحبا، معك المطعم"
 node --env-file=.env scripts/demo-staff-message.mjs 101 --status   # also: --resume
+# Dev only, the same way: the restaurant's payment method (brief م-هـ-أ §10) —
+# prints the details' length, never the details; and an order's media (no caption):
+node --env-file=.env scripts/demo-payment.mjs show   # also: cash · transfer "<details>"
+node --env-file=.env scripts/demo-media.mjs 101      # --save: the stored files to <tmp>/sufria-media-101/
 ```
 
 `pnpm verify` needs a live database: `test:security` and `test:db` connect using
