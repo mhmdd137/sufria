@@ -21,8 +21,8 @@ with `ERR_PNPM_BAD_PM_VERSION`).
 | Path | Package | What it is |
 |---|---|---|
 | `packages/shared` | `@sufria/shared` | Drizzle schema mirror + domain logic shared by every app |
-| `apps/dashboard-api` | `@sufria/dashboard-api` | NestJS REST API for the restaurant dashboard: orders and their status (with their unread customer messages and `returned`, and `POST /orders/:id/messages/seen` — brief م-ب, `docs/13` §9.1 and §9.11), a staff member's message to the order's customer — `POST /orders/:id/messages` (a `pending` row, nothing sent), `POST /orders/:id/resume-bot`, the staff messages in the conversation with `botSilence` and `replyOpenUntil`, and `staffMessagedAt` on every list item (brief م-ج, `docs/brief-mc-staff-reply-backend.md`, `docs/13` §9.9 and §9.12), restaurant settings (task D); the menu — `GET`/`POST /menu-items`, `PATCH /menu-items/:id` (name, price, availability, archive and bring back), `POST /menu-items/enable-all`, `GET /menu-categories` — and `PATCH /restaurant/orders-pause`, all under the 4096 guard where they can lengthen the menu (brief ي-أ, `docs/brief-ja-menu-backend.md`). Each order line carries its `note` in `GET /orders` and `GET /orders/:id` (brief ن). Contracts as built: `docs/13-dashboard-api-brief.md` §9 (§9.10 for ي-أ) |
-| `apps/conversation-engine` | `@sufria/conversation-engine` | WhatsApp webhooks, business-hours gate, session, browsing cart, pickup-or-delivery, address, and order creation (task C); the customer-notification poller (task F, `src/notify/`); the 60-minute session timeout (task H, `docs/17-session-timeout-brief.md`); orders paused and the empty menu (brief ي-أ §4, `src/conversation/orders-paused.ts`); «آخر طلب لك» in a returning customer's first message, and «نفسه» (FR-08, brief ك, `docs/brief-ka-reorder.md`, `src/conversation/reorder.ts`); a customer's message after an order reaches the restaurant — the relay line instead of the menu, the message linked to the order, a reaction stored and nothing else (brief م-أ, `docs/brief-ma-customer-messages.md`, `src/conversation/customer-relay.ts`); the bot keeping quiet for a customer staff are talking to (`src/conversation/bot-silence.ts`), and the queue that sends staff messages (`src/notify/staff-replies.ts`) — brief م-ج; a customer's note for an item — after its number, or in a message of its own — from the cart to `order_items.notes` (brief ن, `docs/brief-n-item-notes.md` on `main`) |
+| `apps/dashboard-api` | `@sufria/dashboard-api` | NestJS REST API for the restaurant dashboard: orders and their status (with their unread customer messages and `returned`, and `POST /orders/:id/messages/seen` — brief م-ب, `docs/13` §9.1 and §9.11), a staff member's message to the order's customer — `POST /orders/:id/messages` (a `pending` row, nothing sent), `POST /orders/:id/resume-bot`, the staff messages in the conversation with `botSilence` and `replyOpenUntil`, and `staffMessagedAt` on every list item (brief م-ج, `docs/brief-mc-staff-reply-backend.md`, `docs/13` §9.9 and §9.12), restaurant settings (task D); the menu — `GET`/`POST /menu-items`, `PATCH /menu-items/:id` (name, price, availability, archive and bring back), `POST /menu-items/enable-all`, `GET /menu-categories` — and `PATCH /restaurant/orders-pause`, all under the 4096 guard where they can lengthen the menu (brief ي-أ, `docs/brief-ja-menu-backend.md`). Each order line carries its `note` in `GET /orders` and `GET /orders/:id` (brief ن). The transfer payment and a customer's media (brief م-هـ-أ, `docs/brief-mha-media-transfer-backend.md` on `main`): a transfer order accepted and completed like cash, `paymentMethod`/`transferDetails` in the settings, `paymentMethod`/`paymentStatus` on every list item, `media` and `caption` in the conversation, and `GET /orders/:id/media/:mediaId` (`docs/13` §9.13). Contracts as built: `docs/13-dashboard-api-brief.md` §9 (§9.10 for ي-أ) |
+| `apps/conversation-engine` | `@sufria/conversation-engine` | WhatsApp webhooks, business-hours gate, session, browsing cart, pickup-or-delivery, address, and order creation (task C); the customer-notification poller (task F, `src/notify/`); the 60-minute session timeout (task H, `docs/17-session-timeout-brief.md`); orders paused and the empty menu (brief ي-أ §4, `src/conversation/orders-paused.ts`); «آخر طلب لك» in a returning customer's first message, and «نفسه» (FR-08, brief ك, `docs/brief-ka-reorder.md`, `src/conversation/reorder.ts`); a customer's message after an order reaches the restaurant — the relay line instead of the menu, the message linked to the order, a reaction stored and nothing else (brief م-أ, `docs/brief-ma-customer-messages.md`, `src/conversation/customer-relay.ts`); the bot keeping quiet for a customer staff are talking to (`src/conversation/bot-silence.ts`), and the queue that sends staff messages (`src/notify/staff-replies.ts`) — brief م-ج; a customer's note for an item — after its number, or in a message of its own — from the cart to `order_items.notes` (brief ن, `docs/brief-n-item-notes.md` on `main`); the restaurant's payment method — ن1 in the summary, `transfer`/`pending_transfer` at «أكّد» — and the notifier's message by payment and the accepted message once (`orderNoticeAr`, `accepted_notice_at`), a customer's media — a `pending` `inbound_media` row by the webhook, the queue that downloads it from Meta (`src/notify/media-fetcher.ts`, `src/whatsapp/media-downloader.ts`) — brief م-هـ-أ |
 | `apps/dashboard-web` | `@sufria/dashboard-web` | Next.js staff UI: login, the orders screen (task G, `docs/16-orders-screen-brief.md`), an order's details with its conversation (task I, `docs/brief-i-order-details.md`), and the menu screen with the orders pause — `/menu`, `/menu/removed`, the pause strip on every page (brief ي-ب, `docs/brief-jb-menu-screen.md`); a customer's messages (brief م-ب, `docs/brief-mb-customer-messages-screen.md`) — the latest unread one on its card with the count, closed orders a message brought back in a group of their own above «الطلبات», every kind of message in the conversation (read every 5 s, marked read on the server), and the alert sound: O2 for a pending order (each minute, up to 3 h), M1 for a message, the header's «اكتم الصوت» and two strips (`shared/sound/`); a staff member writing to the order's customer (brief م-د, `docs/brief-md-staff-reply-screen.md`) — the field under the conversation, the staff bubble in its three states, the silence line and «شغّل الرد الآلي», the closed line after 24 hours, and a pending order's ring stopped by a staff message; after the laptop trial (brief م-د-9, `docs/brief-md9-after-trial.md`) the read every second after a send, the step's bar on the real keyboard, and the conversation before the order folded. An item's note: a line of its own under the card's grey line, and under its line on the details page (brief ن §8). Feature-based: `app/` (routes) · `features/<x>/` · `shared/` — see *Dashboard structure*. Talks to `dashboard-api` at `NEXT_PUBLIC_API_URL` |
 | `db/migrations` | — | Raw SQL. The single source of truth for the schema |
 | `db/seed` | — | Dev-only fixtures |
@@ -138,6 +138,18 @@ DEFINER); a database that cannot prove it stops before any file, with nothing
 changed. A session advisory lock keeps two runs apart. `tests/db/migrate.test.mjs`
 (in `test:db`) holds all of it on databases of its own, created and dropped
 per test — breaking the "applied?" check drops the second-run test.
+
+**0020 and 0021 are two files on purpose** (brief م-هـ-أ): Postgres refuses
+a new enum value inside the transaction that added it ("unsafe use of new
+value"), and the runner applies each file in one. 0020 adds `transfer` and
+`pending_transfer`, nothing else; 0021 uses them — the restaurant's
+`payment_method`/`transfer_details`, the orders' payment CHECKs
+(`orders_collected_is_cash` gave way to `orders_collected_is_cash_or_transfer`),
+`orders.accepted_notice_at` (backfilled for orders past `accepted`), and
+`inbound_media` (a customer's image, voice note or PDF, the bytes in
+`content`, 5 MiB at most; RLS; the engine writes, `sufria_dashboard` reads
+alone) with `app.restaurants_with_pending_media()` — **Bypass #6**, 0018's
+shape (`SETOF uuid`, `sufria_engine` alone, gate A20–A23).
 
 🔴 **`pnpm db:reset` stays forbidden on the demo restaurant's database** — it
 wipes it. A new migration reaches that database through `pnpm db:migrate` alone,
@@ -326,6 +338,26 @@ list · the note on a merged line whole · «آخر إضافة» never emptied �
 dropped · the grey line counting every item. Two of `item-parser.test.mts`
 changed by Mohammed's decision (19 October): «2 بدون بصل» is now a note and
 `parsed`; the «غير واضح» case is text before the first number.
+
+Brief م-هـ-أ's suites: `shared/test/transfer-payment.test.mts` (ن1, §4.3's
+table row by row, ن2 letter for letter, ن3) and `shared/test/media.test.mts`
+(`mediaFromMessage`, the allowed types, 0021's 5 MiB, an image's size from
+bytes written by hand); `conversation-engine/test/transfer-payment.test.ts`
+(the summary and «أكّد»), `notifier.test.ts`'s §6.2 block (ten scenarios),
+`media.test.ts` (the webhook's row, the queue with a fake downloader, and
+`MetaMediaDownloader` against a local `node:http` server — never Meta);
+`dashboard-api/test/transfer-media.test.ts`; `test:db` section 13 and the
+0021 backfill in `migrate.test.mjs`; gate A20–A23. Ten breaks, each
+predicted in a file before it ran: the notice's old value from `RETURNING` ·
+the notice not marked at the claim · ن3 for cash too · the payment gate cash
+alone · the result written without its attempt · a media row for a message
+not relayed · the file without the route's order · `GRANT UPDATE` to the
+dashboard · 0021 without its `REVOKE` · the summary ignoring the payment. One
+was not caught at first — the stale worker's test let the new worker finish
+before the old one came back, so `state = 'pending'` alone refused it; the
+test now holds both mid-download. The notifier's `order()` helper builds
+`accepted_notice_at` as 0021's backfill would, so a `preparing` order built
+by an old test is one whose «أكّدنا» went out a cycle earlier.
 
 🔴 **Never count a whole table in a test** (`SELECT count(*) FROM orders`).
 The engine and API suites run in parallel under `pnpm -r test`; count only the
@@ -796,7 +828,9 @@ into the same `.next` that `next start` serves: restart a running one after.
   alike, so «حفظ» untouched sends nothing.
 - **A customer's voice note, image, video or file is a word, never shown**
   (brief م-ب): «رسالة صوتية — لا تظهر هنا»; a location is «موقع» and a
-  Google Maps link. Fetching the media from Meta is a later brief. The
+  Google Maps link. Since brief م-هـ-أ the engine keeps images, audio and
+  PDFs (below), and the API serves them — **the screen is brief م-هـ-ب's**:
+  until then the dashboard writes the word, as before. The
   location's `payload->'location'` shape is Meta's documented one — no real
   location message exists in the repo to check it; coordinates that are
   not JSON numbers show «موقع» with no link.
@@ -984,6 +1018,47 @@ into the same `.next` that `next start` serves: restart a running one after.
     (21 with long names, delivery and a 300-character address) · a session
     left untouched (the paused text, «منيو» on an empty menu, the silence)
     keeps its `last_added`, so a note after it can stick to the line before.
+- **The transfer payment and a customer's media (brief م-هـ-أ, Mohammed's
+  decisions 1–8, 20 October).** One payment method per restaurant
+  (`restaurants.payment_method`, cash or transfer, and its own
+  `transfer_details`), never asked of the customer: a transfer restaurant's
+  summary says ن1, «أكّد» writes `transfer`/`pending_transfer`, «اقبل» sends
+  ن2 (where to transfer, the total with the fee), «ابدأ التحضير» sends ن3
+  (`RELAY_STATUS_LINE_AR.preparing` — the written decision that lifts the
+  `preparing` silence, for transfer orders alone), and «تم» writes
+  `collected`, like cash — no gate, staff check the wallet. **The notifier
+  remembers the accepted message** (`orders.accepted_notice_at`, marked at
+  the claim, its old value read from the claim's CTE): a `preparing` order
+  whose accepted message never went — «اقبل» then «ابدأ» inside one cycle —
+  gets the accepted message instead (cash too, «أكّدنا» used to be lost).
+  The settings are set by `scripts/demo-payment.mjs` until the settings
+  screen. **Media:** a customer's image, voice note or PDF on a message
+  relayed to an order (the relay or the silence) gets a `pending`
+  `inbound_media` row in the webhook's transaction; the engine's queue
+  (`MEDIA_POLL_MS`, 2000) downloads it from Meta — a claim is a 120 s lease,
+  the result guarded by its attempt, retried after 30 s, 2 min, 10 min, an
+  hour, 6 hours, then `failed`; older than 7 days `failed` with no request;
+  over 5 MiB `too_large`, never downloaded. What to know:
+  - **The host must reach Meta's file domain** (`lookaside.fbsbx.com`), not
+    `graph.facebook.com` alone — for the hosting brief. Meta's real answers
+    are unverified: the downloader was tried on a local server alone.
+  - **The screen is not built** (brief م-هـ-ب): the image, the player, the
+    PDF, the payment badge, the «ابدأ التحضير» text for a transfer order.
+  - **Not built:** deleting media after a while (a customer's financial
+    data) · cancelling a transfer order never paid · linking a media sent
+    before «أكّد» to the order · media before 0021 (never fetched again) ·
+    video and files other than PDF · thumbnails · `refunded` · a gateway ·
+    staff sending media · understanding a voice note.
+  - **Accepted limits:** a voice note mid-cart is «غير مفهوم» and never
+    reaches staff · «اقبل», «ابدأ» and «جاهز» all inside 5 s send «جاهز»
+    alone · a customer who transferred before acceptance gets ن2's
+    «حوّل» (may transfer twice) · a cancellation after a transfer is
+    refunded by hand · a customer who paid cash at a transfer restaurant is
+    recorded transfer · WhatsApp voice notes (Opus) on iOS before 18.4 are
+    not guaranteed to play (for the screen).
+  - A message's media is served as the MIME type the webhook carried, and a
+    row whose type is not allowed for its kind is failed before Meta is
+    asked; Meta's own answer is checked too.
 - **A split shift shows only its first window** in the closing message: the text
   has two slots, not four. Showing the *next* window would be a computed promise,
   which is the thing that text deliberately avoids.
