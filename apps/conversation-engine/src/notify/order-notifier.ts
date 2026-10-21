@@ -1,5 +1,10 @@
 import { sql } from "drizzle-orm";
-import { statusNotificationAr, type OrderStatus } from "@sufria/shared";
+import {
+  orderNoticeAr,
+  type Currency,
+  type OrderStatus,
+  type PaymentMethod,
+} from "@sufria/shared";
 
 import type { TenantDb } from "../db/tenant-db.js";
 import type { TenantTx } from "../db/types.js";
@@ -11,7 +16,13 @@ import { WhatsAppSendError, type WhatsAppSender } from "../whatsapp/sender.js";
  *
  * الـAPI بيغيّر حالة الطلب وبيحط `notified = false` وما بيبعت إشي (د). هون
  * بيلتقط هالطلبات كل `NOTIFY_POLL_MS` وبيبعت للزبون رسالة وحدة حسب الحالة،
- * أو ولا إشي حين يكون الصمت هو القرار (`statusNotificationAr` بـshared).
+ * أو ولا إشي حين يكون الصمت هو القرار (`orderNoticeAr` بـshared).
+ *
+ * 🔴 **حسب الدفع، والقبول مرة وحدة** (بريف م-هـ-أ، قرارات 4 و7 و8): طلب
+ *    التحويل بتوصله تفاصيل التحويل مع القبول (ن2) و«نحضّر طلبك» مع
+ *    التحضير (ن3). والالتقاط بيعلّم `accepted_notice_at` لما يلتقط القبول أو
+ *    التحضير، وبيرجّع قيمته **قبل** الالتقاط: طلب `preparing` ما انبعتت
+ *    رسالة قبوله (اقبل وابدأ بنفس الدورة) بتوصله رسالة القبول بدل الصمت.
  *
  * 🔴 **الالتقاط ذرّي، والرسالة من الصف اللي رجع منه** (§1.2). التعليم
  *    والقراءة `UPDATE … WHERE notified = false RETURNING` واحد. قراءة سابقة
@@ -57,6 +68,23 @@ export interface ClaimedOrder {
   customerPhone: string;
   /** `restaurants.whatsapp_phone_id` — المرسِل. */
   phoneNumberId: string | null;
+  /** `orders.payment_method` (brief م-هـ-أ). */
+  paymentMethod: PaymentMethod;
+  /** `orders.total` as text, the fee in — ن2's amount. */
+  total: string;
+  /** `restaurants.currency`. */
+  currency: Currency;
+  /**
+   * `restaurants.transfer_details` — ن2's details, as the restaurant wrote
+   * them. 🔴 **Never** in a log line: the restaurant's wallet.
+   */
+  transferDetails: string | null;
+  /**
+   * The order's accepted message was claimed before this claim:
+   * `accepted_notice_at` as it was **before** it (the CTE's, not
+   * `RETURNING`'s, which is always the new one).
+   */
+  acceptedNoticedBefore: boolean;
 }
 
 export type NotificationDecision =
@@ -64,12 +92,36 @@ export type NotificationDecision =
   | { kind: "outside_window" }
   | { kind: "send"; body: string };
 
+/**
+ * A transfer order whose restaurant has no details any more (it went back to
+ * cash and cleared them after the order was placed), at a status whose
+ * message would carry them: the cash message goes, and the notifier warns.
+ */
+export function transferDetailsMissing(order: ClaimedOrder): boolean {
+  return (
+    order.paymentMethod === "transfer" &&
+    order.transferDetails === null &&
+    (order.status === "accepted" || order.status === "preparing")
+  );
+}
+
 /** القرار الصافي: صمت، خارج النافذة، أو نص. الصمت قبل النافذة — ما في تحذير على صمت. */
 export function decideNotification(
   order: ClaimedOrder,
   now: Date,
 ): NotificationDecision {
-  const body = statusNotificationAr(order);
+  const body = orderNoticeAr({
+    ...order,
+    payment:
+      order.paymentMethod === "transfer"
+        ? {
+            method: "transfer",
+            total: order.total,
+            currency: order.currency,
+            details: order.transferDetails,
+          }
+        : { method: order.paymentMethod },
+  });
   if (body === null) return { kind: "silent" };
   if (now.getTime() - order.createdAt.getTime() > FREE_FORM_WINDOW_MS)
     return { kind: "outside_window" };
@@ -280,6 +332,13 @@ export class OrderNotifier {
       to: maskPhone(order.customerPhone),
     };
 
+    if (transferDetailsMissing(order))
+      // logger.ts: never the details — and here there are none.
+      this.log.warn(
+        logFields,
+        "transfer order, its restaurant has no transfer details — the cash message instead",
+      );
+
     const decision = decideNotification(order, this.now());
     if (decision.kind === "silent") {
       this.log.debug(logFields, "حالة صامتة — انعلّم بلا إرسال");
@@ -367,8 +426,12 @@ export class OrderNotifier {
 /**
  * 🔴 الالتقاط (§1.2): التعليم والقراءة استعلام واحد.
  *
- * - `AND o.notified = false` هو الحارس بين دورتين متوازيتين: التانية بتلاقي
- *   صفر صفوف. بلاه الاتنين بيبعتوا.
+ * - `AND notified = false` هو الحارس بين دورتين متوازيتين: التانية بتلاقي
+ *   صفر صفوف. بلاه الاتنين بيبعتوا. الـCTE بتقفل الصف (`FOR UPDATE`)،
+ *   فالتانية بتستنّى، وبعدها ما بتلاقي إشي.
+ * - 🔴 **`accepted_notice_at` بيتعلّم بالالتقاط، مش بعد الإرسال** (بريف
+ *   م-هـ-أ §6.1): نفس «مرة على الأكثر». والقيمة **القديمة** من الـCTE —
+ *   `RETURNING` بيرجّع الجديدة، فبتطلع دايما «انبعتت».
  * - الرسالة بتنبني من `RETURNING` — الحالة **بعد** آخر تغيير من الموظف، مش
  *   الحالة اللي كانت وقت القائمة.
  * - `updated_at` ما بينلمس: الإشعار مش تغيير بالطلب.
@@ -389,18 +452,34 @@ export async function claimOrderForNotification(
     created_at: Date;
     phone_number: string;
     whatsapp_phone_id: string | null;
+    payment_method: PaymentMethod;
+    total: string;
+    currency: Currency;
+    transfer_details: string | null;
+    accepted_noticed_before: boolean;
   }>(sql`
+    WITH target AS (
+      SELECT id, accepted_notice_at AS notice_before
+        FROM orders
+       WHERE id = ${orderId}::uuid AND notified = false
+       FOR UPDATE
+    )
     UPDATE orders o
-       SET notified = true
-      FROM customers c, restaurants r
-     WHERE o.id = ${orderId}::uuid
-       AND o.notified = false
+       SET notified = true,
+           accepted_notice_at = CASE WHEN o.status IN ('accepted', 'preparing')
+                                     THEN COALESCE(o.accepted_notice_at, now())
+                                     ELSE o.accepted_notice_at END
+      FROM target t, customers c, restaurants r
+     WHERE o.id = t.id
        AND c.id = o.customer_id
        AND r.id = o.restaurant_id
     RETURNING o.id, o.restaurant_id, o.order_number, o.status::text AS status,
               o.fulfillment_type::text AS fulfillment_type,
               o.cancellation_reason, o.created_at,
-              c.phone_number, r.whatsapp_phone_id`);
+              c.phone_number, r.whatsapp_phone_id,
+              o.payment_method::text AS payment_method, o.total::text AS total,
+              r.currency, r.transfer_details,
+              (t.notice_before IS NOT NULL) AS accepted_noticed_before`);
   const row = res.rows[0];
   if (row === undefined) return null;
   return {
@@ -413,5 +492,10 @@ export async function claimOrderForNotification(
     createdAt: new Date(row.created_at),
     customerPhone: row.phone_number,
     phoneNumberId: row.whatsapp_phone_id,
+    paymentMethod: row.payment_method,
+    total: row.total,
+    currency: row.currency,
+    transferDetails: row.transfer_details,
+    acceptedNoticedBefore: row.accepted_noticed_before,
   };
 }
