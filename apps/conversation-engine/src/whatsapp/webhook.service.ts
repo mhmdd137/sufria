@@ -10,7 +10,11 @@ import {
   type TenantDb,
 } from "../db/tenant-db.js";
 import { eq } from "drizzle-orm";
-import { inboundMessages } from "@sufria/shared";
+import {
+  inboundMedia,
+  inboundMessages,
+  mediaFromMessage,
+} from "@sufria/shared";
 import { logger, maskPhone } from "../logger.js";
 import type { InboundMessage, ParsedWebhook } from "./payload.js";
 
@@ -216,6 +220,25 @@ export class WebhookService {
             .update(inboundMessages)
             .set({ orderId: relayed.orderId })
             .where(eq(inboundMessages.id, stored.id));
+
+          // -----------------------------------------------------------
+          // ٦. A customer's image, voice note or PDF (brief م-هـ-أ §7.1) —
+          //    a `pending` row for the media queue, in this transaction.
+          //    🔴 Only for a message relayed to an order: one that is not
+          //    never shows on the dashboard (rule 2b), so keeping its file
+          //    would keep a customer's data for nothing. The reply does
+          //    not change.
+          // -----------------------------------------------------------
+          const media = mediaFromMessage(message.type, message.raw);
+          if (media !== null)
+            await tx.insert(inboundMedia).values({
+              restaurantId,
+              inboundMessageId: stored.id,
+              kind: media.kind,
+              waMediaId: media.waMediaId,
+              mimeType: media.mimeType,
+              fileName: media.fileName,
+            });
         }
 
         return "stored";

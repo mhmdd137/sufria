@@ -64,6 +64,13 @@ const EnvSchema = z
      */
     STAFF_REPLY_POLL_MS: z.coerce.number().int().nonnegative().default(1000),
     /**
+     * The media queue's cycle (brief م-هـ-أ §7.2): a customer's image, voice
+     * note or PDF downloaded from Meta. `0` turns it off — the tests do, and
+     * call `tick()` themselves. One query every 2 s on the queue's partial
+     * index (`idx_inbound_media_queue`), whatever the restaurants.
+     */
+    MEDIA_POLL_MS: z.coerce.number().int().nonnegative().default(2000),
+    /**
      * Decision 9: a staff message that waited longer than this many seconds
      * before its send began is never sent — «your order in 10 minutes»
      * forty minutes late must not go out — and a `sending` one this long

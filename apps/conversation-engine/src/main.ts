@@ -3,9 +3,11 @@ import { env } from "./config/env.js";
 import { TenantDb } from "./db/tenant-db.js";
 import { createWebhookServer, WEBHOOK_PATH } from "./http/server.js";
 import { logger } from "./logger.js";
+import { MediaFetcher } from "./notify/media-fetcher.js";
 import { OrderNotifier } from "./notify/order-notifier.js";
 import { StaffReplySender } from "./notify/staff-replies.js";
 import { SavingWhatsAppSender } from "./whatsapp/saving-sender.js";
+import { MetaMediaDownloader } from "./whatsapp/media-downloader.js";
 import { MetaWhatsAppSender } from "./whatsapp/sender.js";
 import { WebhookService } from "./whatsapp/webhook.service.js";
 
@@ -42,6 +44,12 @@ async function bootstrap(): Promise<void> {
     maxWaitSeconds: config.STAFF_REPLY_MAX_WAIT_SECONDS,
   });
 
+  // The media queue (brief م-هـ-أ §7): a customer's media from Meta into
+  // inbound_media. `MEDIA_POLL_MS=0` turns it off.
+  const media = new MediaFetcher(db, new MetaMediaDownloader(), {
+    pollMs: config.MEDIA_POLL_MS,
+  });
+
   const server = createWebhookServer({
     service: new WebhookService(db, conversation),
     health: db,
@@ -57,6 +65,7 @@ async function bootstrap(): Promise<void> {
       void notifier
         .stop()
         .then(() => staffReplies.stop())
+        .then(() => media.stop())
         .then(() => db.stop())
         .then(() => outboundDb.stop())
         .then(() => process.exit(0));
@@ -83,6 +92,13 @@ async function bootstrap(): Promise<void> {
       config.STAFF_REPLY_POLL_MS === 0
         ? "staff-reply queue off (STAFF_REPLY_POLL_MS=0)"
         : "staff-reply queue running",
+    );
+    media.start();
+    logger.info(
+      { pollMs: config.MEDIA_POLL_MS },
+      config.MEDIA_POLL_MS === 0
+        ? "media queue off (MEDIA_POLL_MS=0)"
+        : "media queue running",
     );
   });
 }
