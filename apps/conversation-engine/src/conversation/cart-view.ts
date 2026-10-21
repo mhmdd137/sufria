@@ -4,6 +4,7 @@ import {
   type CartDisplayLine,
   type Currency,
   type SummaryFulfillment,
+  type SummaryPayment,
 } from "@sufria/shared";
 
 import type { CartLine, SessionData } from "./session-data.js";
@@ -55,16 +56,21 @@ export function renderCart(
   );
 }
 
-/** رسالة `cart_review` — بتحلّ محل عرض السلّة اللي كانت ب-5 تبعته (ج §6). */
+/**
+ * رسالة `cart_review` — بتحلّ محل عرض السلّة اللي كانت ب-5 تبعته (ج §6).
+ * `payment` إجباري زي العملة (بريف م-هـ-أ §4.2): «الدفع نقدا.» أو ن1.
+ */
 export function renderSummary(
   data: SessionData,
   fulfillment: SummaryFulfillment,
   currency: Currency,
+  payment: SummaryPayment,
 ): string {
   return buildOrderSummary(
     displayLines(data),
     cartTotalMinor(data.cart),
     fulfillment,
     currency,
+    payment,
   );
 }

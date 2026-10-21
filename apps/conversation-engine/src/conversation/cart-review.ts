@@ -9,6 +9,7 @@ import {
   matchOrderCommand,
   orderReceivedMessageAr,
   type Currency,
+  type SummaryPayment,
 } from "@sufria/shared";
 
 import { advanceSessionState } from "../db/critical-primitives.js";
@@ -168,6 +169,11 @@ export interface CartReviewMessage {
   /** حيّة — بتلزم لو انكسر الثابت ورجعنا نسأل عن طريقة الاستلام (§8، خطوة 0). */
   readonly deliveryFeeMinor: number;
   readonly currency: Currency;
+  /**
+   * `restaurants.payment_method`, read in this message's transaction: the
+   * summary's payment line, and the order's own at «أكّد» (brief م-هـ-أ §5).
+   */
+  readonly payment: SummaryPayment;
   /** طابور ما بعد الـCOMMIT. «استلمنا طلبك» بتتحط هون، ما بتنبعت هون. */
   readonly deferred: DeferredSend[];
   readonly now: Date;
@@ -272,7 +278,7 @@ async function handleConfirm(
     await writeSessionData(tx, message.sessionId, next, message.now);
     await sendAll(sender, message, [
       removedLine,
-      renderSummary(next, fulfillment, message.currency),
+      renderSummary(next, fulfillment, message.currency, message.payment),
     ]);
     return;
   }
@@ -301,6 +307,7 @@ async function handleConfirm(
     restaurantId: message.restaurantId,
     data,
     fulfillment,
+    payment: message.payment,
   });
 
   // --- الخطوة 6 --------------------------------------------------------------
