@@ -371,6 +371,8 @@ const message = (
   kind: "text",
   text,
   location: null,
+  media: null,
+  caption: null,
   at,
 });
 

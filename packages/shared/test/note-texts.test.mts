@@ -150,7 +150,7 @@ test("«سلة»: ن1 under each line with a note; «شيل» at the end as befo
 
 test("the summary: ن1 under each line with a note, nothing else changed", () => {
   assert.equal(
-    buildOrderSummary(LINES, 1200, { type: "pickup" }, "JOD"),
+    buildOrderSummary(LINES, 1200, { type: "pickup" }, "JOD", "cash"),
     [
       "ملخّص طلبك:",
       "2 · شاورما دجاج ×1 — 3.50 د.أ",

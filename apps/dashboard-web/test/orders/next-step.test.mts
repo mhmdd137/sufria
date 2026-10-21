@@ -64,6 +64,8 @@ const ORDER: OrderListItem = {
   unreadMessages: 0,
   lastMessage: null,
   staffMessagedAt: null,
+  paymentMethod: "cash",
+  paymentStatus: "pending_cash",
 };
 
 test("🔴 nothing about the order changes before the server answers", async () => {

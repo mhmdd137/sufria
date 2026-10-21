@@ -38,6 +38,8 @@ const order = (
   unreadMessages: 0,
   lastMessage: null,
   staffMessagedAt: null,
+  paymentMethod: "cash",
+  paymentStatus: "pending_cash",
   ...extra,
 });
 const pending = (id: string, ageMinutes = 2) =>

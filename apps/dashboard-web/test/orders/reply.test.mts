@@ -73,6 +73,8 @@ const customer = (
   kind: "text",
   text: "وين طلبي؟",
   location: null,
+  media: null,
+  caption: null,
   at: AT,
   ...extra,
 });

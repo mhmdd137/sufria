@@ -160,7 +160,7 @@ const SUBTOTAL = 1450;
 
 test("الملخّص — استلام: بلا سطر رسوم، والمجموع هو مجموع السلّة", () => {
   assert.equal(
-    buildOrderSummary(LINES, SUBTOTAL, { type: "pickup" }, "JOD"),
+    buildOrderSummary(LINES, SUBTOTAL, { type: "pickup" }, "JOD", "cash"),
     [
       "ملخّص طلبك:",
       "2 · شاورما عربي ×2 — 12 د.أ",
@@ -184,6 +184,7 @@ test("الملخّص — توصيل برسوم: سطر الرسوم، والمج
         address: "الشميساني، شارع عبد الحميد شرف، بناية 12",
       },
       "JOD",
+      "cash",
     ),
     [
       "ملخّص طلبك:",
@@ -208,6 +209,7 @@ test("الملخّص — توصيل بلا رسوم: ولا سطر «التوص�
       address: "الجاردنز، شارع وصفي التل",
     },
     "JOD",
+    "cash",
   );
   assert.equal(
     summary,
@@ -229,7 +231,9 @@ test("🔴 الملخّص بلا ذيل «شيل» — الأمر ما بيشت�
     { type: "pickup" },
     { type: "delivery", feeMinor: 150, address: "عمان" },
   ] as const) {
-    assert.ok(!buildOrderSummary(LINES, SUBTOTAL, f, "JOD").includes("شيل"));
+    assert.ok(
+      !buildOrderSummary(LINES, SUBTOTAL, f, "JOD", "cash").includes("شيل"),
+    );
   }
 });
 
@@ -246,6 +250,7 @@ test("🔴 العنوان بينطبع حرفيا — ولا تطبيع على �
         address,
       },
       "JOD",
+      "cash",
     ).includes(`التوصيل إلى: ${address}`),
   );
 });
@@ -256,6 +261,7 @@ test("🔴 اسم صنف فيه خانة أو $& بينطبع حرفيا بال�
     500,
     { type: "pickup" },
     "JOD",
+    "cash",
   );
   assert.ok(summary.includes("1 · طبق [المجموع] $& ×1 — 5 د.أ"));
   assert.ok(summary.includes("المجموع 5 د.أ"));
@@ -268,6 +274,7 @@ test("🔴 المال بالقروش: ولا float بمجموع الملخّص",
     1260,
     { type: "delivery", feeMinor: 75, address: "عمان" },
     "JOD",
+    "cash",
   );
   assert.ok(summary.includes("المجموع 13.35 د.أ"), summary);
 });

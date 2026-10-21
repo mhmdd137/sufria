@@ -72,6 +72,8 @@ const ORDER: OrderListItem = {
   unreadMessages: 0,
   lastMessage: null,
   staffMessagedAt: null,
+  paymentMethod: "cash",
+  paymentStatus: "pending_cash",
 };
 
 test("changeStatus: from is the status the card showed, with token and restaurant headers", async () => {

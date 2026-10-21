@@ -52,6 +52,8 @@ const ORDER: OrderListItem = {
   unreadMessages: 0,
   lastMessage: null,
   staffMessagedAt: null,
+  paymentMethod: "cash",
+  paymentStatus: "pending_cash",
 };
 
 const unread = (
@@ -177,12 +179,14 @@ test("the group shows only with returned orders, above the queue, under its titl
 const msg = (
   kind: OrderMessage["kind"],
   extra: Partial<CustomerOrBotMessage> = {},
-): OrderMessage => ({
+): CustomerOrBotMessage => ({
   id: `m-${kind}`,
   direction: "inbound",
   kind,
   text: kind === "text" ? "مرحبا" : null,
   location: null,
+  media: null,
+  caption: null,
   at: "2026-10-15T11:50:00.000Z",
   ...extra,
 });
