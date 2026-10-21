@@ -203,3 +203,61 @@ test("a file with SQL outside its BEGIN … COMMIT is refused before any file ru
   assert.deepEqual(await publicTables(url), []);
   assert.deepEqual(await ledger(url), []);
 });
+
+/** The repo's migrations up to `last`, alone, in a directory of the test's own. */
+function dirUpTo(t, last) {
+  const dir = mkdtempSync(join(tmpdir(), "sufria-migrations-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  for (const f of FILES.filter((name) => name <= last))
+    copyFileSync(join(MIGRATIONS, f), join(dir, f));
+  return dir;
+}
+
+test("🔴 0021's backfill (brief م-هـ-أ §2.3): an order past `accepted`, or accepted and claimed, has its accepted notice; the rest none", async (t) => {
+  const url = await database(t);
+  await migrate({ url, dir: dirUpTo(t, "0020_payment_transfer_values.sql") });
+  const [{ id: restaurant }] = await query(
+    url,
+    "INSERT INTO restaurants (name, assumed_commission_rate) VALUES ('مطعم 0021', 0) RETURNING id",
+  );
+  const [{ id: customer }] = await query(
+    url,
+    "INSERT INTO customers (restaurant_id, phone_number) VALUES ($1, '962790000021') RETURNING id",
+    [restaurant],
+  );
+  const cases = [
+    ["accepted, notified", "accepted", true, true],
+    ["accepted, not notified", "accepted", false, false],
+    ["preparing", "preparing", false, true],
+    ["ready", "ready", false, true],
+    ["completed", "completed", true, true],
+    ["pending_acceptance", "pending_acceptance", true, false],
+    ["cancelled", "cancelled", false, false],
+  ];
+  let number = 101;
+  for (const [, status, notified] of cases)
+    await query(
+      url,
+      `INSERT INTO orders (restaurant_id, customer_id, order_number, fulfillment_type,
+                           payment_method, status, payment_status, cancelled_by,
+                           notified, subtotal, total)
+       VALUES ($1, $2, $3, 'pickup', 'cash', $4::order_status,
+               CASE WHEN $4 = 'completed' THEN 'collected' ELSE 'pending_cash' END::payment_status,
+               CASE WHEN $4 = 'cancelled' THEN 'restaurant'::cancelled_by END,
+               $5, 5.00, 5.00)`,
+      [restaurant, customer, number++, status, notified],
+    );
+
+  await migrate({ url });
+
+  const rows = await query(
+    url,
+    `SELECT order_number, accepted_notice_at IS NOT NULL AS noticed
+       FROM orders ORDER BY order_number`,
+  );
+  // By label, so a failure names the case.
+  assert.deepEqual(
+    Object.fromEntries(rows.map((r, i) => [cases[i][0], r.noticed])),
+    Object.fromEntries(cases.map(([label, , , noticed]) => [label, noticed])),
+  );
+});
