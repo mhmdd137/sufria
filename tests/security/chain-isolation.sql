@@ -5,7 +5,7 @@
 -- إلزامي بنهاية Sprint 0 / بداية Sprint 1، قبل أي فيتشر يُبنى فوق الـguard."
 --
 -- Run:  psql -v ON_ERROR_STOP=1 -f tests/security/chain-isolation.sql
--- Any failing assertion raises and aborts. Silence + "ALL 19 ASSERTIONS PASSED"
+-- Any failing assertion raises and aborts. Silence + "ALL 23 ASSERTIONS PASSED"
 -- is the only passing output. No feature may be built on the Guard until this
 -- prints that line in CI.
 -- =============================================================================
@@ -592,4 +592,230 @@ BEGIN;
   RESET ROLE;
 ROLLBACK;
 
-DO $$ BEGIN RAISE NOTICE 'ALL 19 ASSERTIONS PASSED — chain isolation gate is green'; END $$;
+-- =============================================================================
+-- A20. app.restaurants_with_pending_media — Bypass #6 (0021), the media
+--      queue's only privileged call. The shape of A16: the engine alone may
+--      run it, not the API role, not PUBLIC; SECURITY DEFINER with a pinned
+--      search_path, or a caller could shadow `inbound_media`.
+-- =============================================================================
+BEGIN;
+  DO $$
+  DECLARE fn regprocedure := 'app.restaurants_with_pending_media()'::regprocedure;
+  BEGIN
+    IF has_function_privilege('sufria_dashboard', fn, 'EXECUTE') THEN
+      RAISE EXCEPTION 'A20 FAILED: the API role can execute restaurants_with_pending_media()';
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a
+                WHERE p.oid = fn AND a.grantee = 0) THEN
+      RAISE EXCEPTION 'A20 FAILED: PUBLIC can execute restaurants_with_pending_media()';
+    END IF;
+    IF NOT has_function_privilege('sufria_engine', fn, 'EXECUTE') THEN
+      RAISE EXCEPTION 'A20 FAILED: the engine role cannot execute restaurants_with_pending_media()';
+    END IF;
+    IF NOT (SELECT prosecdef FROM pg_proc WHERE oid = fn) THEN
+      RAISE EXCEPTION 'A20 FAILED: restaurants_with_pending_media() is not SECURITY DEFINER';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_proc p, unnest(p.proconfig) c
+                    WHERE p.oid = fn AND c LIKE 'search_path=%') THEN
+      RAISE EXCEPTION 'A20 FAILED: restaurants_with_pending_media() has no pinned search_path';
+    END IF;
+  END $$;
+  -- And the call itself, not only the catalogue: the API role is refused.
+  SET ROLE sufria_dashboard;
+  DO $$
+  BEGIN
+    BEGIN
+      PERFORM app.restaurants_with_pending_media();
+      RAISE EXCEPTION 'A20 FAILED: the API role called restaurants_with_pending_media()';
+    EXCEPTION WHEN insufficient_privilege THEN
+      NULL;  -- expected: permission denied for function
+    END;
+  END $$;
+  RESET ROLE;
+ROLLBACK;
+
+-- =============================================================================
+-- A21. A restaurant with no media due, or a suspended one, does not appear.
+--      Set up inside the transaction, so rows other suites leave behind
+--      cannot make it pass: every pending media row finished first, then
+--      branch A given a stored one and a pending one not due yet, branch B
+--      a pending one due — then B suspended.
+-- =============================================================================
+BEGIN;
+  UPDATE inbound_media SET state = 'failed', finished_at = now()
+   WHERE state = 'pending';
+  INSERT INTO inbound_messages (id, restaurant_id, wa_message_id, phone_number_id,
+                                from_phone, message_type, payload) VALUES
+    ('d2100000-0000-4000-8000-00000000000a', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+     'wamid.a21.a1', 'PHONE_A', '+962790000001', 'image', '{}'::jsonb),
+    ('d2100000-0000-4000-8000-00000000001a', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+     'wamid.a21.a2', 'PHONE_A', '+962790000001', 'image', '{}'::jsonb),
+    ('d2100000-0000-4000-8000-00000000000b', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+     'wamid.a21.b1', 'PHONE_B', '+962790000002', 'image', '{}'::jsonb);
+  INSERT INTO inbound_media (restaurant_id, inbound_message_id, kind, wa_media_id,
+                             mime_type, state, content, size_bytes, finished_at,
+                             next_attempt_at) VALUES
+    ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'd2100000-0000-4000-8000-00000000000a',
+     'image', 'a21', 'image/png', 'stored', '\x01'::bytea, 1, now(), now()),
+    ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'd2100000-0000-4000-8000-00000000001a',
+     'image', 'a21', 'image/png', 'pending', NULL, NULL, NULL, now() + interval '1 minute'),
+    ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'd2100000-0000-4000-8000-00000000000b',
+     'image', 'a21', 'image/png', 'pending', NULL, NULL, NULL, now());
+  SET ROLE sufria_engine;
+  DO $$
+  DECLARE got text;
+  BEGIN
+    SELECT string_agg(r::text, ',' ORDER BY r) INTO got
+      FROM app.restaurants_with_pending_media() r;
+    IF got IS DISTINCT FROM 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' THEN
+      RAISE EXCEPTION 'A21 FAILED: expected only branch B (media due), got [%]', got;
+    END IF;
+  END $$;
+  RESET ROLE;
+  -- A suspended restaurant's media due is not listed.
+  UPDATE restaurants SET status = 'suspended'
+   WHERE id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  SET ROLE sufria_engine;
+  DO $$
+  DECLARE n int;
+  BEGIN
+    SELECT count(*) INTO n FROM app.restaurants_with_pending_media();
+    IF n <> 0 THEN
+      RAISE EXCEPTION 'A21 FAILED: % restaurants returned with nothing due but a suspended one', n;
+    END IF;
+  END $$;
+  RESET ROLE;
+ROLLBACK;
+
+-- =============================================================================
+-- A22. The function returns nothing of a media row. The declared result is a
+--      bare SETOF uuid, and every value it returns is a restaurant id —
+--      never a media row's id, a message's, or an order's.
+-- =============================================================================
+BEGIN;
+  DO $$
+  DECLARE result text;
+  BEGIN
+    SELECT pg_get_function_result('app.restaurants_with_pending_media()'::regprocedure)
+      INTO result;
+    IF result <> 'SETOF uuid' THEN
+      RAISE EXCEPTION 'A22 FAILED: result type is [%], must be exactly SETOF uuid', result;
+    END IF;
+  END $$;
+  INSERT INTO inbound_messages (id, restaurant_id, wa_message_id, phone_number_id,
+                                from_phone, message_type, payload, order_id) VALUES
+    ('d2200000-0000-4000-8000-00000000000a', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+     'wamid.a22.a', 'PHONE_A', '+962790000001', 'image', '{}'::jsonb,
+     'f0000000-0000-4000-8000-00000000000a'),
+    ('d2200000-0000-4000-8000-00000000000b', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+     'wamid.a22.b', 'PHONE_B', '+962790000002', 'image', '{}'::jsonb,
+     'f0000000-0000-4000-8000-00000000000b');
+  INSERT INTO inbound_media (restaurant_id, inbound_message_id, kind, wa_media_id, mime_type)
+  SELECT m.restaurant_id, m.id, 'image', 'a22', 'image/png'
+    FROM inbound_messages m
+   WHERE m.id IN ('d2200000-0000-4000-8000-00000000000a',
+                  'd2200000-0000-4000-8000-00000000000b');
+  SET ROLE sufria_engine;
+  DO $$
+  DECLARE total int;
+  BEGIN
+    SELECT count(*) INTO total FROM app.restaurants_with_pending_media();
+    IF total = 0 THEN
+      RAISE EXCEPTION 'A22 FAILED: nothing returned — the check below would be vacuous';
+    END IF;
+  END $$;
+  RESET ROLE;
+  -- Compared as the owner: the engine cannot see the rows to compare against.
+  CREATE TEMP TABLE a22_returned ON COMMIT DROP AS
+    SELECT r AS id FROM app.restaurants_with_pending_media() r;
+  DO $$
+  DECLARE n int;
+  BEGIN
+    SELECT count(*) INTO n FROM a22_returned x JOIN inbound_media m ON m.id = x.id;
+    IF n <> 0 THEN RAISE EXCEPTION 'A22 FAILED: % media ids returned', n; END IF;
+    SELECT count(*) INTO n FROM a22_returned x JOIN inbound_messages m ON m.id = x.id;
+    IF n <> 0 THEN RAISE EXCEPTION 'A22 FAILED: % message ids returned', n; END IF;
+    SELECT count(*) INTO n FROM a22_returned x JOIN orders o ON o.id = x.id;
+    IF n <> 0 THEN RAISE EXCEPTION 'A22 FAILED: % order ids returned', n; END IF;
+    SELECT count(*) INTO n FROM a22_returned x
+     WHERE NOT EXISTS (SELECT 1 FROM restaurants r WHERE r.id = x.id);
+    IF n <> 0 THEN RAISE EXCEPTION 'A22 FAILED: % values that are not restaurant ids', n; END IF;
+  END $$;
+ROLLBACK;
+
+-- =============================================================================
+-- A23. inbound_media (0021) is isolated, and the dashboard only reads it.
+--      Under branch A's context the API role sees A's media alone — even
+--      though B's exists, or the first check would be vacuous — and its
+--      INSERT, UPDATE and DELETE are refused whatever the row. And a media
+--      row of A naming B's message is refused by the tenant key.
+-- =============================================================================
+BEGIN;
+  INSERT INTO inbound_messages (id, restaurant_id, wa_message_id, phone_number_id,
+                                from_phone, message_type, payload) VALUES
+    ('d2300000-0000-4000-8000-00000000000a', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+     'wamid.a23.a', 'PHONE_A', '+962790000001', 'image', '{}'::jsonb),
+    ('d2300000-0000-4000-8000-00000000000b', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+     'wamid.a23.b', 'PHONE_B', '+962790000002', 'image', '{}'::jsonb),
+    -- B's message with no media yet: the tenant key's case below, not UNIQUE's.
+    ('d2300000-0000-4000-8000-00000000001b', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+     'wamid.a23.b2', 'PHONE_B', '+962790000002', 'image', '{}'::jsonb);
+  INSERT INTO inbound_media (id, restaurant_id, inbound_message_id, kind, wa_media_id,
+                             mime_type) VALUES
+    ('e2300000-0000-4000-8000-00000000000a', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+     'd2300000-0000-4000-8000-00000000000a', 'image', 'a23', 'image/png'),
+    ('e2300000-0000-4000-8000-00000000000b', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+     'd2300000-0000-4000-8000-00000000000b', 'image', 'a23', 'image/png');
+  SET ROLE sufria_dashboard;
+  DO $ctx$ BEGIN PERFORM set_config('app.current_restaurant_id', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true); END $ctx$;
+  DO $$
+  DECLARE n int;
+  BEGIN
+    SELECT count(*) INTO n FROM inbound_media
+     WHERE id = 'e2300000-0000-4000-8000-00000000000b';
+    IF n <> 0 THEN RAISE EXCEPTION 'A23 FAILED: branch B''s media visible under branch A'; END IF;
+    SELECT count(*) INTO n FROM inbound_media
+     WHERE restaurant_id <> 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    IF n <> 0 THEN RAISE EXCEPTION 'A23 FAILED: % foreign media rows under branch A', n; END IF;
+    SELECT count(*) INTO n FROM inbound_media
+     WHERE id = 'e2300000-0000-4000-8000-00000000000a';
+    IF n <> 1 THEN
+      RAISE EXCEPTION 'A23 FAILED: branch A''s own media gives % rows, expected 1 — the check above would be vacuous', n;
+    END IF;
+    BEGIN
+      INSERT INTO inbound_media (restaurant_id, inbound_message_id, kind, wa_media_id, mime_type)
+      VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'd2300000-0000-4000-8000-00000000000a',
+              'image', 'a23', 'image/png');
+      RAISE EXCEPTION 'A23 FAILED: the API role inserted into inbound_media';
+    EXCEPTION WHEN insufficient_privilege THEN NULL;
+    END;
+    BEGIN
+      UPDATE inbound_media SET attempts = attempts + 1
+       WHERE id = 'e2300000-0000-4000-8000-00000000000a';
+      RAISE EXCEPTION 'A23 FAILED: the API role updated inbound_media';
+    EXCEPTION WHEN insufficient_privilege THEN NULL;
+    END;
+    BEGIN
+      DELETE FROM inbound_media WHERE id = 'e2300000-0000-4000-8000-00000000000a';
+      RAISE EXCEPTION 'A23 FAILED: the API role deleted from inbound_media';
+    EXCEPTION WHEN insufficient_privilege THEN NULL;
+    END;
+  END $$;
+  RESET ROLE;
+  -- The tenant key, as the engine (the role that writes): A's context, B's message.
+  SET ROLE sufria_engine;
+  DO $ctx$ BEGIN PERFORM set_config('app.current_restaurant_id', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true); END $ctx$;
+  DO $$
+  BEGIN
+    BEGIN
+      INSERT INTO inbound_media (restaurant_id, inbound_message_id, kind, wa_media_id, mime_type)
+      VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'd2300000-0000-4000-8000-00000000001b',
+              'image', 'a23', 'image/png');
+      RAISE EXCEPTION 'A23 FAILED: a media row of A naming B''s message was accepted';
+    EXCEPTION WHEN foreign_key_violation THEN NULL;
+    END;
+  END $$;
+  RESET ROLE;
+ROLLBACK;
+
+DO $$ BEGIN RAISE NOTICE 'ALL 23 ASSERTIONS PASSED — chain isolation gate is green'; END $$;
