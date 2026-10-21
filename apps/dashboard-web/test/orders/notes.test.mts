@@ -50,6 +50,8 @@ const ORDER: OrderListItem = {
   unreadMessages: 0,
   lastMessage: null,
   staffMessagedAt: null,
+  paymentMethod: "cash",
+  paymentStatus: "pending_cash",
 };
 
 test("a noted item leaves the grey line and gets a line of its own", () => {

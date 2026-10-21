@@ -9,8 +9,9 @@
 // for 0014's «an archived item is never available».
 // Section 9 checks 0015's partial index for the reorder suggestion, and
 // section 10 0016's columns for a customer's message after an order,
-// section 11 0017's column for when they were read, and section 12 0019's
-// limit on an item's note.
+// section 11 0017's column for when they were read, section 12 0019's
+// limit on an item's note, and section 13 0020/0021's transfer payment and a
+// customer's media (brief م-هـ-أ).
 //
 // Every order inserted here carries an explicit order_number (0011: NOT NULL,
 // no default), and no two orders of the same restaurant in one section share
@@ -47,9 +48,10 @@ const paymentStatus = pgEnum("payment_status", [
   "paid",
   "collected",
   "refunded",
+  "pending_transfer",
 ]);
 const fulfillmentType = pgEnum("fulfillment_type", ["pickup", "delivery"]);
-const paymentMethod = pgEnum("payment_method", ["online", "cash"]);
+const paymentMethod = pgEnum("payment_method", ["online", "cash", "transfer"]);
 const convState = pgEnum("conversation_state", [
   "new",
   "browsing",
@@ -882,6 +884,382 @@ async function main() {
       })
       .catch(() => {});
     check(`12. order_items_notes_length: ${label} is accepted`, noted);
+  }
+
+  // --- 13. 0020/0021 the transfer payment and a customer's media (brief م-هـ-أ §2.3)
+  // Every case runs in a transaction of its own and is rolled back, accepted
+  // or not. Constraints as the migration role (it owns the tables, and a
+  // CHECK binds it too); privileges as each application role, under its
+  // context.
+  const owner = new Pool({
+    connectionString: process.env.MIGRATION_DATABASE_URL,
+  });
+  const engine = new Pool({
+    connectionString: process.env.ENGINE_DATABASE_URL,
+  });
+  type Tried = { accepted: boolean; code?: string; constraint?: string };
+  const tryRolledBack = async (
+    on: Pool,
+    statements: readonly string[],
+    tenant: string | null = null,
+  ): Promise<Tried> => {
+    const client = await on.connect();
+    try {
+      await client.query("BEGIN");
+      if (tenant !== null)
+        await client.query(
+          "SELECT set_config('app.current_restaurant_id', $1, true)",
+          [tenant],
+        );
+      for (const statement of statements) await client.query(statement);
+      return { accepted: true };
+    } catch (e) {
+      const err = e as { code?: string; constraint?: string };
+      return { accepted: false, code: err.code, constraint: err.constraint };
+    } finally {
+      await client.query("ROLLBACK").catch(() => {});
+      client.release();
+    }
+  };
+  const refusedBy = (label: string, constraint: string, t: Tried) =>
+    check(
+      label,
+      !t.accepted && t.constraint === constraint,
+      t.accepted
+        ? "ACCEPTED — the constraint did not fire"
+        : t.constraint === constraint
+          ? ""
+          : `rejected by ${t.constraint ?? "nothing nameable"} (${t.code ?? "?"}) instead`,
+    );
+  const acceptedAs = (label: string, t: Tried) =>
+    check(
+      label,
+      t.accepted,
+      t.accepted
+        ? ""
+        : `rejected by ${t.constraint ?? "nothing nameable"} (${t.code ?? "?"})`,
+    );
+  const denied = (label: string, t: Tried) =>
+    check(
+      label,
+      !t.accepted && t.code === "42501",
+      t.accepted ? "ALLOWED" : t.code === "42501" ? "" : `failed ${t.code}`,
+    );
+
+  try {
+    // The restaurant's payment method and details.
+    const setRestaurant = (set: string) =>
+      `UPDATE restaurants SET ${set} WHERE id = '${RID}'`;
+    refusedBy(
+      "13. a transfer restaurant with no details",
+      "restaurants_transfer_needs_details",
+      await tryRolledBack(owner, [
+        setRestaurant("payment_method = 'transfer', transfer_details = NULL"),
+      ]),
+    );
+    acceptedAs(
+      "13. a transfer restaurant with its details is accepted",
+      await tryRolledBack(owner, [
+        setRestaurant(
+          "payment_method = 'transfer', transfer_details = 'جوال باي 059XXXXXXX'",
+        ),
+      ]),
+    );
+    refusedBy(
+      "13. details of spaces and line breaks alone",
+      "restaurants_transfer_details_check",
+      await tryRolledBack(owner, [
+        setRestaurant("transfer_details = E' \\n\\t\\r '"),
+      ]),
+    );
+    refusedBy(
+      "13. details of 301 characters",
+      "restaurants_transfer_details_check",
+      await tryRolledBack(owner, [
+        setRestaurant("transfer_details = repeat('ب', 301)"),
+      ]),
+    );
+    acceptedAs(
+      "13. details of 300 characters are accepted",
+      await tryRolledBack(owner, [
+        setRestaurant("transfer_details = repeat('ب', 300)"),
+      ]),
+    );
+    refusedBy(
+      "13. a restaurant paid online",
+      "restaurants_payment_method_check",
+      await tryRolledBack(owner, [setRestaurant("payment_method = 'online'")]),
+    );
+    acceptedAs(
+      "13. back to cash: accepted, and the details stay",
+      await tryRolledBack(owner, [
+        setRestaurant(
+          "payment_method = 'transfer', transfer_details = 'جوال باي'",
+        ),
+        setRestaurant("payment_method = 'cash'"),
+        `DO $$ BEGIN
+           IF (SELECT transfer_details FROM restaurants WHERE id = '${RID}')
+              IS DISTINCT FROM 'جوال باي' THEN
+             RAISE EXCEPTION 'the details went with the transfer';
+           END IF;
+         END $$`,
+      ]),
+    );
+
+    // The order's transfer payment.
+    let n = 9700;
+    const orderRow = (method: string, status: string, payment: string) =>
+      `INSERT INTO orders (restaurant_id, customer_id, order_number, fulfillment_type,
+                           payment_method, status, payment_status, subtotal, total)
+       VALUES ('${RID}', 'c0000000-0000-4000-8000-00000000000a', ${++n}, 'pickup',
+               '${method}', '${status}', '${payment}', 5.00, 5.00)`;
+    acceptedAs(
+      "13. a transfer order pending_transfer is accepted",
+      await tryRolledBack(owner, [
+        orderRow("transfer", "pending_acceptance", "pending_transfer"),
+      ]),
+    );
+    refusedBy(
+      "13. a transfer order pending_cash",
+      "orders_transfer_payment_status",
+      await tryRolledBack(owner, [
+        orderRow("transfer", "pending_acceptance", "pending_cash"),
+      ]),
+    );
+    refusedBy(
+      "13. a cash order pending_transfer",
+      "orders_pending_transfer_is_transfer",
+      await tryRolledBack(owner, [
+        orderRow("cash", "pending_acceptance", "pending_transfer"),
+      ]),
+    );
+    acceptedAs(
+      "13. a transfer order completed and collected is accepted",
+      await tryRolledBack(owner, [
+        orderRow("transfer", "completed", "collected"),
+      ]),
+    );
+    refusedBy(
+      "13. a transfer order paid",
+      "orders_transfer_payment_status",
+      await tryRolledBack(owner, [orderRow("transfer", "accepted", "paid")]),
+    );
+    acceptedAs(
+      "13. a cash order completed and collected is accepted",
+      await tryRolledBack(owner, [orderRow("cash", "completed", "collected")]),
+    );
+    refusedBy(
+      "13. a transfer order completed still pending_transfer",
+      "orders_completed_payment_settled",
+      await tryRolledBack(owner, [
+        orderRow("transfer", "completed", "pending_transfer"),
+      ]),
+    );
+    refusedBy(
+      "13. an online order completed and collected",
+      "orders_collected_is_cash_or_transfer",
+      await tryRolledBack(owner, [
+        orderRow("online", "completed", "collected"),
+      ]),
+    );
+
+    // A customer's media.
+    const RID_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const MSG_A = "d0210000-0000-4000-8000-00000000000a";
+    const MSG_B = "d0210000-0000-4000-8000-00000000000b";
+    const message = (id: string, restaurant: string) =>
+      `INSERT INTO inbound_messages (id, restaurant_id, wa_message_id, phone_number_id,
+                                     from_phone, message_type, payload)
+       VALUES ('${id}', '${restaurant}', 'wamid.0021.${id}', 'PHONE_0021',
+               '962790000001', 'image', '{}'::jsonb)`;
+    const media = (
+      messageId: string,
+      columns: {
+        state?: string;
+        content?: string;
+        size?: string;
+        finished?: string;
+        due?: string;
+      } = {},
+    ) =>
+      `INSERT INTO inbound_media (restaurant_id, inbound_message_id, kind, wa_media_id,
+                                  mime_type, state, content, size_bytes, finished_at,
+                                  next_attempt_at)
+       VALUES ('${RID}', '${messageId}', 'image', 'MEDIA_0021', 'image/jpeg',
+               '${columns.state ?? "pending"}', ${columns.content ?? "NULL"},
+               ${columns.size ?? "NULL"}, ${columns.finished ?? "NULL"},
+               ${columns.due ?? "now()"})`;
+    const mediaFk = await tryRolledBack(owner, [
+      message(MSG_B, RID_B),
+      media(MSG_B),
+    ]);
+    check(
+      "13. a media row of A naming B's message (23503, the tenant key)",
+      !mediaFk.accepted &&
+        mediaFk.code === "23503" &&
+        mediaFk.constraint ===
+          "inbound_media_inbound_message_id_restaurant_id_fkey",
+      mediaFk.accepted
+        ? "ACCEPTED — the tenant key did not fire"
+        : `${mediaFk.constraint ?? "nothing nameable"} (${mediaFk.code ?? "?"})`,
+    );
+    acceptedAs(
+      "13. control: a media row of A naming A's own message is accepted",
+      await tryRolledBack(owner, [message(MSG_A, RID), media(MSG_A)]),
+    );
+    refusedBy(
+      "13. stored with no content",
+      "inbound_media_check",
+      await tryRolledBack(owner, [
+        message(MSG_A, RID),
+        media(MSG_A, { state: "stored", size: "2", finished: "now()" }),
+      ]),
+    );
+    refusedBy(
+      "13. content whose length is not size_bytes",
+      "inbound_media_check1",
+      await tryRolledBack(owner, [
+        message(MSG_A, RID),
+        media(MSG_A, {
+          state: "stored",
+          content: "'\\x0102'::bytea",
+          size: "3",
+          finished: "now()",
+        }),
+      ]),
+    );
+    acceptedAs(
+      "13. stored with its two bytes is accepted",
+      await tryRolledBack(owner, [
+        message(MSG_A, RID),
+        media(MSG_A, {
+          state: "stored",
+          content: "'\\x0102'::bytea",
+          size: "2",
+          finished: "now()",
+        }),
+      ]),
+    );
+    acceptedAs(
+      "13. too_large at 9,000,000 bytes with no content is accepted",
+      await tryRolledBack(owner, [
+        message(MSG_A, RID),
+        media(MSG_A, {
+          state: "too_large",
+          size: "9000000",
+          finished: "now()",
+        }),
+      ]),
+    );
+    refusedBy(
+      "13. pending with finished_at",
+      "inbound_media_check2",
+      await tryRolledBack(owner, [
+        message(MSG_A, RID),
+        media(MSG_A, { finished: "now()" }),
+      ]),
+    );
+
+    // The roles: the dashboard reads under its context, and writes nothing.
+    acceptedAs(
+      "13. sufria_dashboard reads inbound_media under its context",
+      await tryRolledBack(pool, ["SELECT count(*) FROM inbound_media"], RID),
+    );
+    denied(
+      "13. sufria_dashboard INSERT into inbound_media → permission denied",
+      await tryRolledBack(
+        pool,
+        [
+          `INSERT INTO inbound_media (restaurant_id, inbound_message_id, kind, wa_media_id, mime_type)
+           VALUES ('${RID}', gen_random_uuid(), 'image', 'MEDIA_0021', 'image/jpeg')`,
+        ],
+        RID,
+      ),
+    );
+    denied(
+      "13. sufria_dashboard UPDATE of inbound_media → permission denied",
+      await tryRolledBack(
+        pool,
+        ["UPDATE inbound_media SET attempts = attempts + 1"],
+        RID,
+      ),
+    );
+    denied(
+      "13. sufria_dashboard DELETE from inbound_media → permission denied",
+      await tryRolledBack(pool, ["DELETE FROM inbound_media"], RID),
+    );
+    acceptedAs(
+      "13. sufria_engine writes inbound_media under its context",
+      await tryRolledBack(
+        engine,
+        [
+          message(MSG_A, RID),
+          media(MSG_A),
+          `UPDATE inbound_media SET attempts = 1 WHERE inbound_message_id = '${MSG_A}'`,
+          `DELETE FROM inbound_media WHERE inbound_message_id = '${MSG_A}'`,
+        ],
+        RID,
+      ),
+    );
+
+    // app.restaurants_with_pending_media() — Bypass #6. Each case first
+    // finishes A's own waiting media, so a row another suite left cannot
+    // make it pass.
+    const listed = (expected: boolean) =>
+      `DO $$ BEGIN
+         IF EXISTS (SELECT 1 FROM app.restaurants_with_pending_media() r
+                     WHERE r = '${RID}') IS DISTINCT FROM ${expected} THEN
+           RAISE EXCEPTION 'listed is not ${expected}';
+         END IF;
+       END $$`;
+    const quiet = `UPDATE inbound_media SET state = 'failed', finished_at = now()
+                    WHERE restaurant_id = '${RID}' AND state = 'pending'`;
+    acceptedAs(
+      "13. the engine calls restaurants_with_pending_media()",
+      await tryRolledBack(engine, [
+        "SELECT * FROM app.restaurants_with_pending_media()",
+      ]),
+    );
+    denied(
+      "13. the dashboard calls restaurants_with_pending_media() → permission denied",
+      await tryRolledBack(pool, [
+        "SELECT * FROM app.restaurants_with_pending_media()",
+      ]),
+    );
+    acceptedAs(
+      "13. media due → its restaurant is listed",
+      await tryRolledBack(owner, [
+        quiet,
+        message(MSG_A, RID),
+        media(MSG_A),
+        "SET LOCAL ROLE sufria_engine",
+        listed(true),
+      ]),
+    );
+    acceptedAs(
+      "13. media whose retry is ahead (next_attempt_at > now()) → not listed",
+      await tryRolledBack(owner, [
+        quiet,
+        message(MSG_A, RID),
+        media(MSG_A, { due: "now() + interval '1 minute'" }),
+        "SET LOCAL ROLE sufria_engine",
+        listed(false),
+      ]),
+    );
+    acceptedAs(
+      "13. media due at a suspended restaurant → not listed",
+      await tryRolledBack(owner, [
+        quiet,
+        message(MSG_A, RID),
+        media(MSG_A),
+        `UPDATE restaurants SET status = 'suspended' WHERE id = '${RID}'`,
+        "SET LOCAL ROLE sufria_engine",
+        listed(false),
+      ]),
+    );
+  } finally {
+    await owner.end();
+    await engine.end();
   }
 
   console.log(

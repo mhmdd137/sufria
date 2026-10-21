@@ -109,3 +109,9 @@ process.env["RELAY_REPLY_QUIET_MINUTES"] = "10";
  */
 process.env["STAFF_REPLY_POLL_MS"] = "0";
 process.env["STAFF_REPLY_MAX_WAIT_SECONDS"] = "120";
+
+/**
+ * 🔴 The media queue (brief م-هـ-أ) off too, for the same reason: the tests
+ *    call `tick()` themselves, with a downloader of their own — never Meta.
+ */
+process.env["MEDIA_POLL_MS"] = "0";

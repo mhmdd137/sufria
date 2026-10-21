@@ -87,6 +87,13 @@ export type OrderListItem = {
    * screen stops a pending order's ringing on it (decision 14).
    */
   staffMessagedAt: string | null;
+  /**
+   * How the order is paid, and where its payment stands (brief م-هـ-أ): a
+   * transfer order is `transfer` / `pending_transfer` until it is completed,
+   * then `collected`, like cash. For the card's badge (brief م-هـ-ب).
+   */
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
 };
 
 export type OrderListResponse = {
@@ -262,6 +269,45 @@ export const MESSAGE_KINDS = [
 ] as const;
 export type MessageKind = (typeof MESSAGE_KINDS)[number];
 
+/**
+ * What a customer's media can be, as the dashboard shows it (brief م-هـ-أ,
+ * decision 2) — `inbound_media.kind` (0021). A video or any other file has
+ * no media row: it stays a word.
+ */
+export const MEDIA_KINDS = ["image", "audio", "pdf"] as const;
+export type MediaKind = (typeof MEDIA_KINDS)[number];
+
+/**
+ * `inbound_media.state` (0021): `pending` until the engine downloaded it from
+ * Meta, then `stored` (the file is at `GET /orders/:id/media/:mediaId`),
+ * `failed` (Meta never gave it, or after 6 attempts, or older than 7 days)
+ * or `too_large` (more than 5 MiB, never downloaded).
+ */
+export const MEDIA_STATES = [
+  "pending",
+  "stored",
+  "failed",
+  "too_large",
+] as const;
+export type MediaState = (typeof MEDIA_STATES)[number];
+
+/** A customer message's media, without its bytes. */
+export type OrderMessageMedia = {
+  /** For `GET /orders/:id/media/:mediaId`. */
+  id: string;
+  kind: MediaKind;
+  state: MediaState;
+  /** As Meta sent it: `"image/jpeg"`, `"audio/ogg; codecs=opus"`. */
+  mimeType: string;
+  /** Once `stored`, or Meta's announced size for `too_large`; else `null`. */
+  sizeBytes: number | null;
+  /** An image's pixels, from its header once stored; else `null`. */
+  width: number | null;
+  height: number | null;
+  /** A PDF's own filename, as the customer's phone sent it; else `null`. */
+  fileName: string | null;
+};
+
 /** A location message's point, from its `payload->'location'`. */
 export type MessageLocation = { latitude: number; longitude: number };
 
@@ -291,6 +337,17 @@ type OrderMessageBase = {
  */
 export type CustomerOrBotMessage = OrderMessageBase & {
   direction: "inbound" | "outbound";
+  /**
+   * The customer's image, voice note or PDF (brief م-هـ-أ), in whatever
+   * state it is; `null` for every other message, and every bot one.
+   */
+  media: OrderMessageMedia | null;
+  /**
+   * The customer's caption on an image or a document, trimmed; `null` when
+   * none, and for every bot message. `text` stays `null` for such a message:
+   * it is not `kind: "text"`.
+   */
+  caption: string | null;
 };
 
 /**
@@ -584,6 +641,17 @@ export type OpeningHours = {
 export type RestaurantSettings = {
   /** Read-only: set when the restaurant is onboarded (§2.2). */
   currency: Currency;
+  /**
+   * The one way the restaurant is paid (brief م-هـ-أ, decision 3): the bot
+   * never asks the customer. `transfer` always has `transferDetails`.
+   */
+  paymentMethod: "cash" | "transfer";
+  /**
+   * Where to transfer, in the restaurant's own words, sent to the customer
+   * as written when an order is accepted. Kept when the restaurant goes back
+   * to cash; `null` when never written or cleared.
+   */
+  transferDetails: string | null;
   /** Read-only from the dashboard (§2.10). */
   offersDelivery: boolean;
   /** Text as the database holds it: `"1.50"`, `"0.00"`. */
@@ -628,10 +696,45 @@ export type UpdateRestaurantSettingsRequest = {
   contactPhone?: string | null;
   /** The whole week, replaced at once. */
   openingHours?: OpeningHours;
+  /**
+   * `transfer` needs details, sent now or already saved — else a 400
+   * `transfer_details_required` (brief م-هـ-أ §8.2).
+   */
+  paymentMethod?: "cash" | "transfer";
+  /**
+   * `\r\n` read as `\n`, both ends trimmed, then 1 to 300 characters on at
+   * most 5 lines, no control character but the line break. `null` clears
+   * them — refused while the restaurant is `transfer`.
+   */
+  transferDetails?: string | null;
 };
 
 /** The 200 of `PATCH /restaurant/settings`: the settings after the change. */
 export type UpdateRestaurantSettingsResponse = RestaurantSettings;
+
+/**
+ * The 400 of `PATCH /restaurant/settings` when the restaurant would be
+ * `transfer` with no details — none sent and none saved, or cleared while
+ * `transfer` (brief م-هـ-أ §8.2). The database's CHECK is the net behind it.
+ */
+export type TransferDetailsRequiredBody = {
+  statusCode: 400;
+  error: "Bad Request";
+  code: "transfer_details_required";
+  message: string;
+};
+
+/**
+ * The 404 of `GET /orders/:id/media/:mediaId` (brief م-هـ-أ §8.4): no such
+ * media, another order's, one not stored yet, or another restaurant's — one
+ * answer, never told apart (brief D §2.9).
+ */
+export type MediaNotFoundBody = {
+  statusCode: 404;
+  error: "Not Found";
+  code: "media_not_found";
+  message: string;
+};
 
 /**
  * `POST /auth/login` — brief D §9.8, unchanged since S0-08. Moved here from

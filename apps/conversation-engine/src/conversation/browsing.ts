@@ -33,6 +33,7 @@ import {
   unknownNumbersLineAr,
   type CustomerCommand,
   type Currency,
+  type SummaryPayment,
   type MessageIntent,
 } from "@sufria/shared";
 
@@ -152,6 +153,12 @@ export interface BrowsingInput {
   readonly deliveryFeeMinor: number;
   /** `restaurants.currency` — لكل نص فيه مبلغ (بريف د §2.2). */
   readonly currency: Currency;
+  /**
+   * `restaurants.payment_method` — the summary's payment line, «الدفع
+   * نقدا.» or ن1 (brief م-هـ-أ §5). Read with every message, like the
+   * currency.
+   */
+  readonly payment: SummaryPayment;
   /** The message's text as written — `""` for an image or a voice note. */
   readonly body: string;
 }
@@ -282,7 +289,7 @@ function noteHintDue(
 
 export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
   const { intent, catalog, contactPhone, offersDelivery } = input;
-  const { deliveryFeeMinor, currency, body } = input;
+  const { deliveryFeeMinor, currency, payment, body } = input;
   /**
    * 🔴 «آخر إضافة» is emptied by **every** message (brief ن §4) — a command,
    *    «سلة», «شيل», «منيو», a message not understood: each branch starts
@@ -296,7 +303,11 @@ export function decideBrowsing(input: BrowsingInput): BrowsingDecision {
     next: SessionData,
     fulfillment: SummaryFulfillment,
   ): BrowsingDecision =>
-    withReply(next, renderSummary(next, fulfillment, currency), "cart_review");
+    withReply(
+      next,
+      renderSummary(next, fulfillment, currency, payment),
+      "cart_review",
+    );
 
   /**
    * «تم» بسلّة فيها أصناف — وبعد «نفسه» كمان (بريف ك، القرار 8): **نفس
@@ -679,6 +690,7 @@ export interface BrowsingMessage {
   readonly offersDelivery: boolean;
   readonly deliveryFeeMinor: number;
   readonly currency: Currency;
+  readonly payment: SummaryPayment;
   readonly now: Date;
 }
 
@@ -713,6 +725,7 @@ export async function handleBrowsingMessage(
     offersDelivery: message.offersDelivery,
     deliveryFeeMinor: message.deliveryFeeMinor,
     currency: message.currency,
+    payment: message.payment,
     body: message.body ?? "",
   });
 

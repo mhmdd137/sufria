@@ -70,8 +70,8 @@ function everyAmountText(currency: Currency): string[] {
       currency,
     ).join("\n"),
     cartMessageAr(LINES, 750, currency),
-    buildOrderSummary(LINES, 750, { type: "pickup" }, currency),
-    buildOrderSummary(LINES, 750, DELIVERY, currency),
+    buildOrderSummary(LINES, 750, { type: "pickup" }, currency, "cash"),
+    buildOrderSummary(LINES, 750, DELIVERY, currency, "cash"),
     fulfillmentAskAr(150, currency),
   ];
 }
@@ -133,7 +133,9 @@ test("🔴 مطعم ILS: كل نص فيه مبلغ بـ«شيكل»، ولا «�
     fulfillmentAskAr(150, "ILS"),
     "استلام من المطعم أو توصيل؟ رسوم التوصيل 1.50 شيكل.\nاكتب «استلام» أو «توصيل».",
   );
-  const summary = buildOrderSummary(LINES, 750, DELIVERY, "ILS").split("\n");
+  const summary = buildOrderSummary(LINES, 750, DELIVERY, "ILS", "cash").split(
+    "\n",
+  );
   assert.ok(summary.includes("2 · شاورما دجاج ×2 — 5 شيكل"));
   assert.ok(summary.includes("حمص ×1 — 2.50 شيكل"));
   assert.ok(summary.includes("التوصيل — 1.50 شيكل"));
@@ -202,14 +204,18 @@ test("🔴 اسم صنف فيه خانة أو $& بينطبع حرفيا بسط�
 test("الملخّص: «الدفع نقدا.» للاستلام والتوصيل، بلا «عند الاستلام»", () => {
   assert.equal(SUMMARY_PAYMENT_LINE_AR, "الدفع نقدا.");
   for (const f of [{ type: "pickup" }, DELIVERY] as const) {
-    const lines = buildOrderSummary(LINES, 750, f, "JOD").split("\n");
+    const lines = buildOrderSummary(LINES, 750, f, "JOD", "cash").split("\n");
     assert.ok(lines.includes("الدفع نقدا."), lines.join("\n"));
     assert.ok(!lines.join("\n").includes("عند الاستلام"));
   }
   // السبب: بطلب الاستلام بيجي مباشرة بعد «الاستلام من المطعم».
-  const pickup = buildOrderSummary(LINES, 750, { type: "pickup" }, "JOD").split(
-    "\n",
-  );
+  const pickup = buildOrderSummary(
+    LINES,
+    750,
+    { type: "pickup" },
+    "JOD",
+    "cash",
+  ).split("\n");
   assert.equal(
     pickup[pickup.indexOf(SUMMARY_PICKUP_LINE_AR) + 1],
     SUMMARY_PAYMENT_LINE_AR,

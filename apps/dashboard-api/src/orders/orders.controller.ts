@@ -11,10 +11,12 @@ import {
   Post,
   Query,
   Res,
+  StreamableFile,
   UseGuards,
 } from "@nestjs/common";
 import type {
   CreateStaffMessageResponse,
+  MediaNotFoundBody,
   OrderDetail,
   OrderListResponse,
   OrderMessagesResponse,
@@ -30,6 +32,8 @@ import { RestaurantContextGuard } from "../auth/restaurant-context.guard.js";
 import { CreateStaffMessageDto } from "./dto/create-staff-message.dto.js";
 import { ListOrdersQueryDto } from "./dto/list-orders.dto.js";
 import { MarkMessagesSeenDto } from "./dto/mark-messages-seen.dto.js";
+import { OrderMediaParamDto } from "./dto/order-media.dto.js";
+import { mediaHeaders } from "./media-headers.js";
 import { OrderIdParamDto } from "./dto/order-id.dto.js";
 import { UpdateOrderStatusDto } from "./dto/update-order-status.dto.js";
 import { OrdersService } from "./orders.service.js";
@@ -81,6 +85,36 @@ export class OrdersController {
     const conversation = await this.orders.messages(restaurantId, params.id);
     if (!conversation) throw new NotFoundException();
     return conversation;
+  }
+
+  /**
+   * Brief م-هـ-أ §8.4: a customer's image, voice note or PDF, as stored.
+   * Not stored yet, another order's, another restaurant's — one 404,
+   * `media_not_found`, never told apart (brief D §2.9).
+   */
+  @Get(":id/media/:mediaId")
+  async media(
+    @VerifiedRestaurantId() restaurantId: string,
+    @Param() params: OrderMediaParamDto,
+    @Res({ passthrough: true }) res: HeaderSetter,
+  ): Promise<StreamableFile> {
+    const file = await this.orders.mediaFile(
+      restaurantId,
+      params.id,
+      params.mediaId,
+    );
+    if (!file) {
+      const body: MediaNotFoundBody = {
+        statusCode: 404,
+        error: "Not Found",
+        code: "media_not_found",
+        message: "no stored media of this order with this id",
+      };
+      throw new NotFoundException(body);
+    }
+    for (const [name, value] of Object.entries(mediaHeaders(file)))
+      res.setHeader(name, value);
+    return new StreamableFile(file.content);
   }
 
   /**
@@ -234,6 +268,9 @@ function conflict(detail: ConflictDetail): ConflictException {
  * body). Structural, so the API needs no `express` types.
  */
 type StatusOnly = { status(code: number): unknown };
+
+/** The same for the file's headers (brief م-هـ-أ §8.4), set before the body. */
+type HeaderSetter = { setHeader(name: string, value: string): unknown };
 
 /** The 409 of `POST /orders/:id/messages`, in the same shape (brief م-ج §3). */
 function staffMessageConflict(

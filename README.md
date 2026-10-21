@@ -89,7 +89,7 @@ pnpm test:security       # بوابة العزل بين المطاعم
 المتوقع بآخر سطر من البوابة:
 
 ```
-NOTICE:  ALL 19 ASSERTIONS PASSED — chain isolation gate is green
+NOTICE:  ALL 23 ASSERTIONS PASSED — chain isolation gate is green
 ```
 
 **الخدمات، كل وحدة بنافذة:**

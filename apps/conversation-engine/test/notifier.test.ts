@@ -49,13 +49,28 @@ interface Shop {
   phoneNumberId: string;
 }
 
-async function shop(label: string): Promise<Shop> {
+/**
+ * A restaurant; `transfer` makes it a transfer restaurant with these details
+ * (brief م-هـ-أ), in `currency` (the database's default, JOD, otherwise).
+ */
+async function shop(
+  label: string,
+  opts: { transfer?: string; currency?: "JOD" | "ILS" } = {},
+): Promise<Shop> {
   const phoneNumberId = `PHONE.NOTIFY.${RUN}.${label}`;
   const { rows } = await audit.query<{ id: string }>(
-    `INSERT INTO restaurants (name, whatsapp_phone_id, status, business_hours)
-     VALUES ($1, $2, 'active'::restaurant_status, '{}'::jsonb)
+    `INSERT INTO restaurants (name, whatsapp_phone_id, status, business_hours,
+                              payment_method, transfer_details, currency)
+     VALUES ($1, $2, 'active'::restaurant_status, '{}'::jsonb,
+             $3::payment_method, $4, $5)
      RETURNING id`,
-    [`مطعم إشعارات ${label} ${RUN}`, phoneNumberId],
+    [
+      `مطعم إشعارات ${label} ${RUN}`,
+      phoneNumberId,
+      opts.transfer === undefined ? "cash" : "transfer",
+      opts.transfer ?? null,
+      opts.currency ?? "JOD",
+    ],
   );
   const id = rows[0]?.id ?? "";
   createdRestaurants.push(id);
@@ -75,6 +90,11 @@ let orderNumber = 101;
 /**
  * طلب بحالة معيّنة، مشكّل على كل قيود `orders`، بـ`notified = false` —
  * يعني زي ما بيتركه الـAPI بعد تغيير حالة.
+ *
+ * `acceptedNoticed` (brief م-هـ-أ): its accepted message was sent before.
+ * By default as 0021's backfill fills it — an order past `accepted`, or
+ * accepted and already notified, has it — so an order built `preparing` is
+ * one whose «أكّدنا» went out a cycle earlier, as before 0021.
  */
 async function order(
   s: Shop,
@@ -85,6 +105,9 @@ async function order(
     notified?: boolean;
     /** بالساعات قبل الآن. */
     ageHours?: number;
+    acceptedNoticed?: boolean;
+    /** `transfer` / `pending_transfer` (collected once completed). */
+    transfer?: boolean;
   },
 ): Promise<Order> {
   const to = nextPhone();
@@ -100,8 +123,10 @@ async function order(
                          payment_method, status, payment_status, cancelled_by,
                          cancellation_reason, notified, subtotal, delivery_fee,
                          total, delivery_address, ready_at, created_at, updated_at)
-     VALUES ($1, $2, $3, $4::fulfillment_type, 'cash', $5::order_status,
-             CASE WHEN $5 = 'completed' THEN 'collected' ELSE 'pending_cash' END::payment_status,
+     VALUES ($1, $2, $3, $4::fulfillment_type, $10::payment_method, $5::order_status,
+             CASE WHEN $5 = 'completed' THEN 'collected'
+                  WHEN $10 = 'transfer' THEN 'pending_transfer'
+                  ELSE 'pending_cash' END::payment_status,
              CASE WHEN $5 = 'cancelled' THEN 'restaurant'::cancelled_by END,
              $6, $7, 5.00, $8::numeric, 5.00 + $8::numeric,
              CASE WHEN $4 = 'delivery' THEN 'شارع الجامعة، بناية 12' END,
@@ -118,9 +143,20 @@ async function order(
       spec.notified ?? false,
       fee,
       spec.ageHours ?? 0,
+      spec.transfer ? "transfer" : "cash",
     ],
   );
-  return { id: rows[0]?.id ?? "", to, number };
+  const id = rows[0]?.id ?? "";
+  const noticed =
+    spec.acceptedNoticed ??
+    (["preparing", "ready", "completed", "expired"].includes(spec.status) ||
+      (spec.status === "accepted" && (spec.notified ?? false)));
+  if (noticed)
+    await audit.query(
+      `UPDATE orders SET accepted_notice_at = now() - interval '1 hour' WHERE id = $1`,
+      [id],
+    );
+  return { id, to, number };
 }
 
 /** نفس ما يفعله `PATCH /orders/:id/status`: الحالة، و`notified = false`. */
@@ -146,13 +182,16 @@ async function stateOf(orderId: string): Promise<{
   notified: boolean;
   outbound_msg_count: number;
   updated_at: Date;
+  accepted_notice_at: Date | null;
 }> {
   const { rows } = await audit.query<{
     notified: boolean;
     outbound_msg_count: number;
     updated_at: Date;
+    accepted_notice_at: Date | null;
   }>(
-    `SELECT notified, outbound_msg_count, updated_at FROM orders WHERE id = $1`,
+    `SELECT notified, outbound_msg_count, updated_at, accepted_notice_at
+       FROM orders WHERE id = $1`,
     [orderId],
   );
   const row = rows[0];
@@ -533,6 +572,179 @@ describe("الإرسال (§1.3 و§1.4)", () => {
 
     expect((await stateOf(sent.id)).outbound_msg_count).toBe(1);
     expect((await stateOf(silent.id)).outbound_msg_count).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// By payment, and the accepted message once — brief م-هـ-أ §6.2
+// ---------------------------------------------------------------------------
+
+const DETAILS = "جوال باي 059XXXXXXX (عرض تجريبي)";
+const N2 = (number: number, total: string, currency: string): string =>
+  [
+    `أكّدنا طلبك رقم ${number}.`,
+    `حوّل ${total} ${currency} على:`,
+    DETAILS,
+    "أرسل إشعار التحويل هنا، ونبدأ تحضير طلبك بعد وصوله.",
+  ].join("\n");
+
+describe("by payment, and the accepted message once (brief م-هـ-أ §6.2)", () => {
+  it("1. cash accepted → «أكّدنا طلبك رقم N.», and accepted_notice_at written by the claim", async () => {
+    const s = await shop("mha1");
+    const o = await order(s, { status: "accepted" });
+    expect((await stateOf(o.id)).accepted_notice_at).toBeNull();
+
+    await notifier([s]).tick();
+
+    expect(sentTo(o.to).map((m) => m.body)).toEqual([
+      `أكّدنا طلبك رقم ${o.number}.`,
+    ]);
+    expect((await stateOf(o.id)).accepted_notice_at).not.toBeNull();
+  });
+
+  it("2. 🔴 cash, «اقبل» and «ابدأ التحضير» in one cycle (preparing, no notice) → «أكّدنا طلبك رقم N.» (decision 8)", async () => {
+    const s = await shop("mha2");
+    const o = await order(s, { status: "preparing", acceptedNoticed: false });
+
+    await notifier([s]).tick();
+
+    expect(sentTo(o.to).map((m) => m.body)).toEqual([
+      `أكّدنا طلبك رقم ${o.number}.`,
+    ]);
+    expect((await stateOf(o.id)).accepted_notice_at).not.toBeNull();
+  });
+
+  it("3. 🔴 cash accepted (a cycle) → preparing (a cycle): «أكّدنا» once, then nothing", async () => {
+    const s = await shop("mha3");
+    const o = await order(s, { status: "accepted" });
+    const n = notifier([s]);
+
+    await n.tick();
+    await staffChangesStatus(o.id, "preparing");
+    await n.tick();
+
+    expect(sentTo(o.to).map((m) => m.body)).toEqual([
+      `أكّدنا طلبك رقم ${o.number}.`,
+    ]);
+    expect((await stateOf(o.id)).notified).toBe(true);
+  });
+
+  it("4. transfer accepted → ن2 letter for letter, its total and currency", async () => {
+    const s = await shop("mha4", { transfer: DETAILS, currency: "ILS" });
+    const o = await order(s, { status: "accepted", transfer: true });
+
+    await notifier([s]).tick();
+
+    expect(sentTo(o.to).map((m) => m.body)).toEqual([
+      N2(o.number, "5", "شيكل"),
+    ]);
+  });
+
+  it("5. 🔴 transfer accepted (a cycle) → preparing (a cycle): ن2, then ن3", async () => {
+    const s = await shop("mha5", { transfer: DETAILS, currency: "ILS" });
+    const o = await order(s, { status: "accepted", transfer: true });
+    const n = notifier([s]);
+
+    await n.tick();
+    await staffChangesStatus(o.id, "preparing");
+    await n.tick();
+
+    expect(sentTo(o.to).map((m) => m.body)).toEqual([
+      N2(o.number, "5", "شيكل"),
+      `نحضّر طلبك رقم ${o.number} الآن.`,
+    ]);
+  });
+
+  it("6. 🔴 transfer, «اقبل» and «ابدأ» in one cycle → ن2, not ن3", async () => {
+    const s = await shop("mha6", { transfer: DETAILS, currency: "ILS" });
+    const o = await order(s, {
+      status: "preparing",
+      transfer: true,
+      acceptedNoticed: false,
+    });
+
+    await notifier([s]).tick();
+
+    expect(sentTo(o.to).map((m) => m.body)).toEqual([
+      N2(o.number, "5", "شيكل"),
+    ]);
+  });
+
+  it("7. transfer cancelled from pending_acceptance → the cancellation as today, no details", async () => {
+    const s = await shop("mha7", { transfer: DETAILS, currency: "ILS" });
+    const o = await order(s, {
+      status: "cancelled",
+      reason: "نفد الخبز",
+      transfer: true,
+    });
+
+    await notifier([s]).tick();
+
+    expect(sentTo(o.to).map((m) => m.body)).toEqual([
+      `ألغينا طلبك رقم ${o.number} — نفد الخبز.`,
+    ]);
+    expect((await stateOf(o.id)).accepted_notice_at).toBeNull();
+  });
+
+  it("8. transfer delivery → ن2 with the total, fee included", async () => {
+    const s = await shop("mha8", { transfer: DETAILS, currency: "ILS" });
+    const o = await order(s, {
+      status: "accepted",
+      fulfillment: "delivery",
+      transfer: true,
+    });
+
+    await notifier([s]).tick();
+
+    expect(sentTo(o.to).map((m) => m.body)).toEqual([
+      N2(o.number, "6.50", "شيكل"),
+    ]);
+  });
+
+  it("9. 🔴 transfer, the restaurant back to cash and its details cleared → «أكّدنا طلبك رقم N.», and a warn line without details", async () => {
+    const s = await shop("mha9", { transfer: DETAILS, currency: "ILS" });
+    const o = await order(s, { status: "accepted", transfer: true });
+    await audit.query(
+      `UPDATE restaurants SET payment_method = 'cash', transfer_details = NULL WHERE id = $1`,
+      [s.id],
+    );
+    const { lines, log } = captureLog();
+
+    await notifier([s], { log }).tick();
+
+    expect(sentTo(o.to).map((m) => m.body)).toEqual([
+      `أكّدنا طلبك رقم ${o.number}.`,
+    ]);
+    const warned = lines.filter((l) => l.level === "warn");
+    expect(warned).toHaveLength(1);
+    expect(warned[0]?.obj).toMatchObject({ orderId: o.id });
+    expect(JSON.stringify(lines)).not.toContain("059");
+  });
+
+  it("10. preparing with its notice from the backfill → silent: no second «أكّدنا»", async () => {
+    const s = await shop("mha10");
+    const o = await order(s, { status: "preparing", acceptedNoticed: true });
+
+    await notifier([s]).tick();
+
+    expect(sentTo(o.to)).toHaveLength(0);
+    expect((await stateOf(o.id)).notified).toBe(true);
+  });
+
+  it("🔴 no log line carries the transfer details, whatever the outcome", async () => {
+    const s = await shop("mha-log", { transfer: DETAILS, currency: "ILS" });
+    const sent = await order(s, { status: "accepted", transfer: true });
+    const failing = await order(s, { status: "accepted", transfer: true });
+    const { lines, log } = captureLog();
+
+    await notifier([s], {
+      log,
+      via: new FailingFor(failing.to, sender),
+    }).tick();
+
+    expect(sentTo(sent.to)).toHaveLength(1);
+    expect(lines.length).toBeGreaterThan(0);
+    expect(JSON.stringify(lines)).not.toContain(DETAILS);
   });
 });
 

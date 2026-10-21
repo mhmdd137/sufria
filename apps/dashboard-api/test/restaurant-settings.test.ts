@@ -343,7 +343,7 @@ afterAll(async () => {
 // GET /restaurant/settings — brief D §3.5.
 // ---------------------------------------------------------------------------
 describe("GET /restaurant/settings", () => {
-  it("returns the six fields and nothing else, money as the database's text", async () => {
+  it("returns the eight fields and nothing else, money as the database's text", async () => {
     // `ordersPausedAt` since brief ي-أ: `null` = taking orders.
     expect(await settingsOk(staffX, shopX)).toEqual({
       currency: "JOD",
@@ -352,6 +352,9 @@ describe("GET /restaurant/settings", () => {
       contactPhone: "+962790000099",
       openingHours: {},
       ordersPausedAt: null,
+      // Brief م-هـ-أ: cash, and no details, by default.
+      paymentMethod: "cash",
+      transferDetails: null,
     });
     expect(await settingsOk(staffOnlyY, shopY)).toEqual({
       currency: "ILS",
@@ -360,6 +363,9 @@ describe("GET /restaurant/settings", () => {
       contactPhone: null,
       openingHours: {},
       ordersPausedAt: null,
+      // Brief م-هـ-أ: cash, and no details, by default.
+      paymentMethod: "cash",
+      transferDetails: null,
     });
   });
 

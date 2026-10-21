@@ -6,6 +6,7 @@ import {
   priceToMinor,
   restaurants,
   type Currency,
+  type SummaryPayment,
 } from "@sufria/shared";
 
 import { env } from "../config/env.js";
@@ -312,6 +313,7 @@ export class ConversationService {
           offersDelivery: restaurant.offersDelivery,
           deliveryFeeMinor: restaurant.deliveryFeeMinor,
           currency: restaurant.currency,
+          payment: restaurant.payment,
           now: this.now(),
         });
         return "browsing";
@@ -328,6 +330,7 @@ export class ConversationService {
           contactPhone: restaurant.contactPhone,
           deliveryFeeMinor: restaurant.deliveryFeeMinor,
           currency: restaurant.currency,
+          payment: restaurant.payment,
           now: this.now(),
         });
         return "fulfillment_choice";
@@ -343,6 +346,7 @@ export class ConversationService {
           contactPhone: restaurant.contactPhone,
           deliveryFeeMinor: restaurant.deliveryFeeMinor,
           currency: restaurant.currency,
+          payment: restaurant.payment,
           deferred: ctx.deferred,
           now: this.now(),
         });
@@ -568,6 +572,8 @@ export class ConversationService {
     offersDelivery: boolean;
     deliveryFeeMinor: number;
     currency: Currency;
+    /** `restaurants.payment_method` (0021): never `online`, by its CHECK. */
+    payment: SummaryPayment;
     /** `restaurants.orders_paused_at IS NOT NULL` (brief ي-أ §2). */
     ordersPaused: boolean;
   }> {
@@ -588,6 +594,9 @@ export class ConversationService {
         // 🔴 Read with every message, like the rest of the row: a pause
         //    applies from the very next message, with no session to wait out.
         ordersPausedAt: restaurants.ordersPausedAt,
+        // 🔴 The same: a restaurant that goes back to cash says «نقدا» from
+        //    the very next summary (brief م-هـ-أ §5).
+        paymentMethod: restaurants.paymentMethod,
       })
       .from(restaurants)
       .where(eq(restaurants.id, restaurantId))
@@ -602,9 +611,10 @@ export class ConversationService {
     //    (ج §15.4): **مسار تحويل واحد** للقراءة بالسلّة كلها — نفس الدالة
     //    اللي بتقرأ سعر الصنف. مساران بيخلّوا رقمين يتفاوتا بقرش بلا ما
     //    يسقط إشي.
-    const { deliveryFee, ordersPausedAt, ...rest } = row;
+    const { deliveryFee, ordersPausedAt, paymentMethod, ...rest } = row;
     return {
       ...rest,
+      payment: paymentMethod === "transfer" ? "transfer" : "cash",
       deliveryFeeMinor: priceToMinor(deliveryFee),
       ordersPaused: ordersPausedAt !== null,
     };

@@ -9,6 +9,7 @@ import {
   matchCommand,
   matchOrderCommand,
   type Currency,
+  type SummaryPayment,
   type SummaryFulfillment,
 } from "@sufria/shared";
 
@@ -59,6 +60,12 @@ export interface FulfillmentInput {
   readonly deliveryFeeMinor: number;
   /** `restaurants.currency` — لكل نص فيه مبلغ (بريف د §2.2). */
   readonly currency: Currency;
+  /**
+   * `restaurants.payment_method` — the summary's payment line, «الدفع
+   * نقدا.» or ن1 (brief م-هـ-أ §5). Read with every message, like the
+   * currency.
+   */
+  readonly payment: SummaryPayment;
 }
 
 /** كل رد صادر بينعدّ — فجوة القياس بـب §4. الصمت ما بينعدّ. */
@@ -82,9 +89,14 @@ function summaryDecision(
   fulfillment: Fulfillment,
   summary: SummaryFulfillment,
   currency: Currency,
+  payment: SummaryPayment,
 ): FulfillmentDecision {
   const next = { ...data, fulfillment };
-  return withReply(next, renderSummary(next, summary, currency), "cart_review");
+  return withReply(
+    next,
+    renderSummary(next, summary, currency, payment),
+    "cart_review",
+  );
 }
 
 /**
@@ -117,7 +129,8 @@ function cancelDecision(data: SessionData): FulfillmentDecision {
 export function decideFulfillment(
   input: FulfillmentInput,
 ): FulfillmentDecision {
-  const { data, body, contactPhone, deliveryFeeMinor, currency } = input;
+  const { data, body, contactPhone, deliveryFeeMinor, currency, payment } =
+    input;
   const command = matchOrderCommand(body ?? "");
 
   // «عدّل» و«ألغِ» بيشتغلوا **بالخطوتين** (§3، صفّا «أي خطوة»).
@@ -138,6 +151,7 @@ export function decideFulfillment(
         { type: "pickup" },
         { type: "pickup" },
         currency,
+        payment,
       );
     }
     // أي أمر تاني معروف: مش عنوان.
@@ -165,7 +179,7 @@ export function decideFulfillment(
     const delivery = { ...pending, address };
     const summary = toSummaryFulfillment(delivery);
     if (summary === null) return withReply(data, ADDRESS_ASK_AR);
-    return summaryDecision(data, delivery, summary, currency);
+    return summaryDecision(data, delivery, summary, currency, payment);
   }
 
   // خطوة النوع.
@@ -184,6 +198,7 @@ export function decideFulfillment(
       { type: "pickup" },
       { type: "pickup" },
       currency,
+      payment,
     );
   }
 
@@ -232,6 +247,7 @@ export interface FulfillmentMessage {
   readonly contactPhone: string | null;
   readonly deliveryFeeMinor: number;
   readonly currency: Currency;
+  readonly payment: SummaryPayment;
   readonly now: Date;
 }
 
@@ -249,6 +265,7 @@ export async function handleFulfillmentMessage(
     contactPhone: message.contactPhone,
     deliveryFeeMinor: message.deliveryFeeMinor,
     currency: message.currency,
+    payment: message.payment,
   });
 
   if (decision.advanceTo !== null) {

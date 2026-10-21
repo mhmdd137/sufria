@@ -45,6 +45,8 @@ const ORDER: OrderListItem = {
   unreadMessages: 0,
   lastMessage: null,
   staffMessagedAt: null,
+  paymentMethod: "cash",
+  paymentStatus: "pending_cash",
 };
 
 test("🔴 pressing the button does not open the order: it is outside the link, above its layer", () => {

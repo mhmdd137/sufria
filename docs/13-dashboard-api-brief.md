@@ -658,6 +658,7 @@ ALTER TABLE orders
   - `returned` (بالرد كله، جنب `orders`): **مع `active` بس** — طلبات حالتها من `history` (`completed` · `cancelled` · `expired`) وإلها رسالة غير مقروءة `received_at > now() - interval '24 hours'` (ساعة القاعدة)؛ الأحدث رسالة غير مقروءة أول، وبعدها `id`. **مش بـ`orders`، ومش بعدّاد الراس.** مع `history` ← `[]` دايما، والطلب لسا بالسجل. باستعلام تاني بنفس معاملة `runInTenant`.
 - **أضاف بريف م-ج (17 أكتوبر) حقلا لكل بند** (كُتب من الكود على الفرع `feat/staff-reply`)، بـ`orders` و`returned` وبرد `PATCH /orders/:id/status` (نفس الإسقاط):
   - `staffMessagedAt`: `created_at` لآخر رسالة موظف على هالطلب **ما فشلت** (`staff_messages`، هجرة `0018`؛ `send_state <> 'failed'`)، ISO بـUTC، و`null` إذا ما في. الشاشة (م-د) بتوقف فيه رنين الطلب المعلّق (قرار 14). فهرس `idx_staff_messages_order`.
+- **أضاف بريف م-هـ-أ (21 أكتوبر) حقلين لكل بند** (كُتب من الكود على الفرع `feat/media-transfer`)، بـ`orders` و`returned` وبرد `PATCH /orders/:id/status`: `paymentMethod` (`cash` · `online` · `transfer`) و`paymentStatus` (`pending_cash` · `pending_online` · `paid` · `collected` · `refunded` · `pending_transfer`) — لشارة الكرت بم-هـ-ب. طلب التحويل `transfer` / `pending_transfer` لحد ما يكتمل، وبعدها `collected`.
 - **أضاف بريف ن (19 أكتوبر) حقلا لكل سطر من `items`:** `note` — ملاحظة الزبون على السطر كما كتبها (`order_items.notes`، 1–100 حرف بهجرة `0019`)، أو `null`. `OrderListLine` = `{ name, quantity, note }`. الترتيب ما تغيّر.
 - **الأخطاء:** 400 · 401 · 403 (§9.0).
 
@@ -724,7 +725,7 @@ ALTER TABLE orders
 | `ready` | `completed` · `cancelled` |
 | `completed` · `cancelled` · `expired` | لا شيء |
 
-🔴 **بوابة الدفع** (د-4 ود-4.1): الوجهتان `accepted` و`completed` تشترطان `payment_method = 'cash'` **أو** `payment_status = 'paid'`. الإلغاء مفتوح دائما.
+🔴 **بوابة الدفع** (د-4 ود-4.1): الوجهتان `accepted` و`completed` تشترطان `payment_method IN ('cash', 'transfer')` **أو** `payment_status = 'paid'`. الإلغاء مفتوح دائما. **طلب التحويل زي الكاش** (بريف م-هـ-أ، قرار 5): ولا بوابة ولا ضغطة زيادة — الموظف بيشيّك التحويل بمحفظته قبل «ابدأ التحضير» — و`completed` بيكتب `collected` للكاش وللتحويل (`orders_collected_is_cash_or_transfer`، هجرة `0021`).
 
 **بترتيب الفحص:**
 
@@ -808,11 +809,14 @@ ALTER TABLE orders
   "deliveryFee": "1.50",
   "contactPhone": "0790000099",
   "openingHours": { "days": { "sun": [{ "open": "09:00", "close": "23:00" }], "mon": [], "…": [] } },
-  "ordersPausedAt": null
+  "ordersPausedAt": null,
+  "paymentMethod": "transfer",
+  "transferDetails": "جوال باي 059XXXXXXX (عرض تجريبي)"
 }
 ```
 
 - `currency` و`offersDelivery` **للقراءة فقط**.
+- `paymentMethod` و`transferDetails` (بريف م-هـ-أ، قرار 3): طريقة دفع وحدة للمطعم، `cash` أو `transfer`، والبوت ما بيسأل الزبون. `transferDetails` نص المطعم زي ما كتبه — بيوصل الزبون مع «اقبل» — أو `null`. مطعم `transfer` إله تفاصيل دايما (قيد `restaurants_transfer_needs_details`).
 - `ordersPausedAt` (ي-أ): ISO بتوقيت UTC = الطلبات موقفة من هاللحظة، `null` = شغّالة. **للقراءة من هون** — بيكتبه `PATCH /restaurant/orders-pause` (§9.10). وبيرجع كمان برد `PATCH /restaurant/settings`.
 - `contactPhone` قد يكون `null`.
 - 🔴 **`openingHours` يُرجَع كما هو مخزَّن، بلا أي تحويل.** لمطعم جديد: **`{}`** (افتراضي العمود، ومعناه في المحرّك «مفتوح دائما»). وصف كُتب يدويا قبل الشاشة قد يحمل شكلا يقبله المحرّك تسامحا ولا يقبله الـPATCH (`"sunday"`، `"9:00"`).
@@ -827,6 +831,10 @@ ALTER TABLE orders
 | `deliveryFee` | نص بالنمط `DELIVERY_FEE_PATTERN` = `^\d{1,6}(?:\.\d{1,2})?$`. **الصفر مقبول** (توصيل مجاني). أرقام عربية-هندية ← 400. يُكتب `::numeric(12,2)` |
 | `contactPhone` | نص بالنمط `CONTACT_PHONE_PATTERN` = `^\+?[0-9]{7,15}$`: محلي (`0790000099`) أو دولي (`+962790000099`)، بلا مسافات ولا شرطات. **`null` يمسحه** |
 | `openingHours` | الأسبوع كاملا، يُستبدَل دفعة واحدة. الشكل أدناه حرفيا |
+| `paymentMethod` | `"cash"` أو `"transfer"` (بريف م-هـ-أ). غيرهم، ومنه `"online"`، ← 400 |
+| `transferDetails` | نص أو `null`. **بيتنظّف:** `\r\n` ← `\n`، وقصّ الطرفين؛ بعدها 1–300 حرف (عدّ Postgres، `char_length`)، **5 أسطر على الأكثر**، وولا محرف تحكّم إلا `\n` — غير هيك 400. اللي بيمرق بينحفظ زي ما صار. `null` بيمسحها. بتضل محفوظة لما المطعم يرجع `cash` |
+
+🔴 **`transfer` بلا تفاصيل** — ما انبعتت ومش محفوظة، أو انمسحت والمطعم `transfer` — ← **400 بكود `transfer_details_required`** (`TransferDetailsRequiredBody`: `{ statusCode: 400, error: "Bad Request", code, message }`). الفحص على الصف تحت `FOR UPDATE` بنفس المعاملة، وقيد القاعدة شبكة أمان بس (ولا 500).
 
 **`openingHours` — الشكل القانوني وحده:**
 
@@ -871,6 +879,10 @@ ALTER TABLE orders
 **بريف م-ب غيّر الرد** (15 أكتوبر، الفرع `feat/customer-messages-screen`): كل رسالة صار إلها `kind` و`location`، و`text` صار `null` للرسالة اللي مش نص. **القواعد ما تغيّرت**، إلا إن رسالة الزبون اللي بلا نص بتطلع **إذا مربوطة بهالطلب بس** (2ب)، والتفاعل ما بيطلع أبدا.
 
 **بريف م-ج زاد على الرد** (17 أكتوبر، الفرع `feat/staff-reply`): رسائل الموظف بالمحادثة (`direction: "staff"`)، وحقلين جنب `messages`: `botSilence` و`replyOpenUntil`. **قواعد رسائل الزبون والبوت ما تغيّرت.** التفاصيل تحت «رسائل الموظف».
+
+**بريف م-هـ-أ زاد على رسائل الزبون والبوت** (21 أكتوبر، الفرع `feat/media-transfer`): حقلين بكل رسالة `inbound`/`outbound` — **القواعد ما تغيّرت** (2ب: رسالة بلا نص بتطلع إذا مربوطة بهالطلب بس):
+- `media` (`OrderMessageMedia | null`): وسيط الزبون من `inbound_media` (هجرة `0021`)، **بلا البايتات**: `{ id, kind, state, mimeType, sizeBytes, width, height, fileName }`. `kind` من `MEDIA_KINDS` (`image` · `audio` · `pdf`)، و`state` من `MEDIA_STATES` (`pending` · `stored` · `failed` · `too_large`). `sizeBytes` للمخزّن، أو حجم ميتا للـ`too_large`؛ `width`/`height` للصورة المخزّنة إذا انقرأ رأسها؛ `fileName` للـPDF. ولا وسيط (فيديو، ملف تاني، رسالة قبل 0021، أي رسالة بوت) ← `null`. الملف نفسه بـ§9.13.
+- `caption`: تعليق الصورة أو الملف (`payload->'image'->>'caption'` أو `payload->'document'->>'caption'`)، مقصوص من الطرفين (مسافات وتاب وأسطر)، و`null` إذا فاضي أو ما في. **`text` بيضل `null`** لهيك رسالة: هي مش `kind: "text"`.
 
 **الطلب:** `:id` بـ`z.guid()` كـ§9.2. نفس الحارس ونفس السياق.
 
@@ -1052,6 +1064,31 @@ ALTER TABLE orders
 **`staff_messages` (هجرة `0018`):** `id` · `restaurant_id` · `order_id` (بمفتاح المستأجر `(order_id, restaurant_id) → orders`) · `staff_account_id` (`ON DELETE SET NULL`) · `client_id` (`UNIQUE (restaurant_id, client_id)`) · `body` (`CHECK btrim(body) <> ''`) · `send_state` (`pending` ← `sending` ← `sent` | `failed`) · `failure` (مع `failed` وبس، `CHECK`) · `meta_error_code` · `wa_message_id` · `created_at` · `silence_until` (`CHECK > created_at`) · `claimed_at` · `finished_at`. RLS بشكل `0006` حرفيا. **مش بـ`outbound_messages`:** المحرّك بيبعتها بالمرسِل الخام، فالمحادثة بتعرضها مرة وحدة، بحالتها.
 
 **الأخطاء:** 400 · 401 · 403 · 404 · 409.
+
+### 9.13 · `GET /orders/:id/media/:mediaId` — أضافه بريف م-هـ-أ (21 أكتوبر)
+
+**كُتب من الكود على الفرع `feat/media-transfer`.** بنفس قواعد §9.0. بايتات وسيط الزبون زي ما خزّنه طابور المحرّك (`notify/media-fetcher.ts`) — **للقراءة بس**: `sufria_dashboard` ما بيقدر يكتب `inbound_media` (0021).
+
+**الطلب:** `:id` و`:mediaId` الاتنين بـ`z.guid()` (`OrderMediaParamDto`) — مش `ParseUUIDPipe`، لنفس سبب §9.2. غير UUID ← **400**.
+
+**الشرط:** الوسيط لرسالة **مربوطة بنفس طلب المسار** (`inbound_messages.order_id = :id`)، والطلب لهالمطعم، و`state = 'stored'`. غير هيك — لسا `pending`، `failed`، `too_large`، وسيط طلب تاني (حتى لنفس الزبون)، أو لمطعم تاني (الـRLS) — ← **404** بجسم واحد، ما بيتفرّقوا (§2.9):
+
+```json
+{ "statusCode": 404, "error": "Not Found", "code": "media_not_found", "message": "no stored media of this order with this id" }
+```
+
+**الرد 200:** البايتات، وهالرؤوس (`media-headers.ts`):
+
+| الرأس | القيمة |
+|---|---|
+| `Content-Type` | `mime_type` المخزّن، زي ما إجا من الـwebhook (`audio/ogg; codecs=opus`) |
+| `Content-Length` | حجم البايتات |
+| `Cache-Control` | `private, max-age=86400` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Content-Security-Policy` | `default-src 'none'; sandbox` |
+| `Content-Disposition` | `inline` للصورة والصوت. الـPDF: `inline; filename="order-<رقم الطلب>.pdf"`، ومعه `filename*=UTF-8''…` من `file_name` بعد تنظيفه (بلا `/` `\` `"` ولا محارف تحكّم ولا أسطر) إذا ضل منه إشي |
+
+**الأخطاء:** 400 · 401 · 403 · 404.
 
 ---
 

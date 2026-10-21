@@ -156,13 +156,17 @@ test("رسالة إلغاء المطعم فيها خانة سبب لازم تن�
   );
 });
 
-test("preparing و completed بلا رسالة زبون — بقصد", () => {
+// The written product decision (Mohammed, decision 7, 20 October 2026, brief
+// م-هـ-أ): a transfer order's `preparing` gets ن3 — `RELAY_STATUS_LINE_AR.
+// preparing` itself, sent by `orderNoticeAr` — never a key here.
+test("preparing و completed بلا رسالة زبون — بقصد (ن3 لطلب التحويل وحده، من RELAY_STATUS_LINE_AR)", () => {
   for (const status of ["preparing", "completed"] as const) {
     assert.ok(
       !(status in ORDER_STATUS_MESSAGE_AR),
       `${status} انضافت إلها رسالة زبون. هاد مش سهو ينصلح — اقرأ التعليق ` +
         `فوق ORDER_STATUS_MESSAGE_AR بـpackages/shared/src/domain.ts. ` +
-        `بدها قرار منتج مكتوب، مش تعديل اختبار.`,
+        `القرار المكتوب الوحيد (محمد، 20 أكتوبر، بريف م-هـ-أ): ن3 لطلب ` +
+        `التحويل وحده، من RELAY_STATUS_LINE_AR.preparing — مش مفتاح هون.`,
     );
   }
 });

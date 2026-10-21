@@ -5,6 +5,7 @@ import {
   orderStatusHistory,
   orders,
   type SummaryFulfillment,
+  type SummaryPayment,
 } from "@sufria/shared";
 import { eq } from "drizzle-orm";
 
@@ -131,9 +132,15 @@ export async function insertOrder(
     readonly restaurantId: string;
     readonly data: SessionData;
     readonly fulfillment: SummaryFulfillment;
+    /**
+     * The restaurant's method, read in this very transaction — the moment
+     * of «أكّد» (brief م-هـ-أ §5): the summary the customer confirmed said
+     * the same.
+     */
+    readonly payment: SummaryPayment;
   },
 ): Promise<CreatedOrder> {
-  const { sessionId, restaurantId, data, fulfillment } = args;
+  const { sessionId, restaurantId, data, fulfillment, payment } = args;
 
   // الزبون بيجي من صف الجلسة نفسه — المقفول أصلا بـ`FOR UPDATE`.
   const [session] = await tx
@@ -166,9 +173,12 @@ export async function insertOrder(
       // 🔴 اسم العمود `session_id`، مش `conversation_session_id` (§15.2).
       sessionId,
       fulfillmentType: fulfillment.type,
-      // كاش وبس بالبايلوت: بوابة الدفع ممنوعة **بالكيان لا بالكود** (§2.5).
-      paymentMethod: "cash",
-      paymentStatus: "pending_cash",
+      // The restaurant's one method, cash or transfer (brief م-هـ-أ, decision
+      // 3) — never `online`: the gateway is barred **by the entity, not the
+      // code** (§2.5), and 0021's CHECK holds a restaurant to the two.
+      paymentMethod: payment,
+      paymentStatus:
+        payment === "transfer" ? "pending_transfer" : "pending_cash",
       status: "pending_acceptance",
       /**
        * 🔴 `true` **صراحة، ضد الافتراضي** (§15.3). `notified = false` معناها

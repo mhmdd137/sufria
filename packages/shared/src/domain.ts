@@ -2,6 +2,7 @@
  * أنواع النطاق المشتركة. الفرونت اند بيستوردها زي الباك اند بالضبط،
  * فلو حدا غيّر حالة طلب بالباك اند وما عدّل الواجهة، الـtypecheck بيوقع.
  */
+import type { PaymentMethod } from "./dashboard-api.js";
 
 export const ORDER_STATUSES = [
   "pending_acceptance",
@@ -20,6 +21,9 @@ export const PAYMENT_STATUSES = [
   "paid",
   "collected",
   "refunded",
+  // 0020 — a transfer order before it is completed (brief م-هـ-أ). No badge
+  // for now: the badge is the design round's (brief م-هـ-ب).
+  "pending_transfer",
 ] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
@@ -107,6 +111,13 @@ export const ORDER_NUMBER_SLOT = "[رقم الطلب]";
  *   `RELAY_STATUS_LINE_AR` in `relay-line.ts`, not here: the notification
  *   stays silent.
  *
+ *   🔴 **The written product decision that lifts it, for transfer orders
+ *   alone** (Mohammed, decision 7, 20 October 2026, brief م-هـ-أ): a
+ *   transfer order's «ابدأ التحضير» tells the customer their transfer
+ *   arrived — `RELAY_STATUS_LINE_AR.preparing` itself, sent by
+ *   `orderNoticeAr` (`order-notice.ts`). Still no key here: a cash order's
+ *   `preparing` stays silent, and `statusNotificationAr` with it.
+ *
  * 🔴 Every message but «استلمنا» carries its number since brief م-أ
  *    (decision 10): a customer with two orders cannot tell which one was
  *    confirmed. `[رقم الطلب]`, filled by `statusNotificationAr` and
@@ -177,7 +188,7 @@ export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
  * طلب أونلاين ما بينقبل قبل تأكيد الدفع. الإجراء الوحيد المتاح قبلها: الإلغاء.
  */
 export function canAcceptOrder(o: {
-  paymentMethod: "online" | "cash";
+  paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
 }): boolean {
   return o.paymentMethod !== "online" || o.paymentStatus === "paid";
@@ -532,6 +543,25 @@ export const SUMMARY_DELIVERY_LINE_AR = `التوصيل إلى: ${ADDRESS_SLOT}`
  */
 export const SUMMARY_PAYMENT_LINE_AR = "الدفع نقدا.";
 
+/**
+ * ن1 — the summary's payment line for a transfer restaurant (brief م-هـ-أ
+ * §3, Mohammed's text verbatim), in place of `SUMMARY_PAYMENT_LINE_AR`. The
+ * details come with the order's acceptance (decision 4), not here.
+ */
+export const SUMMARY_TRANSFER_LINE_AR =
+  "الدفع بالتحويل، ونرسل لك التفاصيل مع تأكيد الطلب.";
+
+/** The restaurant's transfer details, as it wrote them (brief م-هـ-أ). */
+export const TRANSFER_DETAILS_SLOT = "[تفاصيل التحويل]";
+
+/**
+ * ن2 after its first line (brief م-هـ-أ §3, verbatim): the accepted message
+ * of a transfer order is `ORDER_STATUS_MESSAGE_AR.accepted`, then this.
+ * Joined to it and filled in one pass by `orderNoticeAr` (`order-notice.ts`),
+ * so the restaurant's details, as written, are never filled again.
+ */
+export const TRANSFER_ACCEPTED_TAIL_AR = `حوّل ${TOTAL_SLOT} ${CURRENCY_SLOT} على:\n${TRANSFER_DETAILS_SLOT}\nأرسل إشعار التحويل هنا، ونبدأ تحضير طلبك بعد وصوله.`;
+
 // ---------------------------------------------------------------------------
 // إعادة الطلب — بريف ك (FR-08). النصّان من محمد حرفيا (القرار 5، 10 أكتوبر)،
 // وباقي سطور الكتلة نصوص قائمة: `CART_LINE_UNNUMBERED_AR` · `CART_TOTAL_LINE_AR`
@@ -600,6 +630,10 @@ export const ORDER_TEXT_TEMPLATES_AR: readonly string[] = [
   SUMMARY_PICKUP_LINE_AR,
   SUMMARY_DELIVERY_LINE_AR,
   SUMMARY_PAYMENT_LINE_AR,
+  // The transfer payment (brief م-هـ-أ): ن1, and ن2 after its first line,
+  // which is `ORDER_STATUS_MESSAGE_AR.accepted`, guarded already.
+  SUMMARY_TRANSFER_LINE_AR,
+  TRANSFER_ACCEPTED_TAIL_AR,
 ];
 
 // --- المال: قروش أعدادا صحيحة، والقسمة على 100 عند العرض وبس (§11.6-أ) -----
@@ -904,6 +938,12 @@ export function handoffMessageAr(contactPhone: string): string {
  *    يرفض الناقص يعني أن ملخّصا بلا عنوان **لا يُترجم أصلا** بدل أن يُرسَل
  *    سطرا فيه «التوصيل إلى: » وبعده فراغ.
  */
+/**
+ * How the customer pays, as the summary says it: the restaurant's one method
+ * (`restaurants.payment_method`, 0021 — never `online`).
+ */
+export type SummaryPayment = "cash" | "transfer";
+
 export type SummaryFulfillment =
   | { readonly type: "pickup" }
   | {
@@ -925,12 +965,16 @@ export type SummaryFulfillment =
  *   من عدم تعليمه (ب §15.1).
  * - سطر الرسوم يظهر **للتوصيل برسوم > 0 وحده**: «التوصيل — 0 د.أ» تقول
  *   للزبون إن هناك رسوما ثم تقول إنها صفر، وهي جملة بلا فائدة.
+ * - 🔴 **طريقة الدفع باراميتر إجباري** (بريف م-هـ-أ §4.2)، زي العملة: مسار
+ *   بينساها بيوقف بالـtypecheck، مش بيبعت «الدفع نقدا.» لمطعم غزة بصمت.
+ *   `transfer` ← ن1 بنفس المكان.
  */
 export function buildOrderSummary(
   lines: readonly CartDisplayLine[],
   subtotalMinor: number,
   fulfillment: SummaryFulfillment,
   currency: Currency,
+  payment: SummaryPayment,
 ): string {
   const feeMinor = fulfillment.type === "delivery" ? fulfillment.feeMinor : 0;
 
@@ -954,7 +998,7 @@ export function buildOrderSummary(
       : fillSlots(SUMMARY_DELIVERY_LINE_AR, {
           [ADDRESS_SLOT]: fulfillment.address,
         }),
-    SUMMARY_PAYMENT_LINE_AR,
+    payment === "transfer" ? SUMMARY_TRANSFER_LINE_AR : SUMMARY_PAYMENT_LINE_AR,
     CONFIRM_PROMPT_AR,
   ].join("\n");
 }

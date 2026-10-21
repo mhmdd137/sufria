@@ -17,6 +17,7 @@ import {
   timestamp,
   boolean,
   integer,
+  customType,
   numeric,
   jsonb,
   bigserial,
@@ -61,8 +62,15 @@ export const paymentStatus = pgEnum("payment_status", [
   "paid",
   "collected",
   "refunded",
+  // 0020 — a transfer order waiting for staff to check it (brief م-هـ-أ).
+  "pending_transfer",
 ]);
-export const paymentMethod = pgEnum("payment_method", ["online", "cash"]);
+// 0020 — `transfer`: a restaurant paid by transfer (brief م-هـ-أ).
+export const paymentMethod = pgEnum("payment_method", [
+  "online",
+  "cash",
+  "transfer",
+]);
 export const fulfillmentType = pgEnum("fulfillment_type", [
   "pickup",
   "delivery",
@@ -149,6 +157,12 @@ export const restaurants = pgTable("restaurants", {
   // since that moment: the engine answers every message with ORDERS_PAUSED_AR
   // and writes no order (brief ي-أ).
   ordersPausedAt: timestamp("orders_paused_at", { withTimezone: true }),
+  // 0021 — the one payment method the restaurant takes, `cash` or `transfer`
+  // (CHECK in SQL), and its own words for where to transfer — sent to the
+  // customer as written when an order is accepted. A transfer restaurant
+  // always has them (CHECK); kept when it goes back to cash (brief م-هـ-أ).
+  paymentMethod: paymentMethod("payment_method").notNull().default("cash"),
+  transferDetails: text("transfer_details"),
   assumedCommissionRate: numeric("assumed_commission_rate", {
     precision: 5,
     scale: 4,
@@ -311,6 +325,10 @@ export const orders = pgTable("orders", {
   customerMessagesSeenAt: timestamp("customer_messages_seen_at", {
     withTimezone: true,
   }),
+  // 0021 — when the notifier claimed the order's accepted message (brief
+  // م-هـ-أ, decision 8). NULL: not sent yet — a `preparing` order then gets
+  // the accepted message in place of its own.
+  acceptedNoticeAt: timestamp("accepted_notice_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -528,3 +546,47 @@ export const staffMessages = pgTable(
     index("idx_staff_messages_order").on(t.orderId, t.createdAt),
   ],
 );
+
+/** `bytea` — pg returns a Buffer, a Uint8Array. Drizzle 0.45 has no column of its own. */
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType: () => "bytea",
+});
+
+/**
+ * 0021 — a customer's image, voice note or PDF (brief م-هـ-أ, decision 1):
+ * one row per message the engine relayed to an order, downloaded from Meta
+ * by the engine's queue and kept here (Meta keeps a webhook's media 7 days).
+ * The engine writes it; the dashboard role reads it and nothing more.
+ *
+ * The SQL ties `inbound_message_id` to the restaurant with the tenant key
+ * `(inbound_message_id, restaurant_id) → inbound_messages`, and holds the
+ * CHECKs on `kind`, `state`, the 5 MiB limit and which columns go together —
+ * none mirrored here, as `staff_messages`' are not. The queue's partial index
+ * `idx_inbound_media_queue` is not mirrored either.
+ */
+export const inboundMedia = pgTable("inbound_media", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  restaurantId: uuid("restaurant_id")
+    .notNull()
+    .references(() => restaurants.id, { onDelete: "cascade" }),
+  inboundMessageId: uuid("inbound_message_id").notNull().unique(),
+  kind: text("kind", { enum: ["image", "audio", "pdf"] }).notNull(),
+  waMediaId: text("wa_media_id").notNull(),
+  mimeType: text("mime_type").notNull(),
+  fileName: text("file_name"),
+  state: text("state", { enum: ["pending", "stored", "failed", "too_large"] })
+    .notNull()
+    .default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  content: bytea("content"),
+  sizeBytes: integer("size_bytes"),
+  width: integer("width"),
+  height: integer("height"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});

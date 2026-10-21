@@ -39,6 +39,7 @@ import {
   type OrderListResponse,
   type OrderStatus,
   type OrderStatusConflictCode,
+  type PaymentMethod,
   type PaymentStatus,
   type UpdateOrderStatusResponse,
 } from "@sufria/shared";
@@ -84,6 +85,8 @@ type Fixture = {
   fulfillment: "pickup" | "delivery";
   total: string;
   createdAt: string;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
 };
 
 type OrderState = {
@@ -147,7 +150,7 @@ async function addMember(staffId: string, restaurant: string): Promise<void> {
 async function createOrder(spec: {
   status: OrderStatus;
   fulfillment?: "pickup" | "delivery";
-  paymentMethod?: "cash" | "online";
+  paymentMethod?: PaymentMethod;
   paymentStatus?: PaymentStatus;
 }): Promise<Fixture> {
   const fulfillment = spec.fulfillment ?? "pickup";
@@ -158,7 +161,9 @@ async function createOrder(spec: {
       ? "pending_online"
       : spec.status === "completed"
         ? "collected"
-        : "pending_cash");
+        : method === "transfer"
+          ? "pending_transfer"
+          : "pending_cash");
   const fee = fulfillment === "delivery" ? "1.50" : "0";
   const createdAt = at(minute++);
   const orderNumber = nextNumber++;
@@ -203,7 +208,15 @@ async function createOrder(spec: {
      VALUES ($1, $2, NULL, 'pending_acceptance', 'customer', $3::timestamptz)`,
     [id, shop, createdAt],
   );
-  return { id, orderNumber, fulfillment, total, createdAt };
+  return {
+    id,
+    orderNumber,
+    fulfillment,
+    total,
+    createdAt,
+    paymentMethod: method,
+    paymentStatus,
+  };
 }
 
 /**
@@ -234,6 +247,12 @@ const itemOf = (
   lastMessage: null,
   // Brief م-ج: no staff message on them.
   staffMessagedAt: null,
+  // Brief م-هـ-أ: a cash order completed is collected; else as created.
+  paymentMethod: o.paymentMethod,
+  paymentStatus:
+    status === "completed" && o.paymentMethod !== "online"
+      ? "collected"
+      : o.paymentStatus,
 });
 
 /** The order as the database holds it — asked above RLS. Timestamps as text, to the microsecond. */
@@ -917,13 +936,22 @@ describe("PATCH /orders/:id/status — payment", () => {
     });
   });
 
-  // Every pair the constraints allow — `collected` is cash-only
-  // (orders_collected_is_cash). The expectation is shared's own function, so
+  // Every pair the constraints allow — `collected` is cash's or transfer's
+  // (orders_collected_is_cash_or_transfer, 0021), `pending_transfer` is
+  // transfer's alone and a transfer order is `pending_transfer` or
+  // `collected` (brief م-هـ-أ). The expectation is shared's own function, so
   // the SQL gate and `canAcceptOrder` cannot drift apart unnoticed.
-  const paymentPairs = (["cash", "online"] as const).flatMap((method) =>
-    PAYMENT_STATUSES.filter(
-      (status) => !(status === "collected" && method === "online"),
-    ).map((status) => [method, status] as const),
+  const allowed = (method: PaymentMethod, status: PaymentStatus): boolean =>
+    (status !== "collected" || method !== "online") &&
+    (status !== "pending_transfer" || method === "transfer") &&
+    (method !== "transfer" ||
+      status === "pending_transfer" ||
+      status === "collected");
+  const paymentPairs = (["cash", "online", "transfer"] as const).flatMap(
+    (method) =>
+      PAYMENT_STATUSES.filter((status) => allowed(method, status)).map(
+        (status) => [method, status] as const,
+      ),
   );
 
   it.each(paymentPairs)(
