@@ -58,6 +58,45 @@ export const OpeningHoursSchema = z.strictObject({
   }),
 });
 
+/** Brief م-هـ-أ §8.2: the details' limits. 300 is 0021's CHECK. */
+export const TRANSFER_DETAILS_MAX_LENGTH = 300;
+export const TRANSFER_DETAILS_MAX_LINES = 5;
+
+/**
+ * Any control character but the line break (`\n`): a tab, a lone `\r`,
+ * NUL, the C1 block. Checked after `\r\n` became `\n`.
+ */
+// eslint-disable-next-line no-control-regex
+const CONTROL_BUT_NEWLINE = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/u;
+
+/**
+ * The restaurant's transfer details, cleaned as the brief says (§8.2):
+ * `\r\n` → `\n`, both ends trimmed — then 1 to 300 characters (as
+ * Postgres counts them, `char_length`), at most 5 lines, and no control
+ * character but the line break. What passes is stored as it is now: the
+ * customer gets it as written.
+ */
+const TransferDetailsSchema = z
+  .string()
+  .transform((s) => s.replace(/\r\n/gu, "\n").trim())
+  .pipe(
+    z
+      .string()
+      .min(1, "transferDetails must not be empty")
+      .refine(
+        (s) => [...s].length <= TRANSFER_DETAILS_MAX_LENGTH,
+        `transferDetails must be at most ${TRANSFER_DETAILS_MAX_LENGTH} characters`,
+      )
+      .refine(
+        (s) => s.split("\n").length <= TRANSFER_DETAILS_MAX_LINES,
+        `transferDetails must be at most ${TRANSFER_DETAILS_MAX_LINES} lines`,
+      )
+      .refine(
+        (s) => !CONTROL_BUT_NEWLINE.test(s),
+        "transferDetails must have no control character but the line break",
+      ),
+  );
+
 /**
  * Body of `PATCH /restaurant/settings` — brief D §3.5 with §8.8. At least one
  * field. `strictObject`, so `currency`, `offersDelivery` and `timezone` are a
@@ -85,13 +124,23 @@ const UpdateRestaurantSettingsSchema = z
       .nullable()
       .optional(),
     openingHours: OpeningHoursSchema.optional(),
+    // Brief م-هـ-أ §8.2: the restaurant's one method (`online` is a 400),
+    // and its details — `null` clears them, refused while `transfer` (the
+    // service's check, then 0021's CHECK behind it).
+    paymentMethod: z.enum(["cash", "transfer"]).optional(),
+    transferDetails: TransferDetailsSchema.nullable().optional(),
   })
   .refine(
     (b) =>
       b.deliveryFee !== undefined ||
       b.contactPhone !== undefined ||
-      b.openingHours !== undefined,
-    { message: "send deliveryFee, contactPhone, openingHours, or several" },
+      b.openingHours !== undefined ||
+      b.paymentMethod !== undefined ||
+      b.transferDetails !== undefined,
+    {
+      message:
+        "send deliveryFee, contactPhone, openingHours, paymentMethod, transferDetails, or several",
+    },
   );
 
 export class UpdateRestaurantSettingsDto extends createZodDto(

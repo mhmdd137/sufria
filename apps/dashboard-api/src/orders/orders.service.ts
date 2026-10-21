@@ -11,6 +11,7 @@ import {
   type OrderListResponse,
   type MessageLocation,
   type OrderMessage,
+  type OrderMessageMedia,
   type OrderMessagesResponse,
   type OrderStatus,
   type OrderTab,
@@ -50,9 +51,14 @@ import { TenantDbService, type TenantTx } from "../db/tenant-db.service.js";
  * Brief م-ج adds one: the latest staff message on the order that did not
  * fail (`staff_messages.created_at`, 0018) — the screen stops a pending
  * order's ringing on it (decision 14). Served by `idx_staff_messages_order`.
+ *
+ * Brief م-هـ-أ adds two: how the order is paid and where its payment stands,
+ * for the card's badge (brief م-هـ-ب).
  */
 const orderListColumns = () => sql`
   o.id,
+  o.payment_method,
+  o.payment_status,
   o.order_number,
   o.status,
   o.fulfillment_type,
@@ -204,6 +210,17 @@ type OrderListRow = {
   unread_messages: number;
   last_message: { type: string; body: string | null } | null;
   staff_messaged_at: string | null;
+  payment_method: PaymentMethod;
+  payment_status: PaymentStatus;
+};
+
+/** A stored file of `GET /orders/:id/media/:mediaId` (brief م-هـ-أ §8.4). */
+export type OrderMediaFile = {
+  kind: OrderMessageMedia["kind"];
+  mimeType: string;
+  fileName: string | null;
+  orderNumber: number;
+  content: Buffer;
 };
 
 /** A message of `messages` as SQL builds it; `toMessage` names its kind. */
@@ -214,6 +231,18 @@ type MessageRow = {
   text: string | null;
   location: { latitude: unknown; longitude: unknown } | null;
   at: string;
+  // A customer message's (brief م-هـ-أ); NULL on every other.
+  media: {
+    id: string;
+    kind: OrderMessageMedia["kind"];
+    state: OrderMessageMedia["state"];
+    mime_type: string;
+    size_bytes: number | null;
+    width: number | null;
+    height: number | null;
+    file_name: string | null;
+  } | null;
+  caption: string | null;
   // A staff message's (brief م-ج); NULL on the customer's and the bot's.
   send_state: StaffMessageDbState | null;
   failure: StaffMessageFailure | null;
@@ -509,19 +538,36 @@ export class OrdersService {
                              'latitude', i.payload->'location'->'latitude',
                              'longitude', i.payload->'location'->'longitude')
                  END AS location,
+                 -- Brief م-هـ-أ §8.3: the media without its bytes, and the
+                 -- caption of an image or a document, trimmed.
+                 CASE WHEN md.id IS NOT NULL THEN jsonb_build_object(
+                        'id', md.id, 'kind', md.kind, 'state', md.state,
+                        'mime_type', md.mime_type, 'size_bytes', md.size_bytes,
+                        'width', md.width, 'height', md.height,
+                        'file_name', md.file_name)
+                 END AS media,
+                 -- Spaces, tabs and line breaks off both ends, as 0021
+                 -- trims the transfer details: a caption of nothing is NULL.
+                 NULLIF(btrim(COALESCE(i.payload->'image'->>'caption',
+                                       i.payload->'document'->>'caption'),
+                              E' \t\r\n'), '')
+                   AS caption,
                  NULL::text AS send_state, NULL::text AS failure,
                  NULL::text AS staff_name, NULL::uuid AS client_id
             FROM o
             JOIN inbound_messages i
               ON i.restaurant_id = o.restaurant_id
              AND i.from_phone = o.phone
+            LEFT JOIN inbound_media md
+              ON md.inbound_message_id = i.id
+             AND md.restaurant_id = i.restaurant_id
            WHERE (i.body IS NOT NULL OR i.order_id = o.id)
              AND i.message_type <> 'reaction'
              AND (i.order_id = o.id
                   OR (i.order_id IS NULL AND ${inWindow("i.received_at")}))
           UNION ALL
           SELECT m.id, 'outbound', 'text', m.body, m.sent_at, NULL::jsonb,
-                 NULL, NULL, NULL, NULL
+                 NULL::jsonb, NULL, NULL, NULL, NULL, NULL
             FROM o
             JOIN outbound_messages m
               ON m.restaurant_id = o.restaurant_id
@@ -541,7 +587,7 @@ export class OrdersService {
                            AND ${inWindow("last.received_at")})))
           UNION ALL
           SELECT s.id, 'staff', 'text', s.body, s.created_at, NULL::jsonb,
-                 s.send_state, s.failure,
+                 NULL::jsonb, NULL, s.send_state, s.failure,
                  a.name,
                  s.client_id
             FROM o
@@ -566,6 +612,8 @@ export class OrdersService {
                            'type', l.type,
                            'text', l.text,
                            'location', l.location,
+                           'media', l.media,
+                           'caption', l.caption,
                            'at', ${isoUtc("l.at")},
                            'send_state', l.send_state,
                            'failure', l.failure,
@@ -583,6 +631,50 @@ export class OrdersService {
       messages: row.messages.map(toMessage),
       botSilence: row.bot_silence,
       replyOpenUntil: row.reply_open_until,
+    };
+  }
+
+  /**
+   * `GET /orders/:id/media/:mediaId` — brief م-هـ-أ §8.4: the bytes of a
+   * customer's media, stored, of a message relayed to **this** order.
+   * Anything else — not stored yet, another order's message, another
+   * restaurant's (RLS, and the restaurant condition) — is `null`: one 404.
+   * Read-only: `sufria_dashboard` cannot write `inbound_media` (0021).
+   */
+  async mediaFile(
+    restaurantId: string,
+    orderId: string,
+    mediaId: string,
+  ): Promise<OrderMediaFile | null> {
+    const res = await this.tenantDb.runInTenant(restaurantId, (tx) =>
+      tx.execute<{
+        kind: OrderMessageMedia["kind"];
+        mime_type: string;
+        file_name: string | null;
+        order_number: number;
+        content: Buffer;
+      }>(sql`
+        SELECT m.kind, m.mime_type, m.file_name, o.order_number, m.content
+          FROM inbound_media m
+          JOIN inbound_messages i
+            ON i.id = m.inbound_message_id
+           AND i.restaurant_id = m.restaurant_id
+          JOIN orders o
+            ON o.id = i.order_id
+           AND o.restaurant_id = i.restaurant_id
+         WHERE m.id = ${mediaId}::uuid
+           AND o.id = ${orderId}::uuid
+           AND o.restaurant_id = ${restaurantId}::uuid
+           AND m.state = 'stored'`),
+    );
+    const row = res.rows[0];
+    if (!row) return null;
+    return {
+      kind: row.kind,
+      mimeType: row.mime_type,
+      fileName: row.file_name,
+      orderNumber: row.order_number,
+      content: row.content,
     };
   }
 
@@ -828,11 +920,12 @@ function extraSets(to: StaffTargetStatus, reason: string | null): SQL {
       // leaves it NULL.
       return sql`, ready_at = now()`;
     case "completed":
-      // `collected` for cash alone. An online order arrives here `paid` (the
-      // WHERE condition) and stays `paid`: `collected` is a cash-only status
-      // (orders_collected_is_cash).
+      // `collected` for cash and transfer — the money is the restaurant's,
+      // in the till or checked in the wallet (brief م-هـ-أ, decision 5). An
+      // online order arrives here `paid` (the WHERE condition) and stays
+      // `paid` (orders_collected_is_cash_or_transfer, 0021).
       return sql`,
-               payment_status = CASE WHEN o.payment_method = 'cash'
+               payment_status = CASE WHEN o.payment_method IN ('cash', 'transfer')
                                      THEN 'collected'::payment_status
                                      ELSE o.payment_status END`;
     case "cancelled":
@@ -855,13 +948,18 @@ function extraSets(to: StaffTargetStatus, reason: string | null): SQL {
  * SQL. No constraint backs this one: without the condition an unpaid online
  * order is accepted with a 200. Cancelling stays open to it: `canAcceptOrder`
  * names it the one action before payment.
+ *
+ * Brief م-هـ-أ (decision 5): a transfer order is settled like cash — no gate
+ * and no extra press; staff check the transfer in their wallet before
+ * «ابدأ التحضير». Without it, «اقبل» on a transfer order is a 409.
  */
 const PAYMENT_GATED: readonly StaffTargetStatus[] = ["accepted", "completed"];
 
 function paymentSettled(to: StaffTargetStatus): SQL {
   return PAYMENT_GATED.includes(to)
     ? sql`
-           AND (o.payment_method = 'cash' OR o.payment_status = 'paid')`
+           AND (o.payment_method IN ('cash', 'transfer')
+                OR o.payment_status = 'paid')`
     : sql``;
 }
 
@@ -885,6 +983,8 @@ function toListItem(r: OrderListRow): OrderListItem {
       text: r.last_message.body,
     },
     staffMessagedAt: r.staff_messaged_at,
+    paymentMethod: r.payment_method,
+    paymentStatus: r.payment_status,
   };
 }
 
@@ -957,6 +1057,17 @@ function toMessage(r: MessageRow): OrderMessage {
     kind,
     text: r.text,
     location: kind === "location" ? toLocation(r.location) : null,
+    media: r.media && {
+      id: r.media.id,
+      kind: r.media.kind,
+      state: r.media.state,
+      mimeType: r.media.mime_type,
+      sizeBytes: r.media.size_bytes,
+      width: r.media.width,
+      height: r.media.height,
+      fileName: r.media.file_name,
+    },
+    caption: r.caption,
     at: r.at,
   };
 }

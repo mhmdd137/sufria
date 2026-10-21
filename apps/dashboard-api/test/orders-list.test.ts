@@ -434,6 +434,9 @@ describe("GET /orders — tabs and ordering", () => {
       lastMessage: null,
       // Brief م-ج: no staff message on it.
       staffMessagedAt: null,
+      // Brief م-هـ-أ: a cash order, not yet paid.
+      paymentMethod: "cash",
+      paymentStatus: "pending_cash",
     });
     expect(rows[0]!.created_at).toBe(at(0));
   });

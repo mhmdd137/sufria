@@ -12,6 +12,8 @@ import { TenantDbService } from "../db/tenant-db.service.js";
 
 type SettingsRow = {
   currency: Currency;
+  payment_method: "cash" | "transfer";
+  transfer_details: string | null;
   offers_delivery: boolean;
   delivery_fee: string;
   contact_phone: string | null;
@@ -22,11 +24,23 @@ type SettingsRow = {
 /** One projection for GET and for the PATCH reply. Assumes `restaurants r`. */
 const settingsColumns = () => sql`
   r.currency,
+  r.payment_method::text AS payment_method,
+  r.transfer_details,
   r.offers_delivery,
   r.delivery_fee::text AS delivery_fee,
   r.contact_phone,
   r.business_hours,
   ${isoUtc("r.orders_paused_at")} AS orders_paused_at`;
+
+/**
+ * The outcome of a PATCH — the controller maps it to HTTP: `updated` 200,
+ * `not_found` 404 (unreachable past the guard), `transfer_details_required`
+ * 400 (brief م-هـ-أ §8.2).
+ */
+export type SettingsUpdateOutcome =
+  | { kind: "updated"; settings: RestaurantSettings }
+  | { kind: "not_found" }
+  | { kind: "transfer_details_required" };
 
 @Injectable()
 export class RestaurantSettingsService {
@@ -64,8 +78,13 @@ export class RestaurantSettingsService {
   async update(
     restaurantId: string,
     change: UpdateRestaurantSettingsRequest,
-  ): Promise<RestaurantSettings | null> {
+  ): Promise<SettingsUpdateOutcome> {
     const sets: SQL[] = [sql`updated_at = now()`];
+    if (change.paymentMethod !== undefined)
+      sets.push(sql`payment_method = ${change.paymentMethod}::payment_method`);
+    // `null` clears them — refused below while the restaurant is `transfer`.
+    if (change.transferDetails !== undefined)
+      sets.push(sql`transfer_details = ${change.transferDetails}`);
     if (change.deliveryFee !== undefined)
       sets.push(sql`delivery_fee = ${change.deliveryFee}::numeric(12,2)`);
     // `null` passes this check on purpose: it clears the number (D-6.1).
@@ -74,15 +93,39 @@ export class RestaurantSettingsService {
     if (change.openingHours !== undefined)
       sets.push(sql`business_hours = ${hoursJson(change.openingHours)}::jsonb`);
 
-    const res = await this.tenantDb.runInTenant(restaurantId, (tx) =>
-      tx.execute<SettingsRow>(sql`
+    return this.tenantDb.runInTenant(restaurantId, async (tx) => {
+      // 🔴 Brief م-هـ-أ §8.2: `transfer` needs details — sent now, or saved
+      //    and not cleared. Read under the row's lock, so a second PATCH
+      //    clearing them at the same moment is judged on this one's result.
+      //    0021's CHECK is the net behind it, never the answer (no 500).
+      const current = await tx.execute<{
+        payment_method: string;
+        transfer_details: string | null;
+      }>(sql`
+        SELECT payment_method::text AS payment_method, transfer_details
+          FROM restaurants
+         WHERE id = ${restaurantId}::uuid
+         FOR UPDATE`);
+      const now = current.rows[0];
+      if (!now) return { kind: "not_found" };
+      const method = change.paymentMethod ?? now.payment_method;
+      const details =
+        change.transferDetails !== undefined
+          ? change.transferDetails
+          : now.transfer_details;
+      if (method === "transfer" && details === null)
+        return { kind: "transfer_details_required" };
+
+      const res = await tx.execute<SettingsRow>(sql`
         UPDATE restaurants r
            SET ${sql.join(sets, sql`, `)}
          WHERE r.id = ${restaurantId}::uuid
-        RETURNING ${settingsColumns()}`),
-    );
-    const row = res.rows[0];
-    return row ? toSettings(row) : null;
+        RETURNING ${settingsColumns()}`);
+      const row = res.rows[0];
+      return row
+        ? { kind: "updated", settings: toSettings(row) }
+        : { kind: "not_found" };
+    });
   }
 
   /**
@@ -117,6 +160,8 @@ function hoursJson(hours: OpeningHours): string {
 function toSettings(r: SettingsRow): RestaurantSettings {
   return {
     currency: r.currency,
+    paymentMethod: r.payment_method,
+    transferDetails: r.transfer_details,
     offersDelivery: r.offers_delivery,
     // 🔴 As the database returned it. `Number()` here turns "1.50" into "1.5".
     deliveryFee: r.delivery_fee,

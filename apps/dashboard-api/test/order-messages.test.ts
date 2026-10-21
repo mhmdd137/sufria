@@ -460,6 +460,9 @@ describe("GET /orders/:id/messages — the reply", () => {
       kind: "text",
       text: "مرحبا",
       location: null,
+      // Brief م-هـ-أ: no media row for these.
+      media: null,
+      caption: null,
       at: at(8),
     });
     expect(messages.at(-1)).toEqual({
@@ -468,6 +471,9 @@ describe("GET /orders/:id/messages — the reply", () => {
       kind: "text",
       text: "استلمنا طلبك رقم 102",
       location: null,
+      // Brief م-هـ-أ: no media row for these.
+      media: null,
+      caption: null,
       at: at(11.2),
     });
   });
@@ -539,6 +545,9 @@ describe("GET /orders/:id/messages — a customer's message the engine relayed (
       kind: "audio",
       text: null,
       location: null,
+      // Brief م-هـ-أ: no media row for these.
+      media: null,
+      caption: null,
       at: at(131),
     });
     expect(named(await messagesOk(relayB))).not.toContain("r-voice-131");

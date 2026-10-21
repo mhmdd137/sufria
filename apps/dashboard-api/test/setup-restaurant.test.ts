@@ -674,6 +674,9 @@ describe("a valid config", () => {
       openingHours: WEEK,
       // Brief ي-أ: a new restaurant takes orders.
       ordersPausedAt: null,
+      // Brief م-هـ-أ: and is paid in cash.
+      paymentMethod: "cash",
+      transferDetails: null,
     });
   });
 

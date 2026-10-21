@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -8,6 +9,7 @@ import {
 } from "@nestjs/common";
 import type {
   RestaurantSettings,
+  TransferDetailsRequiredBody,
   UpdateRestaurantSettingsResponse,
 } from "@sufria/shared";
 import { VerifiedRestaurantId } from "../auth/decorators/verified-restaurant.decorator.js";
@@ -34,13 +36,31 @@ export class RestaurantSettingsController {
     return settings;
   }
 
+  /**
+   * 400 (the DTO) → 400 `transfer_details_required` (brief م-هـ-أ §8.2) →
+   * 200, the settings after the change.
+   */
   @Patch()
   async update(
     @VerifiedRestaurantId() restaurantId: string,
     @Body() body: UpdateRestaurantSettingsDto,
   ): Promise<UpdateRestaurantSettingsResponse> {
-    const settings = await this.settings.update(restaurantId, body);
-    if (!settings) throw new NotFoundException();
-    return settings;
+    const outcome = await this.settings.update(restaurantId, body);
+    switch (outcome.kind) {
+      case "updated":
+        return outcome.settings;
+      case "not_found":
+        throw new NotFoundException();
+      case "transfer_details_required": {
+        const error: TransferDetailsRequiredBody = {
+          statusCode: 400,
+          error: "Bad Request",
+          code: "transfer_details_required",
+          message:
+            "a transfer restaurant needs transferDetails — send them, or keep the saved ones",
+        };
+        throw new BadRequestException(error);
+      }
+    }
   }
 }
