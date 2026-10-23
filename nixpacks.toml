@@ -1,0 +1,35 @@
+# Sufria on Taqat (brief س): one app, one container — the dashboard, the
+# API and the engine, started and watched by scripts/start-all.mjs.
+#
+# Nixpacks sets NODE_ENV=production for every phase. Builds run as
+# `/bin/sh -c`, so a `VAR=value` before a command holds for that command.
+
+[variables]
+NIXPACKS_NODE_VERSION = "24"
+
+[phases.setup]
+# Node 24 (package.json: >=24 <25), and the Postgres 18 client — psql and
+# pg_dump, for scripts/psql.mjs and the Terminal. No pnpm from nix: the one
+# pnpm is packageManager's 9.15.0, through corepack, below.
+nixPkgs = ["nodejs_24", "openssl", "postgresql_18"]
+
+[phases.install]
+# 🔴 --prod=false: with NODE_ENV=production pnpm skips devDependencies —
+#    typescript, which `pnpm build` needs, and @swc-node/register, which the
+#    restaurant setup script runs with.
+# `corepack pnpm` runs the version packageManager names, whatever else is
+# on PATH.
+cmds = [
+  "npm install -g corepack@0.24.1 && corepack enable",
+  "node -v && corepack pnpm -v",
+  "corepack pnpm install --frozen-lockfile --prod=false",
+]
+
+[phases.build]
+# The dashboard calls the API at /api on its own origin, and Next forwards
+# /api and the webhook inside the container (next.config.ts). Both are fixed
+# when the dashboard is built, so they are set here and not in Environment.
+cmds = ["SUFRIA_SAME_ORIGIN=1 NEXT_PUBLIC_API_URL=/api corepack pnpm build"]
+
+[start]
+cmd = "node scripts/start-all.mjs"

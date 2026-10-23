@@ -5,6 +5,8 @@
   "offersDelivery": true,
   "deliveryFee": "5.00",
   "contactPhone": null,
+  "paymentMethod": "transfer",
+  "transferDetails": "جوال باي 059XXXXXXX (عرض تجريبي)",
   "openingHours": {
     "days": {
       "sun": [

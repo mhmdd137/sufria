@@ -78,6 +78,7 @@ export async function setupRestaurant(
   if (check) {
     io.out(`✓ ${path} is valid — nothing was written`);
     io.out(`  ${summary(config)}`);
+    io.out(`  ${payment(config)}`);
     io.out(`  phone number id: read from ${config.whatsappPhoneIdEnv}`);
     return 0;
   }
@@ -125,6 +126,7 @@ export async function setupRestaurant(
   io.out(`✓ restaurant created: ${config.name}`);
   io.out(`  id: ${restaurantId}`);
   io.out(`  ${summary(config)}`);
+  io.out(`  ${payment(config)}`);
   io.out(`  phone number id: from ${config.whatsappPhoneIdEnv}`);
   io.out("");
   io.out("Staff login — the password is shown this once and stored nowhere:");
@@ -192,12 +194,15 @@ async function create(
 
   // Every setting is written explicitly, none left to a column default:
   // timezone defaults to Asia/Amman, currency to JOD, and business_hours to
-  // `{}`, which the engine reads as always open.
+  // `{}`, which the engine reads as always open. No payment method in the
+  // file is cash, written as such.
   const restaurant = await client.query<{ id: string }>(
     `INSERT INTO restaurants
        (name, whatsapp_phone_id, currency, timezone, business_hours,
-        offers_delivery, delivery_fee, contact_phone)
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::numeric(12,2), $8)
+        offers_delivery, delivery_fee, contact_phone,
+        payment_method, transfer_details)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::numeric(12,2), $8,
+             $9::payment_method, $10)
      RETURNING id`,
     [
       config.name,
@@ -208,6 +213,8 @@ async function create(
       config.offersDelivery,
       config.deliveryFee,
       config.contactPhone,
+      config.paymentMethod ?? "cash",
+      config.transferDetails ?? null,
     ],
   );
   const restaurantId = restaurant.rows[0]!.id;
@@ -260,6 +267,16 @@ async function create(
 function summary(config: RestaurantConfig): string {
   const items = config.menu.reduce((n, c) => n + c.items.length, 0);
   return `${config.name} · ${config.currency} · ${config.timezone} · ${config.menu.length} categories, ${items} items · staff ${config.staff.email} (${config.staff.role})`;
+}
+
+/**
+ * The method, and the details' length alone (brief س-5): the details are
+ * where the restaurant's wallet number is, and a terminal's scrollback is
+ * no place for it.
+ */
+function payment(config: RestaurantConfig): string {
+  const details = config.transferDetails;
+  return `payment: ${config.paymentMethod ?? "cash"}${details ? ` · transfer details ${[...details].length} characters` : ""}`;
 }
 
 function messageOf(error: unknown): string {
