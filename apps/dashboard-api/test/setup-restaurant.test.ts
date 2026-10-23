@@ -502,6 +502,9 @@ describe("the config file", () => {
       offersDelivery: true,
       deliveryFee: "5.00",
       contactPhone: null,
+      // Brief س-5: the demo restaurant takes transfers, with the demo's text.
+      paymentMethod: "transfer",
+      transferDetails: "جوال باي 059XXXXXXX (عرض تجريبي)",
       whatsappPhoneIdEnv: "WHATSAPP_PHONE_NUMBER_ID",
       staff: { email: "demo@sufria.local", name: "موظف العرض", role: "owner" },
     });
@@ -761,6 +764,11 @@ describe("writing nothing", () => {
 
     expect(run.code).toBe(0);
     expect(run.all).not.toContain(phoneId);
+    // The method and the details' length — never the details (brief س-5).
+    expect(run.stdout).toContain(
+      "payment: transfer · transfer details 32 characters",
+    );
+    expect(run.all).not.toContain("059XXXXXXX");
   });
 
   it("🔴 an invalid file is refused by the process too — { days: {} } — and adds zero rows", async () => {
@@ -858,5 +866,96 @@ describe("a failure on a late item", () => {
     );
     expect(rows).toEqual([]);
     expect(await counts()).toEqual(countsBefore);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The payment method — brief س-5. The settings PATCH's own rules, through
+// its schema; no field at all is cash, as before.
+// ---------------------------------------------------------------------------
+describe("the payment method", () => {
+  let seq = 0;
+  const staff = () => ({
+    email: `pay-${RUN}-${++seq}@sufria.test`,
+    name: "موظف الدفع",
+    role: "owner",
+  });
+
+  async function paymentOf(phoneId: string) {
+    const { rows } = await audit.query<{
+      payment_method: string;
+      transfer_details: string | null;
+    }>(
+      `SELECT payment_method::text AS payment_method, transfer_details
+         FROM restaurants WHERE whatsapp_phone_id = $1`,
+      [phoneId],
+    );
+    return rows;
+  }
+
+  it("🔴 transfer with details: the restaurant is transfer, its details cleaned as the settings clean them — and never printed", async () => {
+    const run = await setup(
+      config({
+        staff: staff(),
+        paymentMethod: "transfer",
+        transferDetails: "  محفظة جوال باي 0599111222\r\nباسم مطعم التهيئة  ",
+      }),
+    );
+
+    expect(run.stderr).toBe("");
+    expect(run.code).toBe(0);
+    expect(await paymentOf(run.phoneId)).toEqual([
+      {
+        payment_method: "transfer",
+        transfer_details: "محفظة جوال باي 0599111222\nباسم مطعم التهيئة",
+      },
+    ]);
+    expect(run.stdout).toContain(
+      "payment: transfer · transfer details 43 characters",
+    );
+    expect(run.all).not.toContain("0599111222");
+  });
+
+  it("🔴 transfer without details is refused, by name, and nothing is written", async () => {
+    const countsBefore = await counts();
+    for (const details of [undefined, null, "   "]) {
+      const body = config({ staff: staff(), paymentMethod: "transfer" });
+      if (details !== undefined) body["transferDetails"] = details;
+      const run = await setup(body);
+
+      expect(run.code).toBe(1);
+      expect(run.stderr).toContain("transferDetails");
+      expect(run.stdout).toBe("");
+    }
+    expect(await counts()).toEqual(countsBefore);
+  });
+
+  it("neither field: cash, with no details — written as such", async () => {
+    const run = await setup(config({ staff: staff() }));
+
+    expect(run.code).toBe(0);
+    expect(await paymentOf(run.phoneId)).toEqual([
+      { payment_method: "cash", transfer_details: null },
+    ]);
+    expect(run.stdout).toContain("payment: cash\n");
+  });
+
+  it("the settings' limits hold here too: 300 characters, 5 lines, no method but cash or transfer", () => {
+    const parse = (overrides: Record<string, unknown>) =>
+      parseRestaurantConfig(config(overrides));
+
+    expect(
+      parse({ paymentMethod: "transfer", transferDetails: "ب".repeat(300) }).ok,
+    ).toBe(true);
+    for (const overrides of [
+      { paymentMethod: "transfer", transferDetails: "ب".repeat(301) },
+      { paymentMethod: "transfer", transferDetails: "1\n2\n3\n4\n5\n6" },
+      { paymentMethod: "transfer", transferDetails: "a\tb" },
+      { paymentMethod: "online", transferDetails: "x" },
+    ]) {
+      const result = parse(overrides);
+      expect(result.ok).toBe(false);
+    }
+    expect(parse({ paymentMethod: "cash" }).ok).toBe(true);
   });
 });

@@ -5,6 +5,7 @@ import {
   CONTACT_PHONE_PATTERN,
   DELIVERY_FEE_PATTERN,
   OpeningHoursSchema,
+  UpdateRestaurantSettingsDto,
 } from "../restaurant/dto/update-restaurant-settings.dto.js";
 
 /**
@@ -19,6 +20,13 @@ import {
  * `strictObject` at every level: a key the file should not have is a
  * rejection, never ignored (§2.2).
  */
+
+/**
+ * The settings PATCH's own fields (brief س-5): the payment method and the
+ * transfer details — cleaned, and held to 300 characters and 5 lines — are
+ * its schema's, never a second copy.
+ */
+const SETTINGS = UpdateRestaurantSettingsDto.schema.shape;
 
 const NonBlank = z.string().trim().min(1, "must not be blank");
 
@@ -56,57 +64,75 @@ const MenuCategorySchema = z.strictObject({
   items: z.array(MenuItemSchema).min(1, "a category needs at least one item"),
 });
 
-export const RestaurantConfigSchema = z.strictObject({
-  name: NonBlank,
-  currency: z.enum(CURRENCIES),
-  timezone: z
-    .string()
-    .refine(
-      isCanonicalTimeZone,
-      'timezone must be an IANA name, e.g. "Asia/Gaza"',
-    ),
-  offersDelivery: z.boolean(),
-  deliveryFee: z
-    .string()
-    .regex(
-      DELIVERY_FEE_PATTERN,
-      "deliveryFee must be Western digits with at most two decimals",
-    ),
-  contactPhone: z
-    .string()
-    .regex(
-      CONTACT_PHONE_PATTERN,
-      "contactPhone must be 7 to 15 Western digits, with an optional leading +",
-    )
-    .nullable(),
-  openingHours: OpeningHoursSchema,
-  /**
-   * 🔴 The NAME of the variable that holds the phone number id, never the id
-   *    (§2.3). The pattern is an environment variable name, so an id pasted
-   *    here by mistake — digits — is a rejection, not a commit.
-   */
-  whatsappPhoneIdEnv: z
-    .string()
-    .regex(
-      /^[A-Z_][A-Z0-9_]*$/,
-      "whatsappPhoneIdEnv must be the name of an environment variable, e.g. WHATSAPP_PHONE_NUMBER_ID — not the id itself",
-    ),
-  /** The order in the file is the order the customer sees (§2.2). */
-  menu: z
-    .array(MenuCategorySchema)
-    .min(1, "the menu needs at least one category"),
-  /**
-   * No password: the script generates one (§2.4). The first account of a
-   * restaurant is its owner, and the script only ever creates the first.
-   */
-  staff: z.strictObject({
-    email: z.email(),
+export const RestaurantConfigSchema = z
+  .strictObject({
     name: NonBlank,
-    role: z.literal("owner", {
-      error: 'role must be "owner": the first account of a restaurant owns it',
+    currency: z.enum(CURRENCIES),
+    timezone: z
+      .string()
+      .refine(
+        isCanonicalTimeZone,
+        'timezone must be an IANA name, e.g. "Asia/Gaza"',
+      ),
+    offersDelivery: z.boolean(),
+    deliveryFee: z
+      .string()
+      .regex(
+        DELIVERY_FEE_PATTERN,
+        "deliveryFee must be Western digits with at most two decimals",
+      ),
+    contactPhone: z
+      .string()
+      .regex(
+        CONTACT_PHONE_PATTERN,
+        "contactPhone must be 7 to 15 Western digits, with an optional leading +",
+      )
+      .nullable(),
+    openingHours: OpeningHoursSchema,
+    /**
+     * 🔴 The NAME of the variable that holds the phone number id, never the id
+     *    (§2.3). The pattern is an environment variable name, so an id pasted
+     *    here by mistake — digits — is a rejection, not a commit.
+     */
+    whatsappPhoneIdEnv: z
+      .string()
+      .regex(
+        /^[A-Z_][A-Z0-9_]*$/,
+        "whatsappPhoneIdEnv must be the name of an environment variable, e.g. WHATSAPP_PHONE_NUMBER_ID — not the id itself",
+      ),
+    /**
+     * Brief س-5: `"cash"` or `"transfer"`, and the details a transfer
+     * restaurant's customer is sent. Both left out: cash, as before.
+     */
+    paymentMethod: SETTINGS.paymentMethod,
+    transferDetails: SETTINGS.transferDetails,
+    /** The order in the file is the order the customer sees (§2.2). */
+    menu: z
+      .array(MenuCategorySchema)
+      .min(1, "the menu needs at least one category"),
+    /**
+     * No password: the script generates one (§2.4). The first account of a
+     * restaurant is its owner, and the script only ever creates the first.
+     */
+    staff: z.strictObject({
+      email: z.email(),
+      name: NonBlank,
+      role: z.literal("owner", {
+        error:
+          'role must be "owner": the first account of a restaurant owns it',
+      }),
     }),
-  }),
-});
+  })
+  .superRefine((config, ctx) => {
+    // The settings' rule (`transfer_details_required`) and 0021's CHECK.
+    if (config.paymentMethod === "transfer" && !config.transferDetails)
+      ctx.addIssue({
+        code: "custom",
+        path: ["transferDetails"],
+        message:
+          'a "transfer" restaurant needs transferDetails — what its customers are sent',
+      });
+  });
 
 export type RestaurantConfig = z.infer<typeof RestaurantConfigSchema>;
 
