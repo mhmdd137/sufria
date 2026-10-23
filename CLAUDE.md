@@ -155,6 +155,96 @@ shape (`SETOF uuid`, `sufria_engine` alone, gate A20–A23).
 wipes it. A new migration reaches that database through `pnpm db:migrate` alone,
 after a `pg_dump` to a file outside the repo (it holds customers' phones).
 
+## Hosting (Taqat)
+
+Brief س (23 October 2026), Mohammed's decision A: **one app** on Taqat's
+hosting — Nixpacks (`nixpacks.toml`, at the root) builds the repository from
+GitHub and runs `node scripts/start-all.mjs`. Every push on `main` deploys.
+
+- **One container, three children, one address.** `start-all.mjs` starts
+  `web` (`next start -p $PORT -H 0.0.0.0`; 3000 without `PORT`), `api`
+  (`apps/dashboard-api/dist/main.js` on **4102**) and `engine`
+  (`apps/conversation-engine/dist/main.js` on **4101**). The two internal
+  ports are `HOSTING_PORTS` in `scripts/start-all-lib.mjs`, read by the
+  runner and by `apps/dashboard-web/next.config.ts`; a `PORT` of 4101 or
+  4102 stops the runner with the reason. The dashboard is built with
+  `SUFRIA_SAME_ORIGIN=1 NEXT_PUBLIC_API_URL=/api` (in `nixpacks.toml`, not
+  Environment): Next then forwards `/api/:path*` to the API and
+  `/webhooks/whatsapp` (GET and POST) to the engine, the body byte for byte
+  (tried with a signed request, brief س-6). Without the variable — the
+  laptop — there are no rewrites at all.
+- **`SUFRIA_*`, never `DATABASE_URL`.** Taqat injects `DATABASE_URL` as its
+  admin (`rolsuper`), which bypasses RLS, and whether a value in Environment
+  wins over its injection is unknown. So the runner gives the API
+  `DATABASE_URL` = `SUFRIA_DASHBOARD_DATABASE_URL` and the engine
+  `ENGINE_DATABASE_URL` = `SUFRIA_ENGINE_DATABASE_URL`, each to its own child
+  alone; no child receives the platform's `DATABASE_URL` or
+  `MIGRATION_DATABASE_URL` (`childSpecs`). The guards in `tenant-db.ts` and
+  `tenant-db.service.ts` stay the net behind it.
+- **The runner never stops the container for a child.** A child that exits
+  starts again after 2 · 5 · 10 · 30 · 60 s, then every 60 s; a run of 5
+  minutes starts the table over. A missing `SUFRIA_*` value keeps its child
+  from starting, with `[start-all] <child> waiting: <NAME> is not set — run:
+  node scripts/hosting-bootstrap.mjs` every 60 s; `web` starts regardless.
+  SIGTERM/SIGINT go to the three, 10 s at most, then SIGKILL. Every line is
+  prefixed `[api]` · `[engine]` · `[web]` · `[start-all]`, and no line of the
+  runner's carries a value. **Every 10 minutes:** `[start-all] rss api=…
+  engine=… web=… total=… MB · up=…` (each child's process tree, from
+  `/proc`; `START_ALL_MEMORY_EVERY_MS` for a trial) — a gap between two is a
+  time the container slept. Measured in the session's container (brief س-6,
+  idle): api ≈ 233 · engine ≈ 365 · web ≈ 138 MB.
+- **`node scripts/hosting-bootstrap.mjs`** — in Taqat's Terminal, **after the
+  first deploy and after every merge that brings a migration** (migrations
+  never run by themselves on a deploy). As the admin
+  (`MIGRATION_DATABASE_URL`, else the platform's `DATABASE_URL`; must be
+  `rolsuper`, or it stops): creates `sufria` when missing (ICU ar-JO; C.UTF-8
+  alone with a warning where ICU is missing) · runs the migrations through
+  `migrate.mjs`'s `migrate()` · **the first time alone** (a role with no
+  password, as 0003 makes it) or with `--reset-passwords`: new passwords for
+  `sufria_dashboard` and `sufria_engine` (sent as SCRAM verifiers) and a new
+  `JWT_SECRET`, printed once on stdout as the three lines to put in
+  Environment · a HEAD to `graph.facebook.com` and `lookaside.fbsbx.com`
+  (5 s; `--skip-network` leaves it out). A second run prints `passwords
+  unchanged (use --reset-passwords to make new ones)`. Nothing from the
+  environment is ever printed. A reset changes the passwords at once: the
+  running children keep their pooled connections, new ones fail until
+  Environment holds the new values.
+- **The demo restaurant on the host:** `setup-restaurant` reads
+  `MIGRATION_DATABASE_URL`, which the host does not set; the admin's URL with
+  the database `sufria` is `${DATABASE_URL%/*}/sufria` in the Terminal's
+  shell (a `?…` after the database name would be cut with it).
+  `db/restaurants/demo.json` takes transfers since brief س-5
+  (`paymentMethod`, `transferDetails`, the settings' own rules; `--check`
+  shows the method and the details' length, never the details).
+- **Environment on Taqat** — required: `SUFRIA_DASHBOARD_DATABASE_URL`,
+  `SUFRIA_ENGINE_DATABASE_URL`, `JWT_SECRET` (the bootstrap's output) ·
+  `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET` (Meta) ·
+  `WHATSAPP_WEBHOOK_VERIFY_TOKEN` (invented, the same at Meta) ·
+  `WHATSAPP_PHONE_NUMBER_ID` (Meta; the setup script reads it). Set by the
+  platform: `DATABASE_URL` (the admin — the bootstrap alone uses it) ·
+  `PORT` · `NODE_ENV=production` (Nixpacks). Recommended:
+  `DASHBOARD_WEB_ORIGIN` = the app's `https://<name>.apps.taqat.academy`
+  (CORS; same-origin requests do not need it). Optional, with their
+  defaults: `JWT_ACCESS_TTL` 15m · `JWT_REFRESH_TTL` 30d · `PG_POOL_MAX` 10 ·
+  `BOT_SILENCE_MINUTES` 60 · `REPLY_WINDOW_MINUTES` 1430 (API) ·
+  `NOTIFY_POLL_MS` 5000 · `STAFF_REPLY_POLL_MS` 1000 · `MEDIA_POLL_MS` 2000 ·
+  `STAFF_REPLY_MAX_WAIT_SECONDS` 120 · `SESSION_IDLE_MINUTES` 60 ·
+  `REORDER_MIN_AGE_MINUTES` 180 · `RELAY_OPEN_ORDER_MAX_MINUTES` 180 ·
+  `RELAY_CLOSED_ORDER_MINUTES` 60 · `RELAY_REPLY_QUIET_MINUTES` 10 ·
+  `WHATSAPP_GRAPH_API_VERSION` v21.0 · `WHATSAPP_GRAPH_API_BASE` ·
+  `WHATSAPP_SEND_TIMEOUT_MS` 10000 · `PG_CONNECT_TIMEOUT_MS` 2000 ·
+  `PG_STATEMENT_TIMEOUT_MS` 10000 · `PG_QUERY_TIMEOUT_MS` 15000 · `LOG_LEVEL`
+  info (engine) · `START_ALL_MEMORY_EVERY_MS` 600000 (runner). **Not in
+  Environment:** `SUFRIA_SAME_ORIGIN` and `NEXT_PUBLIC_API_URL` (fixed at
+  build), `ENGINE_DATABASE_URL`, `MIGRATION_DATABASE_URL`, the ports.
+- `nixpacks.toml`: Node 24 (`nodejs_24`), the Postgres 18 client
+  (`postgresql_18`, for `psql`/`pg_dump`), pnpm 9.15.0 through corepack
+  (`corepack pnpm`, so `packageManager` decides, and no nix pnpm), and
+  `pnpm install --frozen-lockfile --prod=false` — 🔴 with `NODE_ENV=production`
+  pnpm skips devDependencies otherwise (`typescript` for the build,
+  `@swc-node/register` for the setup script). The seeds and the demo
+  scripts keep refusing `NODE_ENV=production`.
+
 ## Rules that do not bend
 
 1. **Do not upgrade past TypeScript `~5.9.3`.** TS 7 has no programmatic compiler
@@ -359,6 +449,23 @@ test now holds both mid-download. The notifier's `order()` helper builds
 `accepted_notice_at` as 0021's backfill would, so a `preparing` order built
 by an old test is one whose «أكّدنا» went out a cycle earlier.
 
+Brief س's suites, in `apps/dashboard-web/test/hosting/` because the web
+suite runs every `test/**/*.test.mts` and no `test:db` command picks up a
+new file: `start-all.test.mts` (the runner's decisions, pure),
+`same-origin.test.mts` (`next.config.ts` read with and without
+`SUFRIA_SAME_ORIGIN=1`, and the client on `/api`) and `bootstrap.test.mts` —
+**the web suite's first test with a database**: it needs
+`MIGRATION_DATABASE_URL` and makes a database and two roles of its own,
+dropped after, never `sufria_dashboard`/`sufria_engine` (their passwords are
+the ones the API's and the engine's suites log in with, at the same moment).
+It also starts the API from its sources, as `dev` does, to see the guard
+take the printed URL and refuse the admin's. The payment method's cases are
+in `dashboard-api/test/setup-restaurant.test.ts`. Six breaks, each predicted
+in a file before it ran: the platform's `DATABASE_URL` passed on · the table
+never starting over · rewrites without the variable · passwords on every run
+(predicted at two, revised to three before running: later tests reuse the
+first URL) · the admin's URL printed · `paymentMethod` ignored.
+
 🔴 **Never count a whole table in a test** (`SELECT count(*) FROM orders`).
 The engine and API suites run in parallel under `pnpm -r test`; count only the
 rows of the order or restaurant the test itself created.
@@ -515,6 +622,16 @@ into the same `.next` that `next start` serves: restart a running one after.
 
 ## Known gaps
 
+- **Hosting (brief س): what is not known until Taqat runs it.** No backups
+  on Taqat yet — the database exists there alone. Whether the app sleeps
+  without visits, how much memory and disk it has, and what `PORT` is: the
+  memory line answers the first two in the Logs. Migrations are by hand
+  (`hosting-bootstrap.mjs`), never on deploy. Nixpacks was tried as `nixpacks
+  plan` (v1.41.0) alone, never built here, and Taqat's own Nixpacks, network
+  and Postgres were never reached from a session. Postgres 18.4 itself was
+  tried (an npm build of it): 0001–0021, `test:db`, `test:security` and the
+  bootstrap, green. While the API is down or starting, Next answers `/api/…`
+  with 500 and logs `ECONNREFUSED 127.0.0.1:4102`.
 - **`pnpm db:reset` assumes Docker and does nothing useful on a native
   PostgreSQL install.** It runs `docker compose down -v && pnpm db:up`, so
   against a native server on 5432 it tears down a volume nothing uses and then
