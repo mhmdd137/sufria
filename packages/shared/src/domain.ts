@@ -21,8 +21,10 @@ export const PAYMENT_STATUSES = [
   "paid",
   "collected",
   "refunded",
-  // 0020 — a transfer order before it is completed (brief م-هـ-أ). No badge
-  // for now: the badge is the design round's (brief م-هـ-ب).
+  // 0020 — a transfer order before it is completed (brief م-هـ-أ). No
+  // badge, by decision (Mohammed, 4A, 21 October, brief م-هـ-ب): at a
+  // transfer restaurant it would sit on every order, and «مقبول» itself
+  // already means "waiting for the transfer" — as `pending_cash`.
   "pending_transfer",
 ] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
@@ -76,6 +78,9 @@ export const ORDER_STATUS_LABEL_AR: Record<OrderStatus, string> = {
  * الطبيعي لأغلب الطلبات، وشارة عليه بتحط ضجيج على كل بطاقة بلا ما تضيف معلومة.
  * غياب الشارة هو التصميم، مش نقص — لا تضيف إلها نصا.
  * الباقي (`pending_online` / `paid` / `refunded`) لسا بلا نص معتمد.
+ * 🔴 `pending_transfer` **بلا شارة، بقرار** (محمد، 4A، 21 أكتوبر، بريف
+ * م-هـ-ب) زي `pending_cash`: بمطعم تحويل كانت رح تطلع على كل طلب، و«مقبول»
+ * نفسها معناها «بنستنى التحويل». «محصَّل» للنوعين بعد «تم».
  */
 export const PAYMENT_STATUS_LABEL_AR: Partial<Record<PaymentStatus, string>> = {
   collected: "محصَّل",
@@ -113,8 +118,11 @@ export const ORDER_NUMBER_SLOT = "[رقم الطلب]";
  *
  *   🔴 **The written product decision that lifts it, for transfer orders
  *   alone** (Mohammed, decision 7, 20 October 2026, brief م-هـ-أ): a
- *   transfer order's «ابدأ التحضير» tells the customer their transfer
- *   arrived — `RELAY_STATUS_LINE_AR.preparing` itself, sent by
+ *   transfer order's «ابدأ التحضير» — «تأكّدنا من التحويل» on the
+ *   dashboard since brief م-هـ-ب — tells the customer their order is being
+ *   prepared, once staff checked the transfer in the restaurant's account.
+ *   The text («نحضّر طلبك رقم N الآن.») does not say the transfer arrived,
+ *   on purpose: `RELAY_STATUS_LINE_AR.preparing` itself, sent by
  *   `orderNoticeAr` (`order-notice.ts`). Still no key here: a cash order's
  *   `preparing` stays silent, and `statusNotificationAr` with it.
  *

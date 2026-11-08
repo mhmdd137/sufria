@@ -21,3 +21,4 @@ export * from "./dashboard-menu-ui.js";
 export * from "./dashboard-messages-ui.js";
 export * from "./dashboard-sound-ui.js";
 export * from "./dashboard-reply-ui.js";
+export * from "./dashboard-media-ui.js";
