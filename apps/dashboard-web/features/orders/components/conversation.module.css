@@ -79,6 +79,13 @@
   align-items: flex-start;
 }
 
+/* A customer's image (brief م-هـ-ب §5.1, decision 7): the conversation's
+   whole width, up to 360px — on a phone all of it, from 412px up 360. */
+.message[data-media="image"] {
+  width: min(100%, 360px);
+  max-width: none;
+}
+
 .message[data-from="bot"],
 .message[data-from="staff"] {
   align-self: flex-end;

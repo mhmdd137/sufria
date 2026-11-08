@@ -1069,6 +1069,8 @@ test("the line: its text, its count in the numbers' font, «اعرضها»/«ا�
 test("the page hands the conversation its order's createdAt", () => {
   assert.match(
     read("order-details.tsx"),
-    /orderCreatedAt=\{order\.state\.order\.createdAt\}/,
+    // Since brief م-هـ-ب the conversation is built from the order Ready
+    // shows (with its total): `detail` is that order.
+    /conversation=\{\(detail, total\) => \([\s\S]*?orderCreatedAt=\{detail\.createdAt\}/,
   );
 });

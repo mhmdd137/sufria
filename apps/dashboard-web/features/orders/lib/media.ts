@@ -130,3 +130,31 @@ export function createMediaStore(deps: MediaStoreDeps): MediaStore {
     },
   };
 }
+
+/**
+ * The image's frame in the conversation (brief م-هـ-ب §5.1): «عرض الكل»
+ * only when `object-fit: cover` cuts something off — the image's ratio not
+ * the box's, beyond a pixel of rounding (decision 9 of the brief). A wide
+ * image is never cut: its frame takes its ratio below 320px.
+ */
+export function isCropped(
+  naturalWidth: number,
+  naturalHeight: number,
+  boxWidth: number,
+  boxHeight: number,
+): boolean {
+  if (
+    naturalWidth <= 0 ||
+    naturalHeight <= 0 ||
+    boxWidth <= 0 ||
+    boxHeight <= 0
+  )
+    return false;
+  const scale = Math.max(boxWidth / naturalWidth, boxHeight / naturalHeight);
+  return (
+    naturalWidth * scale - boxWidth > 1 || naturalHeight * scale - boxHeight > 1
+  );
+}
+
+/** Before an image's size is known, its frame is this tall (decision 10). */
+export const IMAGE_FRAME_MAX = 320;

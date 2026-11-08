@@ -84,17 +84,18 @@ export function OrderDetails({ id, from }: Props) {
           currency={currency}
           reload={order.reload}
           apply={apply}
-          conversation={
+          conversation={(detail, total) => (
             <Conversation
               key={id}
               orderId={id}
-              orderCreatedAt={order.state.order.createdAt}
+              orderCreatedAt={detail.createdAt}
               state={messages.state}
               reload={messages.reload}
-              chat={waLink(order.state.order.customer.phone)}
+              chat={waLink(detail.customer.phone)}
+              total={total}
               reportOffline={reportOffline}
             />
-          }
+          )}
         />
       )}
     </main>
@@ -114,7 +115,8 @@ function Ready({
   currency: Currency;
   reload: () => Promise<void>;
   apply: ReturnType<typeof useLiveOrders>["apply"];
-  conversation: ReactNode;
+  /** Given the order shown, and its total as the summary writes it. */
+  conversation: (order: OrderDetail, total: string) => ReactNode;
 }) {
   const view = detailView(order, currency, readAt);
   const [line, setLine] = useState<string | null>(null);
@@ -294,7 +296,9 @@ function Ready({
           </div>
         </div>
 
-        <div className={styles.conversation}>{conversation}</div>
+        <div className={styles.conversation}>
+          {conversation(order, view.total)}
+        </div>
       </div>
 
       <CancelDialog

@@ -47,6 +47,11 @@ type Props = {
   reload: () => Promise<readonly OrderMessage[] | null>;
   /** «راسل الزبون»: `https://wa.me/<digits>`, the order's own link. */
   chat: string;
+  /**
+   * The order's total with its currency — `detailView`'s — over a
+   * customer's image in its viewer (brief م-هـ-ب, decision 2).
+   */
+  total: string;
   reportOffline: (offline: boolean) => void;
 };
 
@@ -81,6 +86,7 @@ export function Conversation({
   state,
   reload,
   chat,
+  total,
   reportOffline,
 }: Props) {
   const composer = useRef<ComposerHandle | null>(null);
@@ -162,6 +168,7 @@ export function Conversation({
         className={styles.message}
         data-from={m.from}
         data-state={m.staff?.state}
+        data-media={m.media?.kind}
       >
         {m.word !== null && m.caption !== null ? (
           // The word and the customer's caption under it, in one bubble
@@ -187,7 +194,12 @@ export function Conversation({
             )}
           </p>
         ) : m.media !== null ? (
-          <MediaMessage media={m.media} caption={m.caption} store={media} />
+          <MediaMessage
+            media={m.media}
+            caption={m.caption}
+            store={media}
+            total={total}
+          />
         ) : (
           <p className={styles.bubble} dir="auto">
             {m.preview !== null && !open ? m.preview : m.text}

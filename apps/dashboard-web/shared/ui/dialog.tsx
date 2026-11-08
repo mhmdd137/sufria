@@ -9,6 +9,11 @@ type Props = {
   onClose: () => void;
   /** The id of the dialog's title. */
   labelledBy: string;
+  /**
+   * Its own look instead of the 420px window (brief م-هـ-ب: the image's
+   * full screen); the behaviour is the same — modal, Esc, focus back.
+   */
+  className?: string;
   children: ReactNode;
 };
 
@@ -17,7 +22,13 @@ type Props = {
  * everything else is inert, so focus stays inside it; Esc closes it; and
  * focus goes back to what opened it.
  */
-export function Dialog({ open, onClose, labelledBy, children }: Props) {
+export function Dialog({
+  open,
+  onClose,
+  labelledBy,
+  className,
+  children,
+}: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const opener = useRef<Element | null>(null);
 
@@ -35,7 +46,7 @@ export function Dialog({ open, onClose, labelledBy, children }: Props) {
   return (
     <dialog
       ref={ref}
-      className={styles.dialog}
+      className={className ?? styles.dialog}
       role="dialog"
       aria-modal="true"
       aria-labelledby={labelledBy}

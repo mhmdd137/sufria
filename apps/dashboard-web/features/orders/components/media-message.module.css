@@ -1,0 +1,173 @@
+/* A customer's media in the conversation, and the image's viewer — brief
+   م-هـ-ب §5.1–§5.5. Tokens only, logical properties only; the bubble keeps
+   the customer's ground (bg) and the conversation's line. */
+
+/* ---- the image (§5.1) ----
+   The bubble is the frame and the caption: no padding, its corners cutting
+   the image. The frame's height is min(320px, the width × its ratio) — the
+   ratio inline, from the API's size and then the image's own. */
+.imageBubble {
+  display: block;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.frame {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  background: var(--bg);
+}
+
+/* The image is the button: it opens the viewer, which is the answer to
+   the press — no hover and no pressed look, so no pointer either. */
+.zoom {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+/* Cut from its middle: a transfer's screenshot carries its title, the
+   name, the amount and the operation's code between 44% and 65% of it. */
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 50%;
+}
+
+.imageCaption {
+  padding: 8px 12px;
+  font-size: 15px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---- the viewer (§5.3, decision 8): the whole screen at every width ----
+   Its four edges stretch it — no vh, no dvh — so it follows Safari's bar;
+   Chrome's own max-width, max-height and overflow for a modal dialog are
+   undone. Shown modal alone: `display` only while open. */
+.viewer {
+  inset: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+.viewer[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.viewer::backdrop {
+  background: var(--bg);
+}
+
+/* «المجموع» and the order's total at the start, to compare with the
+   screenshot; «رجوع» at the end. The page's 880px inside, 18px edges. */
+.viewerHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 12px;
+  padding-inline: max(18px, calc((100% - 880px) / 2));
+  background: var(--surface);
+  border-block-end: 1px solid var(--border);
+}
+
+.viewerTotal {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.viewerLabel {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.viewerAmount {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* «رجوع»: the secondary button. */
+.back {
+  min-height: 44px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .back:not(:disabled, [aria-busy="true"]):hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-hover);
+  }
+}
+
+.back:not(:disabled, [aria-busy="true"]):active {
+  background: var(--surface-press);
+  border-color: var(--surface-press);
+}
+
+/* Below 640: the screen's width, the image scrolling down — the thin bar,
+   the scroll kept inside. */
+.viewerBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-muted) transparent;
+}
+
+.viewerImage {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* From 640: the whole image inside the screen. */
+@media (min-width: 640px) {
+  .viewerBody {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+  }
+
+  .viewerImage {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+  }
+}

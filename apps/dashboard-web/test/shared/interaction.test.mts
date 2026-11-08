@@ -179,6 +179,8 @@ const KINDS: {
       ],
       ["features/orders/components/order-list.module.css", ".more", true],
       ["shared/layout/dashboard-header.module.css", ".logout", true],
+      // The image's viewer (brief م-هـ-ب §5.3): «رجوع».
+      ["features/orders/components/media-message.module.css", ".back", true],
       ["features/orders/components/conversation.module.css", ".more", false],
     ] as const
   ).map(([file, selector, line]) => ({
