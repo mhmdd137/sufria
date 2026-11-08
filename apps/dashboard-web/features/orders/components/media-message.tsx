@@ -1,21 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { DASHBOARD_MESSAGES_UI_AR, DASHBOARD_UI_AR } from "@sufria/shared";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
+import {
+  DASHBOARD_MEDIA_UI_AR,
+  DASHBOARD_MESSAGES_UI_AR,
+  DASHBOARD_UI_AR,
+} from "@sufria/shared";
 import { Dialog } from "../../../shared/ui/dialog.tsx";
 import { useMediaEntry } from "../hooks/use-media.ts";
+import { audioReducer, audioView, type AudioPlayer } from "../lib/audio.ts";
 import type { MediaShown } from "../lib/details.ts";
+import { openPdf } from "../lib/pdf.ts";
 import { IMAGE_FRAME_MAX, isCropped, type MediaStore } from "../lib/media.ts";
 import styles from "./media-message.module.css";
 import chat from "./conversation.module.css";
 
 const T = DASHBOARD_UI_AR;
 const M = DASHBOARD_MESSAGES_UI_AR;
+const A = DASHBOARD_MEDIA_UI_AR;
 
 type Props = {
   media: MediaShown;
   caption: string | null;
   store: MediaStore;
+  /** The page's one voice-note player. */
+  player: AudioPlayer;
   /** The order's total with its currency, over the image in the viewer. */
   total: string;
 };
@@ -24,27 +40,167 @@ type Props = {
  * A customer's stored image, voice note or PDF in the conversation (brief
  * م-هـ-ب §5.1, §5.4, §5.5), inside the message's `<li>`.
  */
-export function MediaMessage({ media, caption, store, total }: Props) {
-  if (media.kind === "image")
-    return (
-      <ImageMessage
-        id={media.id}
-        width={media.width}
-        height={media.height}
-        caption={caption}
-        store={store}
-        total={total}
-      />
-    );
-  // The player and the PDF's row: mhb-7.
+export function MediaMessage({ media, caption, store, player, total }: Props) {
+  switch (media.kind) {
+    case "image":
+      return (
+        <ImageMessage
+          id={media.id}
+          width={media.width}
+          height={media.height}
+          caption={caption}
+          store={store}
+          total={total}
+        />
+      );
+    case "audio":
+      return (
+        <AudioMessage
+          id={media.id}
+          label={media.label}
+          fallback={media.fallback}
+          caption={caption}
+          player={player}
+        />
+      );
+    case "pdf":
+      return (
+        <PdfMessage
+          id={media.id}
+          fileName={media.fileName}
+          caption={caption}
+          store={store}
+        />
+      );
+  }
+}
+
+function Caption({ text }: { text: string | null }) {
+  if (text === null) return null;
   return (
-    <div className={`${chat.bubble} ${chat.stack}`}>
-      <p className={chat.word}>{media.fallback}</p>
-      {caption !== null && (
-        <p className={chat.caption} dir="auto">
-          {caption}
+    <p className={styles.mediaCaption} dir="auto">
+      {text}
+    </p>
+  );
+}
+
+/**
+ * The voice note (§5.4): «استمع» — «أوقف» while it plays — and beside it
+ * «رسالة صوتية», then the time in the numbers' font. Its file downloads on
+ * the press alone (decision 1). It does not play: the bubble is its word.
+ */
+function AudioMessage({
+  id,
+  label,
+  fallback,
+  caption,
+  player,
+}: {
+  id: string;
+  label: string;
+  fallback: string;
+  caption: string | null;
+  player: AudioPlayer;
+}) {
+  const [state, dispatch] = useReducer(audioReducer, { kind: "idle" });
+  const view = audioView(state);
+  if (view.kind === "broken")
+    return (
+      <div className={`${chat.bubble} ${chat.stack}`}>
+        <p className={chat.word}>{fallback}</p>
+        <Caption text={caption} />
+      </div>
+    );
+  return (
+    <div className={`${chat.bubble} ${styles.audio}`}>
+      <button
+        type="button"
+        className={chat.lineButton}
+        aria-busy={view.busy}
+        onClick={() => {
+          if (!view.busy) player.press(id, dispatch);
+        }}
+      >
+        {view.button === "stop" ? A.stop : A.listen}
+      </button>
+      {view.time === null ? (
+        <span className={styles.audioLabel}>{label}</span>
+      ) : (
+        <span className={`num ${styles.audioTime}`} dir="ltr">
+          {view.time}
+        </span>
+      )}
+      <Caption text={caption} />
+    </div>
+  );
+}
+
+/**
+ * The PDF (§5.5): its own name on one line, cut with …; «افتح الملف» —
+ * the file in a new tab, downloaded on the press alone — and, when that
+ * failed, the step's own line under it.
+ */
+function PdfMessage({
+  id,
+  fileName,
+  caption,
+  store,
+}: {
+  id: string;
+  fileName: string | null;
+  caption: string | null;
+  store: MediaStore;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  function open() {
+    if (busy) return;
+    setFailed(false);
+    setBusy(true);
+    // The tab opens in this call, before its first await.
+    void openPdf(
+      {
+        openTab: () => window.open("", "_blank"),
+        load: () => store.load(id),
+        createUrl: (blob) => URL.createObjectURL(blob),
+        revokeUrl: (url) => URL.revokeObjectURL(url),
+        download: (url, name) => {
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = name;
+          a.click();
+        },
+        later: (run, ms) => void window.setTimeout(run, ms),
+      },
+      fileName,
+    ).then((outcome) => {
+      setBusy(false);
+      setFailed(outcome === "failed");
+    });
+  }
+
+  return (
+    <div className={`${chat.bubble} ${styles.pdf}`}>
+      {fileName !== null && (
+        <bdi dir="ltr" className={styles.fileName}>
+          {fileName}
+        </bdi>
+      )}
+      <button
+        type="button"
+        className={chat.lineButton}
+        aria-busy={busy}
+        onClick={open}
+      >
+        {A.openFile}
+      </button>
+      {failed && (
+        <p className={chat.resumeFailed} role="status">
+          {T.errors.stepFailed}
         </p>
       )}
+      <Caption text={caption} />
     </div>
   );
 }

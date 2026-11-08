@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ordersApi } from "../api/orders-api.ts";
+import { createAudioPlayer, type AudioPlayer } from "../lib/audio.ts";
 import {
   createMediaStore,
   type MediaEntry,
@@ -38,4 +39,21 @@ export function useMediaEntry(store: MediaStore, mediaId: string): MediaEntry {
     () => store.get(mediaId),
     () => IDLE,
   );
+}
+
+/**
+ * The page's one voice-note player (brief م-هـ-ب, decisions 6 and 7 of the
+ * brief): one `Audio`, made at the first press — a second voice note stops
+ * the first — stopped when the page closes.
+ */
+export function useAudioPlayer(store: MediaStore): AudioPlayer {
+  const [player] = useState(() =>
+    createAudioPlayer({
+      createAudio: () => new Audio(),
+      load: (mediaId) => store.load(mediaId),
+      gaveUp: (mediaId) => store.gaveUp(mediaId),
+    }),
+  );
+  useEffect(() => () => player.dispose(), [player]);
+  return player;
 }

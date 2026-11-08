@@ -53,6 +53,59 @@
   overflow-wrap: anywhere;
 }
 
+/* ---- the voice note (§5.4) ----
+   The customer's ordinary bubble: the button and, beside it, its label or
+   its time — one line that wraps. */
+.audio {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  white-space: normal;
+}
+
+.audioLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.audioTime {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* ---- the PDF (§5.5) ----
+   A column: its name, «افتح الملف», the caption. The name on one line, cut
+   with … at the bubble's width — which never passes the message's. */
+.pdf {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.fileName {
+  display: block;
+  max-width: 100%;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A caption under a voice note or a PDF: its own line, as written. */
+.mediaCaption {
+  flex-basis: 100%;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* ---- the viewer (§5.3, decision 8): the whole screen at every width ----
    Its four edges stretch it — no vh, no dvh — so it follows Safari's bar;
    Chrome's own max-width, max-height and overflow for a modal dialog are

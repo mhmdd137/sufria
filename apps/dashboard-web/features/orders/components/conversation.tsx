@@ -20,7 +20,7 @@ import {
 } from "@sufria/shared";
 import { Skeleton } from "../../../shared/ui/skeleton.tsx";
 import { ordersApi } from "../api/orders-api.ts";
-import { useMediaStore } from "../hooks/use-media.ts";
+import { useAudioPlayer, useMediaStore } from "../hooks/use-media.ts";
 import type { MessagesState } from "../hooks/use-order-messages.ts";
 import { conversationView, type ConversationMessage } from "../lib/details.ts";
 import {
@@ -108,6 +108,7 @@ export function Conversation({
   // The customer's media (brief م-هـ-ب): one download each for the page's
   // life; an image gives up after 3 failed attempts, one per read.
   const media = useMediaStore(orderId, reportOffline);
+  const player = useAudioPlayer(media);
   const mediaVersion = useSyncExternalStore(
     media.subscribe,
     media.version,
@@ -198,6 +199,7 @@ export function Conversation({
             media={m.media}
             caption={m.caption}
             store={media}
+            player={player}
             total={total}
           />
         ) : (
