@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { DASHBOARD_SOUND_UI_AR, DASHBOARD_UI_AR } from "@sufria/shared";
 import { sound } from "../sound/sound-store.ts";
 import { useSound } from "../sound/use-sound.ts";
+import { ThemeButton } from "../theme/theme-button.tsx";
 import { BrandMark } from "../ui/brand-mark.tsx";
 import styles from "./dashboard-header.module.css";
 import { isCurrentTab } from "./tabs.ts";
@@ -31,7 +32,9 @@ type Props = {
  * The dashboard's header on every page behind login (brief G §3 G-4, brief I
  * §4 I-3), two lines since brief ل §5.1 (addition 2): the mark, the
  * restaurant's name, «مباشر», the sound's button (brief م-ب, decision 9:
- * logout's look, before it; the name is cut first on a phone) and logout —
+ * logout's look, before it; the name is cut first on a phone), the light
+ * and dark button (brief م-هـ-ب, decision 9: the same look, after the
+ * sound's) and logout —
  * «سُفريا» stays on the login page
  * and the browser's tab — then the three tabs — links, the current one marked `aria-current="page"`
  * (`isCurrentTab`: «المنيو» on /menu and /menu/removed, brief ي-ب §5) — then
@@ -71,6 +74,9 @@ export function DashboardHeader({
             >
               {muted ? S.unmute : S.mute}
             </button>
+            {/* Light and dark (brief م-هـ-ب §5.8): the sound's look, after
+                it and before logout. */}
+            <ThemeButton className={styles.logout} />
             <button type="button" className={styles.logout} onClick={onLogout}>
               {T.logout}
             </button>

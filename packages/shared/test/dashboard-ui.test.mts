@@ -31,6 +31,8 @@ test("DASHBOARD_UI_AR is the brief's text, verbatim", () => {
     brand: "سُفريا",
     live: "مباشر",
     logout: "خروج",
+    // Brief م-هـ-ب, decision 10 (Mohammed, 8 November).
+    theme: { dark: "غامق", light: "فاتح" },
     tabs: { active: "الطلبات", history: "السجل", menu: "المنيو" },
     more: "المزيد",
     login: {

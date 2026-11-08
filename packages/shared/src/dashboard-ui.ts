@@ -38,6 +38,12 @@ export const DASHBOARD_UI_AR = {
   brand: "سُفريا",
   live: "مباشر",
   logout: "خروج",
+  /**
+   * The header's light and dark button (brief م-هـ-ب, Mohammed's decisions
+   * 9–11, 8 November): the mode it takes you to — «غامق» on a light page,
+   * «فاتح» on a dark one.
+   */
+  theme: { dark: "غامق", light: "فاتح" },
   tabs: { active: "الطلبات", history: "السجل", menu: "المنيو" },
   /** Under the history list, while the API says `hasMore`. */
   more: "المزيد",

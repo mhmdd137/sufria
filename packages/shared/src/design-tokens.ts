@@ -311,12 +311,27 @@ function declarations(mode: ColorMode): string {
 }
 
 /**
- * The stylesheet `dashboard-web` puts in `<head>`: light by default, dark by
- * the device setting — no toggle (brief G §2).
+ * The attribute on `<html>` that holds a staff member's choice (brief
+ * م-هـ-ب, Mohammed's decisions 9–11, 8 November): `light` or `dark`, set
+ * by the header's button and, before the first paint, by the script in
+ * `app/layout.tsx` from this device's storage.
+ */
+export const THEME_ATTRIBUTE = "data-theme";
+
+/**
+ * The stylesheet `dashboard-web` puts in `<head>`. With no choice on
+ * `<html>`, as before: light by default, dark by the device setting. With
+ * one, it wins over the device: `data-theme="dark"` is dark on a light
+ * device, `data-theme="light"` light on a dark one — `color-scheme` with
+ * it, so the browser's own controls and bars follow. The values themselves
+ * are the same tokens in both places.
  */
 export function designTokensCss(): string {
+  const dark = declarations("dark");
   return (
     `:root{color-scheme:light dark;${declarations("light")}}` +
-    `@media (prefers-color-scheme: dark){:root{${declarations("dark")}}}`
+    `@media (prefers-color-scheme: dark){:root:not([${THEME_ATTRIBUTE}="light"]){${dark}}}` +
+    `:root[${THEME_ATTRIBUTE}="dark"]{color-scheme:dark;${dark}}` +
+    `:root[${THEME_ATTRIBUTE}="light"]{color-scheme:light}`
   );
 }

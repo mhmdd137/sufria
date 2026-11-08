@@ -313,7 +313,9 @@ test("the pause strip first, then the sound's; the button before «خروج», i
   const logout = header.indexOf("{T.logout}");
   assert.ok(soundButton !== -1 && soundButton < logout);
   const buttons = [...header.matchAll(/className=\{styles\.logout\}/g)];
-  assert.equal(buttons.length, 2, "the sound's button wears logout's class");
+  // Three since brief م-هـ-ب (decision 9): the light and dark button wears
+  // it too, between the sound's and «خروج» (theme.test.mts).
+  assert.equal(buttons.length, 3, "the sound's button wears logout's class");
 });
 
 test("the audio is loaded with import(), never with the page", () => {

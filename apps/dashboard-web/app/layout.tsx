@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans_Arabic } from "next/font/google";
 import { DASHBOARD_UI_AR, designTokensCss } from "@sufria/shared";
+import { THEME_SCRIPT } from "../shared/theme/theme.ts";
 import "./globals.css";
 
 // Brief G §2: Plex Sans Arabic for text, Plex Mono for every number.
@@ -41,8 +42,18 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ar" dir="rtl" className={`${sans.variable} ${mono.variable}`}>
+    // `suppressHydrationWarning`, on <html> alone: the script below sets its
+    // `data-theme` before React reads it.
+    <html
+      lang="ar"
+      dir="rtl"
+      className={`${sans.variable} ${mono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
+        {/* First, before the colours apply and before the first paint: the
+            light or dark choice this device keeps (brief م-هـ-ب §9ب). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         {/* The colours, generated from packages/shared/src/design-tokens.ts. */}
         <style dangerouslySetInnerHTML={{ __html: designTokensCss() }} />
       </head>

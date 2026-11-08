@@ -252,3 +252,98 @@ test("designTokensCss: every token, light by default and dark by the device", ()
     );
   }
 });
+
+// --- the light and dark button (brief م-هـ-ب §9ب) ----------------------------
+
+/** Each rule of the stylesheet: its selector (with its @media) and body. */
+function cssRules(
+  css: string,
+): { at: string | null; selector: string; body: string }[] {
+  const out: { at: string | null; selector: string; body: string }[] = [];
+  const re = /(@media[^{]*)\{([^{}]*)\{([^{}]*)\}\}|([^{}@]+)\{([^{}]*)\}/g;
+  for (const m of css.matchAll(re)) {
+    if (m[1])
+      out.push({ at: m[1].trim(), selector: m[2]!.trim(), body: m[3]! });
+    else out.push({ at: null, selector: m[4]!.trim(), body: m[5]! });
+  }
+  return out;
+}
+
+/**
+ * The value `--token` takes on `<html>` for a device setting and a choice:
+ * the rules applied in their order, as the cascade does for these
+ * selectors of one specificity (and `:root` alone, lower, first).
+ */
+function resolve(
+  token: string,
+  device: "light" | "dark",
+  theme: string | null,
+) {
+  const applies = (r: { at: string | null; selector: string }) => {
+    if (r.at !== null && !(r.at.includes("dark") && device === "dark"))
+      return false;
+    if (r.selector === ":root") return true;
+    const not = r.selector.match(/^:root:not\(\[data-theme="(\w+)"\]\)$/);
+    if (not) return theme !== not[1];
+    const is = r.selector.match(/^:root\[data-theme="(\w+)"\]$/);
+    if (is) return theme === is[1];
+    throw new Error(`unexpected selector ${r.selector}`);
+  };
+  let value: string | null = null;
+  let scheme: string | null = null;
+  for (const r of cssRules(designTokensCss()))
+    if (applies(r)) {
+      const v = r.body.match(new RegExp(`--${token}:([^;]+);`));
+      if (v) value = v[1]!;
+      const c = r.body.match(/color-scheme:([^;}]+)/);
+      if (c) scheme = c[1]!;
+    }
+  return { value, scheme };
+}
+
+test("designTokensCss: no choice — as before, light, and dark by the device", () => {
+  for (const [token, value] of Object.entries(COLOR_TOKENS.light))
+    assert.equal(resolve(token, "light", null).value, value, token);
+  for (const [token, value] of Object.entries(COLOR_TOKENS.dark))
+    assert.equal(resolve(token, "dark", null).value, value, token);
+  assert.equal(resolve("bg", "light", null).scheme, "light dark");
+});
+
+test('🔴 designTokensCss: data-theme="light" wins over a dark device, data-theme="dark" over a light one', () => {
+  for (const device of ["light", "dark"] as const) {
+    for (const [token, value] of Object.entries(COLOR_TOKENS.light))
+      assert.equal(
+        resolve(token, device, "light").value,
+        value,
+        `${device} ${token}`,
+      );
+    for (const [token, value] of Object.entries(COLOR_TOKENS.dark))
+      assert.equal(
+        resolve(token, device, "dark").value,
+        value,
+        `${device} ${token}`,
+      );
+    assert.equal(resolve("bg", device, "light").scheme, "light");
+    assert.equal(resolve("bg", device, "dark").scheme, "dark");
+  }
+});
+
+test("designTokensCss: every dark token, badges included, in both of its places", () => {
+  const rules = cssRules(designTokensCss());
+  const media = rules.find((r) => r.at !== null)!;
+  const chosen = rules.find((r) => r.selector === ':root[data-theme="dark"]')!;
+  assert.equal(media.selector, ':root:not([data-theme="light"])');
+  for (const body of [media.body, chosen.body]) {
+    for (const [token, value] of Object.entries(COLOR_TOKENS.dark))
+      assert.ok(body.includes(`--${token}:${value};`), token);
+    for (const status of ORDER_STATUSES)
+      assert.ok(
+        body.includes(
+          `--badge-${status}-bg:${STATUS_BADGE_COLORS[status].dark.bg};`,
+        ),
+        status,
+      );
+  }
+  // A wrong value on html is no choice at all.
+  assert.equal(resolve("bg", "dark", "sepia").value, COLOR_TOKENS.dark.bg);
+});
