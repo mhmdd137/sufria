@@ -189,7 +189,11 @@ export function cardView(
     // History has no button (G-4), nor a returned order (brief م-ب).
     action:
       place === "active"
-        ? nextStaffAction(order.status, order.fulfillmentType)
+        ? nextStaffAction(
+            order.status,
+            order.fulfillmentType,
+            order.paymentMethod,
+          )
         : null,
     message: cardMessage(order),
   };

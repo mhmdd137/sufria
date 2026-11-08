@@ -12,7 +12,11 @@
  * 🔴 Staff text, not customer text: the customer's WhatsApp messages stay in
  *    `ORDER_STATUS_MESSAGE_AR`, and the badges in `ORDER_STATUS_LABEL_AR`.
  */
-import type { FulfillmentType, OrderListLine } from "./dashboard-api.js";
+import type {
+  FulfillmentType,
+  OrderListLine,
+  PaymentMethod,
+} from "./dashboard-api.js";
 import type { StaffTargetStatus } from "./dashboard-api.js";
 import {
   CURRENCY_LABEL_AR,
@@ -51,6 +55,12 @@ export const DASHBOARD_UI_AR = {
     readyDelivery: "سلّمناه للسائق",
     completePickup: "استلمه الزبون",
     completeDelivery: "وصل للزبون",
+    /**
+     * A transfer order's step after «اقبل», instead of «ابدأ التحضير»
+     * (brief م-هـ-ب, decision 5): staff's voice — they checked the
+     * restaurant's account, not the customer's screenshot.
+     */
+    confirmTransfer: "تأكّدنا من التحويل",
   },
   errors: {
     /** Under the card, on a 409 `status_conflict`. */
@@ -149,10 +159,17 @@ export type StaffAction = { to: StaffTargetStatus; label: string };
  *    the whole table. `preparing → completed` and cancelling are real
  *    transitions the card does not offer: cancelling belongs to the detail
  *    screen (the next task).
+ *
+ * `payment` is required on purpose (brief م-هـ-ب, decision 2 of the brief):
+ * a caller that forgets it stops at the typecheck, instead of a transfer
+ * order showing «ابدأ التحضير» in silence. A transfer order after «اقبل» is
+ * «تأكّدنا من التحويل» (Mohammed's decision 5) — the same `preparing`; cash
+ * and `online` keep «ابدأ التحضير».
  */
 export function nextStaffAction(
   status: OrderStatus,
   fulfillment: FulfillmentType,
+  payment: PaymentMethod,
 ): StaffAction | null {
   const a = DASHBOARD_UI_AR.actions;
   const pickup = fulfillment === "pickup";
@@ -160,7 +177,10 @@ export function nextStaffAction(
     case "pending_acceptance":
       return { to: "accepted", label: a.accept };
     case "accepted":
-      return { to: "preparing", label: a.startPreparing };
+      return {
+        to: "preparing",
+        label: payment === "transfer" ? a.confirmTransfer : a.startPreparing,
+      };
     case "preparing":
       return { to: "ready", label: pickup ? a.readyPickup : a.readyDelivery };
     case "ready":

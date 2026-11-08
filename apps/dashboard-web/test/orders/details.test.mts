@@ -168,13 +168,35 @@ test("409: status_conflict refreshes with its line; any other 409 is the other l
   );
 });
 
+test("detailView: a transfer order after «اقبل» is «تأكّدنا من التحويل» (brief م-هـ-ب, decision 5)", () => {
+  const view = detailView(
+    {
+      ...ORDER,
+      status: "accepted",
+      paymentMethod: "transfer",
+      paymentStatus: "pending_transfer",
+    },
+    "JOD",
+    NOW,
+  );
+  assert.deepEqual(view.action, {
+    to: "preparing",
+    label: "تأكّدنا من التحويل",
+  });
+  // No badge for pending_transfer (decision 4), as for pending_cash.
+  assert.equal(view.payment, null);
+});
+
 test("🔴 a finished order has no next step and no cancel — «راسل الزبون» stays", () => {
   for (const status of ORDER_STATUSES) {
     const view = detailView({ ...ORDER, status }, "JOD", NOW);
     const done = STAFF_TRANSITIONS[status].length === 0;
     assert.equal(view.action === null, done, status);
     assert.equal(view.canCancel, !done, status);
-    assert.deepEqual(view.action, nextStaffAction(status, "delivery"));
+    assert.deepEqual(
+      view.action,
+      nextStaffAction(status, "delivery", ORDER.paymentMethod),
+    );
     assert.equal(view.chat, `https://wa.me/${PHONE}`);
   }
   assert.deepEqual(

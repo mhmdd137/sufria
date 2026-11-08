@@ -90,6 +90,39 @@ test("cardView: the brief's card, right to left, all from shared", () => {
   });
 });
 
+test("cardView: a transfer order after «اقبل» is «تأكّدنا من التحويل», the same step; cash keeps «ابدأ التحضير» (brief م-هـ-ب, decision 5)", () => {
+  const accepted = { ...ORDER, status: "accepted" as const };
+  assert.deepEqual(cardView(accepted, "active", "JOD", NOW).action, {
+    to: "preparing",
+    label: "ابدأ التحضير",
+  });
+  assert.deepEqual(
+    cardView(
+      {
+        ...accepted,
+        paymentMethod: "transfer",
+        paymentStatus: "pending_transfer",
+      },
+      "active",
+      "JOD",
+      NOW,
+    ).action,
+    { to: "preparing", label: "تأكّدنا من التحويل" },
+  );
+  // Every other status of a transfer order: the cash order's button.
+  for (const status of ["pending_acceptance", "preparing", "ready"] as const)
+    assert.deepEqual(
+      cardView(
+        { ...ORDER, status, paymentMethod: "transfer" },
+        "active",
+        "JOD",
+        NOW,
+      ).action,
+      cardView({ ...ORDER, status }, "active", "JOD", NOW).action,
+      status,
+    );
+});
+
 test("cardView: history has no button, and a cancelled order shows its reason", () => {
   const cancelled = {
     ...ORDER,

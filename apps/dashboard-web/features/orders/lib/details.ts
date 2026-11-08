@@ -130,7 +130,11 @@ export function detailView(
       time: historyTime(h.at, now),
       reason: i === cancelled ? reason : null,
     })),
-    action: nextStaffAction(order.status, order.fulfillmentType),
+    action: nextStaffAction(
+      order.status,
+      order.fulfillmentType,
+      order.paymentMethod,
+    ),
     canCancel: STAFF_TRANSITIONS[order.status].includes("cancelled"),
     chat: waLink(order.customer.phone),
   };

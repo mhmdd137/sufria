@@ -46,6 +46,8 @@ test("DASHBOARD_UI_AR is the brief's text, verbatim", () => {
       readyDelivery: "سلّمناه للسائق",
       completePickup: "استلمه الزبون",
       completeDelivery: "وصل للزبون",
+      // Brief م-هـ-ب, decision 5 (Mohammed, 22 October).
+      confirmTransfer: "تأكّدنا من التحويل",
     },
     errors: {
       statusConflict: "تغيّرت حالة الطلب من جهاز آخر.",
@@ -142,35 +144,54 @@ const EXPECTED: Record<
   expired: { pickup: null, delivery: null },
 };
 
-for (const status of ORDER_STATUSES) {
-  for (const fulfillment of ["pickup", "delivery"] as const) {
-    test(`nextStaffAction(${status}, ${fulfillment})`, () => {
-      const action = nextStaffAction(status, fulfillment);
-      const expected = EXPECTED[status][fulfillment];
+// Cash and online: the table above, unchanged (brief م-هـ-ب §1ب).
+for (const payment of ["cash", "online"] as const)
+  for (const status of ORDER_STATUSES) {
+    for (const fulfillment of ["pickup", "delivery"] as const) {
+      test(`nextStaffAction(${status}, ${fulfillment}, ${payment})`, () => {
+        const action = nextStaffAction(status, fulfillment, payment);
+        const expected = EXPECTED[status][fulfillment];
+        assert.deepEqual(action && [action.to, action.label], expected);
+      });
+    }
+  }
+
+// A transfer order: «تأكّدنا من التحويل» after «اقبل», the same `preparing`
+// (Mohammed's decision 5); every other status as cash.
+for (const status of ORDER_STATUSES)
+  for (const fulfillment of ["pickup", "delivery"] as const)
+    test(`nextStaffAction(${status}, ${fulfillment}, transfer)`, () => {
+      const action = nextStaffAction(status, fulfillment, "transfer");
+      const expected =
+        status === "accepted"
+          ? ["preparing", "تأكّدنا من التحويل"]
+          : EXPECTED[status][fulfillment];
       assert.deepEqual(action && [action.to, action.label], expected);
     });
-  }
-}
+
+const PAYMENTS = ["cash", "online", "transfer"] as const;
 
 test("🔴 every button's transition is in STAFF_TRANSITIONS", () => {
   for (const status of ORDER_STATUSES)
-    for (const fulfillment of ["pickup", "delivery"] as const) {
-      const action = nextStaffAction(status, fulfillment);
-      if (action)
-        assert.ok(
-          STAFF_TRANSITIONS[status].includes(action.to),
-          `${status} → ${action.to} is not a staff transition`,
-        );
-    }
+    for (const fulfillment of ["pickup", "delivery"] as const)
+      for (const payment of PAYMENTS) {
+        const action = nextStaffAction(status, fulfillment, payment);
+        if (action)
+          assert.ok(
+            STAFF_TRANSITIONS[status].includes(action.to),
+            `${status} → ${action.to} is not a staff transition`,
+          );
+      }
 });
 
-test("the six buttons are exactly the six texts of DASHBOARD_UI_AR.actions", () => {
+test("the seven buttons are exactly the seven texts of DASHBOARD_UI_AR.actions", () => {
   const labels = new Set<string>();
   for (const status of ORDER_STATUSES)
-    for (const fulfillment of ["pickup", "delivery"] as const) {
-      const action = nextStaffAction(status, fulfillment);
-      if (action) labels.add(action.label);
-    }
+    for (const fulfillment of ["pickup", "delivery"] as const)
+      for (const payment of PAYMENTS) {
+        const action = nextStaffAction(status, fulfillment, payment);
+        if (action) labels.add(action.label);
+      }
   assert.deepEqual(
     [...labels].sort(),
     Object.values(DASHBOARD_UI_AR.actions).sort(),
