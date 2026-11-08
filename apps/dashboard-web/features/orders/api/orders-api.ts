@@ -57,6 +57,12 @@ export type OrdersApi = {
   resumeBot(id: string): Promise<ApiResult<void>>;
   /** The restaurant's currency, for every amount on the screen. */
   restaurantSettings(): Promise<ApiResult<RestaurantSettings>>;
+  /**
+   * A customer's image, voice note or PDF (brief م-هـ-أ §8.4, §9.13): its
+   * bytes, as the API stored them. 404 (`media_not_found`): not this
+   * order's, or not stored yet.
+   */
+  media(orderId: string, mediaId: string): Promise<ApiResult<Blob>>;
 };
 
 export function createOrdersApi(http: Http): OrdersApi {
@@ -103,6 +109,11 @@ export function createOrdersApi(http: Http): OrdersApi {
         method: "POST",
         auth: "restaurant",
       }),
+    media: (orderId, mediaId) =>
+      http.blob(
+        `/orders/${encodeURIComponent(orderId)}/media/${encodeURIComponent(mediaId)}`,
+        { method: "GET", auth: "restaurant" },
+      ),
     restaurantSettings: () =>
       http.call<RestaurantSettings>("/restaurant/settings", {
         method: "GET",

@@ -66,6 +66,12 @@ export type CallInit = {
 export type Http = {
   /** One request, its 401 refreshed once, its answer turned into a result. */
   call<T>(path: string, init: CallInit): Promise<ApiResult<T>>;
+  /**
+   * The same request and the same rule as `call` — its 401 refreshed once,
+   * the same errors — but its answer is the body's bytes (brief م-هـ-ب: a
+   * customer's file, read with the token and the restaurant's header).
+   */
+  blob(path: string, init: CallInit): Promise<ApiResult<Blob>>;
   /** The raw request: no refresh, no error mapping. `null` without a session. */
   send(path: string, init: CallInit): Promise<Response | null>;
   /** The session the requests read their token and restaurant from. */
@@ -121,7 +127,18 @@ export function createHttp({
     }
   }
 
-  async function call<T>(path: string, init: CallInit): Promise<ApiResult<T>> {
+  const call = <T>(path: string, init: CallInit) =>
+    request(path, init, async (res) => (await res.json()) as T);
+
+  const blob = (path: string, init: CallInit) =>
+    request(path, init, (res) => res.blob());
+
+  /** `call`'s rule, whatever the body is read as (`read`). */
+  async function request<T>(
+    path: string,
+    init: CallInit,
+    read: (res: Response) => Promise<T>,
+  ): Promise<ApiResult<T>> {
     try {
       let res = await send(path, init);
       if (
@@ -137,7 +154,7 @@ export function createHttp({
       }
       // 204: no body to read (`POST /orders/:id/messages/seen`, brief م-ب).
       if (res.status === 204) return { ok: true, value: undefined as T };
-      if (res.ok) return { ok: true, value: (await res.json()) as T };
+      if (res.ok) return { ok: true, value: await read(res) };
       if (res.status === 409)
         return { ok: false, error: await conflictOf(res) };
       return { ok: false, error: { kind: "http", status: res.status } };
@@ -146,7 +163,7 @@ export function createHttp({
     }
   }
 
-  return { call, send, store };
+  return { call, blob, send, store };
 }
 
 async function conflictOf(res: Response): Promise<ApiError> {
