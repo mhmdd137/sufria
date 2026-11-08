@@ -141,6 +141,22 @@ export function detailView(
 }
 
 /**
+ * The cancel dialog's «إذا حوّل الزبون، أعِد له المبلغ.» (brief م-هـ-ب,
+ * decision 6): a transfer order after «اقبل» — the customer was told where
+ * to transfer (ن2), and may have. Never before it, never for cash.
+ */
+export function showsRefund(
+  order: Pick<OrderDetail, "paymentMethod" | "status">,
+): boolean {
+  return (
+    order.paymentMethod === "transfer" &&
+    (order.status === "accepted" ||
+      order.status === "preparing" ||
+      order.status === "ready")
+  );
+}
+
+/**
  * The cancel dialog's counter, «12 / 300» (brief I §6) — drawn left to right
  * as one isolated group (`dir="ltr"` on its `.num`): inside the page's right
  * to left it read «300 / 12» (I-9 #3).

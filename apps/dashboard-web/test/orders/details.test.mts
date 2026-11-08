@@ -22,6 +22,7 @@ import { advance, cancelOrder } from "../../features/orders/lib/board.ts";
 import {
   conversationView,
   detailView,
+  showsRefund,
   reasonCounter,
 } from "../../features/orders/lib/details.ts";
 import { createHttp } from "../../shared/api/http.ts";
@@ -649,4 +650,22 @@ test("under 1024px the next step is a bar at the bottom — never the cancel (I-
 
   // The safe area is reported only with viewport-fit=cover.
   assert.match(read("../../app/layout.tsx"), /viewportFit: "cover"/);
+});
+
+test("showsRefund: a transfer order after «اقبل» alone — accepted, preparing, ready (brief م-هـ-ب, decision 6)", () => {
+  const refunds = ORDER_STATUSES.filter((status) =>
+    showsRefund({ paymentMethod: "transfer", status }),
+  );
+  assert.deepEqual(refunds, ["accepted", "preparing", "ready"]);
+  assert.equal(
+    showsRefund({ paymentMethod: "transfer", status: "pending_acceptance" }),
+    false,
+  );
+  for (const payment of ["cash", "online"] as const)
+    for (const status of ORDER_STATUSES)
+      assert.equal(
+        showsRefund({ paymentMethod: payment, status }),
+        false,
+        `${payment} ${status}`,
+      );
 });

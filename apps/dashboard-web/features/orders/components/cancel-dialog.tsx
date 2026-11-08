@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import {
+  DASHBOARD_MEDIA_UI_AR,
   DASHBOARD_UI_AR,
   MAX_CANCELLATION_REASON_LENGTH,
   cancelTitleAr,
@@ -15,6 +16,11 @@ const T = DASHBOARD_UI_AR;
 type Props = {
   open: boolean;
   orderNumber: number;
+  /**
+   * A transfer order after «اقبل» (`showsRefund`): the refund line under
+   * the title (brief م-هـ-ب, decision 6).
+   */
+  refund: boolean;
   /** Sending: the confirm button waits, its text unchanged. */
   busy: boolean;
   onConfirm: (reason: string) => void;
@@ -29,6 +35,7 @@ type Props = {
 export function CancelDialog({
   open,
   orderNumber,
+  refund,
   busy,
   onConfirm,
   onClose,
@@ -46,6 +53,9 @@ export function CancelDialog({
         <h2 id="cancel-title" className={styles.title}>
           {cancelTitleAr(orderNumber)}
         </h2>
+        {refund && (
+          <p className={styles.refund}>{DASHBOARD_MEDIA_UI_AR.refund}</p>
+        )}
         <label className={styles.field}>
           <span className={styles.label}>{T.cancel.reason}</span>
           <textarea

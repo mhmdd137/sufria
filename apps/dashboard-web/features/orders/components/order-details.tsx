@@ -18,7 +18,7 @@ import { useKeyboard } from "../hooks/use-keyboard.ts";
 import { useOffsetTop } from "../hooks/use-offset-top.ts";
 import { useOrderMessages } from "../hooks/use-order-messages.ts";
 import { backTo, cancelOrder, type AdvanceOutcome } from "../lib/board.ts";
-import { detailView } from "../lib/details.ts";
+import { detailView, showsRefund } from "../lib/details.ts";
 import { CancelDialog } from "./cancel-dialog.tsx";
 import { Conversation } from "./conversation.tsx";
 import { NextStepButton } from "./next-step-button.tsx";
@@ -300,6 +300,7 @@ function Ready({
       <CancelDialog
         open={cancelling}
         orderNumber={order.orderNumber}
+        refund={showsRefund(order)}
         busy={busy}
         onConfirm={confirmCancel}
         onClose={() => setCancelling(false)}

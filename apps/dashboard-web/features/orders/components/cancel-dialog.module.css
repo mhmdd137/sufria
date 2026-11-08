@@ -13,6 +13,14 @@
   line-height: 1.35;
 }
 
+/* A transfer order after «اقبل» (brief م-هـ-ب §5.7): under the title, in
+   the form's own 12px gap. */
+.refund {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 .field {
   display: flex;
   flex-direction: column;
