@@ -18,6 +18,7 @@ import {
   historyTime,
   itemsSummaryAr,
   mapUrl,
+  messageKindLabelAr,
   nextStaffAction,
   orderNumberLabel,
   sinceAr,
@@ -25,8 +26,10 @@ import {
   staffMetaAr,
   waLink,
   type Currency,
+  type MessageKindWord,
   type OrderDetail,
   type OrderMessage,
+  type OrderMessageMedia,
   type OrderMessagesResponse,
   type OrderStatus,
   type StaffAction,
@@ -231,6 +234,17 @@ export type ConversationMessage = {
   word: string | null;
   /** A location's map link, when its point is known; else `null`. */
   map: string | null;
+  /**
+   * A customer's image, voice note or PDF that is there to show (brief
+   * م-هـ-ب §5.2) — `word` is then `null`; `null` when the message is a word
+   * or a text.
+   */
+  media: MediaShown | null;
+  /**
+   * The customer's caption, in every state of its media (decision 13 of the
+   * brief): under the word or the media, in the same bubble; else `null`.
+   */
+  caption: string | null;
   /** The first lines of a long bot message; `null` for one shown whole. */
   preview: string | null;
   time: string;
@@ -259,6 +273,71 @@ export type StaffView = {
   /** The screen's own bubble: its `clientId`; `null` for a server row. */
   local: string | null;
 };
+
+/**
+ * A media the conversation shows: the file is stored (§5.1, §5.4, §5.5).
+ * `fallback`: its word when it cannot be shown after all — «رسالة صوتية —
+ * لا تظهر هنا» for a voice note that does not play.
+ */
+export type MediaShown = { id: string; fallback: string } & (
+  | {
+      kind: "image";
+      /** From the API, for the frame before the file arrives; else `null`. */
+      width: number | null;
+      height: number | null;
+    }
+  /** «رسالة صوتية», beside «استمع» before it is first played. */
+  | { kind: "audio"; label: string }
+  /** `fileName` as the customer's phone sent it; `null`, no line. */
+  | { kind: "pdf"; fileName: string | null }
+);
+
+/**
+ * What a customer message with no text shows (brief م-هـ-ب §5.2), by its
+ * media's state:
+ * - none (a video, a file not PDF, a sticker, before 0021) — the word as
+ *   before, «… — لا تظهر هنا»;
+ * - `pending` — the engine has not fetched it from Meta yet: its word alone,
+ *   «صورة», until a read brings it `stored`;
+ * - `failed`, `too_large`, or 3 failed downloads to the page (`gaveUp`) —
+ *   «… — لا تظهر هنا»;
+ * - `stored` — the image, the player, the PDF's row.
+ * A PDF's message is `kind: "document"`: its word is «ملف».
+ */
+export function mediaView(
+  kind: MessageKindWord,
+  media: OrderMessageMedia | null,
+  gaveUp: boolean,
+): { word: string; media: null } | { word: null; media: MediaShown } {
+  const failed = { word: conversationKindAr(kind), media: null } as const;
+  if (media === null) return failed;
+  if (media.state === "pending")
+    return { word: messageKindLabelAr(kind), media: null };
+  if (media.state !== "stored" || gaveUp) return failed;
+  const base = { id: media.id, fallback: failed.word };
+  switch (media.kind) {
+    case "image":
+      return {
+        word: null,
+        media: {
+          ...base,
+          kind: "image",
+          width: media.width,
+          height: media.height,
+        },
+      };
+    case "audio":
+      return {
+        word: null,
+        media: { ...base, kind: "audio", label: messageKindLabelAr("audio") },
+      };
+    case "pdf":
+      return {
+        word: null,
+        media: { ...base, kind: "pdf", fileName: media.fileName },
+      };
+  }
+}
 
 function staffView(
   m: Extract<ShownMessage, { direction: "staff" | "local" }>,
@@ -304,6 +383,7 @@ export function conversationView(
   messages: readonly ShownMessage[],
   open = true,
   orderCreatedAt: string | null = null,
+  gaveUp: (mediaId: string) => boolean = () => false,
 ): ConversationView {
   const notice =
     messages.length === 0
@@ -318,7 +398,7 @@ export function conversationView(
     Date.parse(m.at) < created;
   const shown = messages.map((m) => ({
     earlier: earlier(m),
-    view: messageView(m, open),
+    view: messageView(m, open, gaveUp),
   }));
   const folded = shown.filter((s) => s.earlier).length >= FOLD_MIN;
   return {
@@ -332,7 +412,11 @@ export function conversationView(
   };
 }
 
-function messageView(m: ShownMessage, open: boolean): ConversationMessage {
+function messageView(
+  m: ShownMessage,
+  open: boolean,
+  gaveUp: (mediaId: string) => boolean,
+): ConversationMessage {
   const time = clockTime(m.at);
   // Staff's are never folded, and always text (brief م-د).
   if (m.direction === "staff" || m.direction === "local")
@@ -342,6 +426,8 @@ function messageView(m: ShownMessage, open: boolean): ConversationMessage {
       text: m.text,
       word: null,
       map: null,
+      media: null,
+      caption: null,
       preview: null,
       time,
       staff: staffView(m, open),
@@ -349,12 +435,19 @@ function messageView(m: ShownMessage, open: boolean): ConversationMessage {
   const from = m.direction === "inbound" ? "customer" : "bot";
   if (m.kind !== "text" || m.text === null) {
     const kind = m.kind === "text" ? "other" : m.kind;
+    const shown = mediaView(
+      kind,
+      m.media,
+      m.media !== null && gaveUp(m.media.id),
+    );
     return {
       id: m.id,
       from,
       text: null,
-      word: conversationKindAr(kind),
+      word: shown.word,
       map: kind === "location" && m.location ? mapUrl(m.location) : null,
+      media: shown.media,
+      caption: m.caption,
       preview: null,
       time,
       staff: null,
@@ -368,6 +461,8 @@ function messageView(m: ShownMessage, open: boolean): ConversationMessage {
     text: m.text,
     word: null,
     map: null,
+    media: null,
+    caption: null,
     preview: long ? lines.slice(0, PREVIEW_LINES).join("\n") : null,
     time,
     staff: null,

@@ -20,6 +20,7 @@ import {
 } from "@sufria/shared";
 import { Skeleton } from "../../../shared/ui/skeleton.tsx";
 import { ordersApi } from "../api/orders-api.ts";
+import { useMediaStore } from "../hooks/use-media.ts";
 import type { MessagesState } from "../hooks/use-order-messages.ts";
 import { conversationView, type ConversationMessage } from "../lib/details.ts";
 import {
@@ -28,6 +29,7 @@ import {
   resumeOutcome,
   withLocal,
 } from "../lib/reply.ts";
+import { MediaMessage } from "./media-message.tsx";
 import { StaffComposer, type ComposerHandle } from "./staff-composer.tsx";
 import styles from "./conversation.module.css";
 
@@ -97,6 +99,14 @@ export function Conversation({
     reply.get,
     reply.get,
   );
+  // The customer's media (brief م-هـ-ب): one download each for the page's
+  // life; an image gives up after 3 failed attempts, one per read.
+  const media = useMediaStore(orderId, reportOffline);
+  const mediaVersion = useSyncExternalStore(
+    media.subscribe,
+    media.version,
+    () => 0,
+  );
   const view = useMemo(
     () =>
       state.kind === "ready"
@@ -104,10 +114,26 @@ export function Conversation({
             withLocal(state.messages, local),
             state.replyOpenUntil !== null,
             orderCreatedAt,
+            media.gaveUp,
           )
         : null,
-    [state, local, orderCreatedAt],
+    // `mediaVersion`: a download that gave up turns the image into its word
+    // — `media.gaveUp` reads the store, which the rule cannot see.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state, local, orderCreatedAt, media, mediaVersion],
   );
+  // An image downloads by itself as the order opens (decision 1), and tries
+  // again with each read — the reads, not the store's changes (decision 5).
+  useEffect(() => {
+    if (state.kind !== "ready") return;
+    for (const m of state.messages)
+      if (
+        m.direction === "inbound" &&
+        m.media?.kind === "image" &&
+        m.media.state === "stored"
+      )
+        media.ensure(m.media.id);
+  }, [state, media]);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [showEarlier, setShowEarlier] = useState(false);
   const earlierId = useId();
@@ -137,7 +163,16 @@ export function Conversation({
         data-from={m.from}
         data-state={m.staff?.state}
       >
-        {m.word !== null ? (
+        {m.word !== null && m.caption !== null ? (
+          // The word and the customer's caption under it, in one bubble
+          // (brief م-هـ-ب §5.2): «حوّلت 40 باسم أحمد» is worth reading alone.
+          <div className={`${styles.bubble} ${styles.stack}`}>
+            <p className={styles.word}>{m.word}</p>
+            <p className={styles.caption} dir="auto">
+              {m.caption}
+            </p>
+          </div>
+        ) : m.word !== null ? (
           <p className={`${styles.bubble} ${styles.word}`}>
             <span>{m.word}</span>
             {m.map !== null && (
@@ -151,6 +186,8 @@ export function Conversation({
               </a>
             )}
           </p>
+        ) : m.media !== null ? (
+          <MediaMessage media={m.media} caption={m.caption} store={media} />
         ) : (
           <p className={styles.bubble} dir="auto">
             {m.preview !== null && !open ? m.preview : m.text}

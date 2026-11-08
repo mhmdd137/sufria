@@ -228,6 +228,24 @@
   white-space: normal;
 }
 
+/* The word and the customer's caption under it (brief م-هـ-ب §5.2): one
+   bubble, a column 4px apart — the word in its look, the caption as the
+   customer wrote it. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  white-space: normal;
+}
+
+.caption {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* «افتح الخريطة»: the 44px to press, without growing the bubble past it. */
 .map {
   display: inline-flex;

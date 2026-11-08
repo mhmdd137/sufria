@@ -45,6 +45,8 @@ export type MediaStore = {
   ensure(mediaId: string): void;
   /** Whether a media gave up: 3 failed attempts (`MEDIA_MAX_ATTEMPTS`). */
   gaveUp(mediaId: string): boolean;
+  /** Grows with every change: the conversation's view is computed again. */
+  version(): number;
   subscribe(listener: () => void): () => void;
   /** The page closed: every URL revoked, nothing downloaded after. */
   dispose(): void;
@@ -57,9 +59,11 @@ export function createMediaStore(deps: MediaStoreDeps): MediaStore {
   const inFlight = new Map<string, Promise<MediaEntry>>();
   const listeners = new Set<() => void>();
   let disposed = false;
+  let version = 0;
 
   const set = (mediaId: string, entry: MediaEntry) => {
     entries.set(mediaId, entry);
+    version++;
     for (const l of listeners) l();
   };
   const failures = (e: MediaEntry) =>
@@ -112,6 +116,7 @@ export function createMediaStore(deps: MediaStoreDeps): MediaStore {
       if (e.kind === "idle" || e.kind === "failed") void load(mediaId);
     },
     gaveUp,
+    version: () => version,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
