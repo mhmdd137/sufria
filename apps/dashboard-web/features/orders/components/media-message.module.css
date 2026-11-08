@@ -130,10 +130,6 @@
   flex-direction: column;
 }
 
-.viewer::backdrop {
-  background: var(--bg);
-}
-
 /* «المجموع» and the order's total at the start, to compare with the
    screenshot; «رجوع» at the end. The page's 880px inside, 18px edges. */
 .viewerHead {
