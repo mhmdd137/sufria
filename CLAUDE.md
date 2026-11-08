@@ -23,7 +23,7 @@ with `ERR_PNPM_BAD_PM_VERSION`).
 | `packages/shared` | `@sufria/shared` | Drizzle schema mirror + domain logic shared by every app |
 | `apps/dashboard-api` | `@sufria/dashboard-api` | NestJS REST API for the restaurant dashboard: orders and their status (with their unread customer messages and `returned`, and `POST /orders/:id/messages/seen` — brief م-ب, `docs/13` §9.1 and §9.11), a staff member's message to the order's customer — `POST /orders/:id/messages` (a `pending` row, nothing sent), `POST /orders/:id/resume-bot`, the staff messages in the conversation with `botSilence` and `replyOpenUntil`, and `staffMessagedAt` on every list item (brief م-ج, `docs/brief-mc-staff-reply-backend.md`, `docs/13` §9.9 and §9.12), restaurant settings (task D); the menu — `GET`/`POST /menu-items`, `PATCH /menu-items/:id` (name, price, availability, archive and bring back), `POST /menu-items/enable-all`, `GET /menu-categories` — and `PATCH /restaurant/orders-pause`, all under the 4096 guard where they can lengthen the menu (brief ي-أ, `docs/brief-ja-menu-backend.md`). Each order line carries its `note` in `GET /orders` and `GET /orders/:id` (brief ن). The transfer payment and a customer's media (brief م-هـ-أ, `docs/brief-mha-media-transfer-backend.md` on `main`): a transfer order accepted and completed like cash, `paymentMethod`/`transferDetails` in the settings, `paymentMethod`/`paymentStatus` on every list item, `media` and `caption` in the conversation, and `GET /orders/:id/media/:mediaId` (`docs/13` §9.13). Contracts as built: `docs/13-dashboard-api-brief.md` §9 (§9.10 for ي-أ) |
 | `apps/conversation-engine` | `@sufria/conversation-engine` | WhatsApp webhooks, business-hours gate, session, browsing cart, pickup-or-delivery, address, and order creation (task C); the customer-notification poller (task F, `src/notify/`); the 60-minute session timeout (task H, `docs/17-session-timeout-brief.md`); orders paused and the empty menu (brief ي-أ §4, `src/conversation/orders-paused.ts`); «آخر طلب لك» in a returning customer's first message, and «نفسه» (FR-08, brief ك, `docs/brief-ka-reorder.md`, `src/conversation/reorder.ts`); a customer's message after an order reaches the restaurant — the relay line instead of the menu, the message linked to the order, a reaction stored and nothing else (brief م-أ, `docs/brief-ma-customer-messages.md`, `src/conversation/customer-relay.ts`); the bot keeping quiet for a customer staff are talking to (`src/conversation/bot-silence.ts`), and the queue that sends staff messages (`src/notify/staff-replies.ts`) — brief م-ج; a customer's note for an item — after its number, or in a message of its own — from the cart to `order_items.notes` (brief ن, `docs/brief-n-item-notes.md` on `main`); the restaurant's payment method — ن1 in the summary, `transfer`/`pending_transfer` at «أكّد» — and the notifier's message by payment and the accepted message once (`orderNoticeAr`, `accepted_notice_at`), a customer's media — a `pending` `inbound_media` row by the webhook, the queue that downloads it from Meta (`src/notify/media-fetcher.ts`, `src/whatsapp/media-downloader.ts`) — brief م-هـ-أ |
-| `apps/dashboard-web` | `@sufria/dashboard-web` | Next.js staff UI: login, the orders screen (task G, `docs/16-orders-screen-brief.md`), an order's details with its conversation (task I, `docs/brief-i-order-details.md`), and the menu screen with the orders pause — `/menu`, `/menu/removed`, the pause strip on every page (brief ي-ب, `docs/brief-jb-menu-screen.md`); a customer's messages (brief م-ب, `docs/brief-mb-customer-messages-screen.md`) — the latest unread one on its card with the count, closed orders a message brought back in a group of their own above «الطلبات», every kind of message in the conversation (read every 5 s, marked read on the server), and the alert sound: O2 for a pending order (each minute, up to 3 h), M1 for a message, the header's «اكتم الصوت» and two strips (`shared/sound/`); a staff member writing to the order's customer (brief م-د, `docs/brief-md-staff-reply-screen.md`) — the field under the conversation, the staff bubble in its three states, the silence line and «شغّل الرد الآلي», the closed line after 24 hours, and a pending order's ring stopped by a staff message; after the laptop trial (brief م-د-9, `docs/brief-md9-after-trial.md`) the read every second after a send, the step's bar on the real keyboard, and the conversation before the order folded. An item's note: a line of its own under the card's grey line, and under its line on the details page (brief ن §8). Feature-based: `app/` (routes) · `features/<x>/` · `shared/` — see *Dashboard structure*. Talks to `dashboard-api` at `NEXT_PUBLIC_API_URL` |
+| `apps/dashboard-web` | `@sufria/dashboard-web` | Next.js staff UI: login, the orders screen (task G, `docs/16-orders-screen-brief.md`), an order's details with its conversation (task I, `docs/brief-i-order-details.md`), and the menu screen with the orders pause — `/menu`, `/menu/removed`, the pause strip on every page (brief ي-ب, `docs/brief-jb-menu-screen.md`); a customer's messages (brief م-ب, `docs/brief-mb-customer-messages-screen.md`) — the latest unread one on its card with the count, closed orders a message brought back in a group of their own above «الطلبات», every kind of message in the conversation (read every 5 s, marked read on the server), and the alert sound: O2 for a pending order (each minute, up to 3 h), M1 for a message, the header's «اكتم الصوت» and two strips (`shared/sound/`); a staff member writing to the order's customer (brief م-د, `docs/brief-md-staff-reply-screen.md`) — the field under the conversation, the staff bubble in its three states, the silence line and «شغّل الرد الآلي», the closed line after 24 hours, and a pending order's ring stopped by a staff message; after the laptop trial (brief م-د-9, `docs/brief-md9-after-trial.md`) the read every second after a send, the step's bar on the real keyboard, and the conversation before the order folded. An item's note: a line of its own under the card's grey line, and under its line on the details page (brief ن §8). A customer's media and the transfer (brief م-هـ-ب): the image cut to its middle with «عرض الكل» and a full-screen viewer, the voice note's player, the PDF's row, «تأكّدنا من التحويل» for a transfer order, the refund line in the cancel dialog; and the header's light and dark button. Feature-based: `app/` (routes) · `features/<x>/` · `shared/` — see *Dashboard structure*. Talks to `dashboard-api` at `NEXT_PUBLIC_API_URL` |
 | `db/migrations` | — | Raw SQL. The single source of truth for the schema |
 | `db/seed` | — | Dev-only fixtures |
 | `tests/security` | — | Chain-isolation gate (mandatory) |
@@ -159,7 +159,9 @@ after a `pg_dump` to a file outside the repo (it holds customers' phones).
 
 Brief س (23 October 2026), Mohammed's decision A: **one app** on Taqat's
 hosting — Nixpacks (`nixpacks.toml`, at the root) builds the repository from
-GitHub and runs `node scripts/start-all.mjs`. Every push on `main` deploys.
+GitHub and runs `node scripts/start-all.mjs` — as `npm start`
+(`"start"` in the root `package.json`, `b5670f1`): Taqat runs `npm start`
+and does not read `[start]` in `nixpacks.toml`. Every push on `main` deploys.
 
 - **One container, three children, one address.** `start-all.mjs` starts
   `web` (`next start -p $PORT -H 0.0.0.0`; 3000 without `PORT`), `api`
@@ -216,6 +218,24 @@ GitHub and runs `node scripts/start-all.mjs`. Every push on `main` deploys.
   `db/restaurants/demo.json` takes transfers since brief س-5
   (`paymentMethod`, `transferDetails`, the settings' own rules; `--check`
   shows the method and the details' length, never the details).
+- **Three short scripts for Taqat's Terminal** (after brief س, on `main`
+  before brief م-هـ-ب) — files, not long commands, because the Terminal on a
+  phone has no paste and closes before a long line is typed:
+  - **`node scripts/hosting-sync-passwords.mjs`** — when the roles'
+    passwords in Environment and in Postgres disagree: as the admin, it
+    sets `sufria_dashboard`'s and `sufria_engine`'s from
+    `SUFRIA_DASHBOARD_DATABASE_URL` and `SUFRIA_ENGINE_DATABASE_URL`
+    (SCRAM verifiers), then tries each URL — ✓/✗ per role, no secret
+    printed. Restart after it.
+  - **`node scripts/hosting-demo.mjs [--check]`** — the demo restaurant in
+    one command: the platform's `DATABASE_URL` pointed at `sufria` (its
+    query kept), then the compiled `setup-restaurant` with
+    `db/restaurants/demo.json`; its output, the staff password among it, to
+    the Terminal alone.
+  - **`node scripts/hosting-staff-password.mjs [email]`** — a new password
+    for one staff account (`demo@sufria.local` by default): 16 characters
+    in four groups, argon2id as `setup-restaurant` hashes it, the refresh
+    token cleared (every open session ends); printed once.
 - **Environment on Taqat** — required: `SUFRIA_DASHBOARD_DATABASE_URL`,
   `SUFRIA_ENGINE_DATABASE_URL`, `JWT_SECRET` (the bootstrap's output) ·
   `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET` (Meta) ·
@@ -466,6 +486,27 @@ never starting over · rewrites without the variable · passwords on every run
 (predicted at two, revised to three before running: later tests reuse the
 first URL) · the admin's URL printed · `paymentMethod` ignored.
 
+Brief م-هـ-ب's suites, all in the web suite and `packages/shared` (no
+database): `shared/test/dashboard-media-ui.test.mts` (the texts),
+`dashboard-ui.test.mts` (`nextStaffAction` on cash and online, and a
+transfer row; the seven buttons), `design-tokens.test.mts` (the three
+cases of the choice, resolved rule by rule);
+`dashboard-web/test/orders/media.test.mts` (the call, its 401, 404, network
+and `/api`; the store), `media-states.test.mts` (§5.2 row by row),
+`image.test.mts` (`isCropped`, the frame's and the viewer's CSS),
+`audio-pdf.test.mts` (the time, the reducer, the one player with a stand-in
+`Audio`, «افتح الملف» with a stand-in tab — the order of the calls is the
+point), `shared/theme.test.mts` (the choice, the button's word, the script
+run in `vm`). Nine breaks, each predicted in a file before it ran:
+`payment` ignored · the refund line for `pending_acceptance` · no media
+cache · `pending` as a failure · «عرض الكل» always (caught by reading the
+TSX: the press itself needs a browser) · the two screens swapped ·
+`window.open` after the `await` · `NotSupportedError` as «استمع» ·
+`data-theme="light"` not winning over a dark device · the script taking
+any value. One more found by the stand-in `Audio` before any break: the
+player first read `audio.paused`, which the silent clip moves — it keeps
+its own `playing` flag.
+
 🔴 **Never count a whole table in a test** (`SELECT count(*) FROM orders`).
 The engine and API suites run in parallel under `pnpm -r test`; count only the
 rows of the order or restaurant the test itself created.
@@ -499,7 +540,8 @@ alone: `//host`, `https://…`, a backslash or whitespace → `/orders`) ·
 guard (no session, or a 401 the refresh could not cure — the session store
 tells its subscribers — → `/login?next=<page>`; `test/auth/session-end.test.mts`),
 the header — two lines since brief ل §5: the mark, the restaurant's name
-(19/700, cut with …; not the page's `<h1>`), «مباشر» and «خروج», then the
+(19/700, cut with …; not the page's `<h1>`), «مباشر», the sound's button,
+the light and dark button (brief م-هـ-ب) and «خروج», then the
 tabs, the first tab's text on the mark's line (`margin-inline-start: -14px`)
 and «الطلبات»'s count 15px on their baseline; «سُفريا» (`T.brand`) stays on
 `/login` and the browser's tab alone — and **one** poll of «الطلبات» feeding
@@ -578,6 +620,60 @@ never `…`: a note is never cut. 4px under the grey line, 2px between. No
 new colour. On the details page the same, without the item, under its line
 inside the `li` (`grid-column: 1 / -1`), 2px under it.
 
+**A customer's media and the transfer (brief م-هـ-ب, Mohammed's decisions
+1–8, 21–22 October).** The conversation's customer message with media
+(`mediaView`, `features/orders/lib/details.ts`): no media row — the word as
+before; `pending` — its word alone («صورة»); `failed`, `too_large`, or an
+image whose three downloads to the page failed — «… — لا تظهر هنا»;
+`stored` — the image, the player, the PDF. The caption in every state, in
+the same bubble. Each file is read with the token and the restaurant's
+header (`Http.blob`, `ordersApi.media`) into a `blob:` URL, once per media
+for the page's life (`createMediaStore`, `lib/media.ts`: the promise itself
+is the cache, every URL revoked when the page closes); an image downloads as
+the page opens and tries again with each read, three times. **The image**
+(`media-message.tsx`): the conversation's width up to 360px (`li
+[data-media="image"]`), its frame at its final height from the first read
+(the API's size, 320 without one, then the image's own), `min(320px, its
+ratio)`, `object-fit: cover` from the middle — where a transfer's
+screenshot carries the amount and the code; «عرض الكل» only when
+`isCropped` says something is cut. A press on it opens **the viewer** —
+`Dialog` with a `className` of its own: the whole screen at every width,
+«المجموع» and the order's total over it (detailView's, handed down),
+«رجوع»; below 640 the image at the screen's width, scrolling; from 640
+whole inside the screen; no step inside it. **The voice note**: «استمع» /
+«أوقف» (`.lineButton`), «رسالة صوتية» then `0:04 / 0:12` beside it; the
+file on the press alone; one `Audio` for the page (`createAudioPlayer`,
+`lib/audio.ts`): made at the first press, a silent clip played inside the
+press before any `await` (Safari), a second voice note stops the first;
+`NotAllowedError` back to «استمع» with the file ready, `NotSupportedError`
+or a third failed download — its word. **The PDF**: its name on one line,
+cut with …; «افتح الملف» opens a tab inside the press (`openPdf`,
+`lib/pdf.ts`), `opener = null`, and gives it the file as a **new `Blob` of
+type `application/pdf`** — a `blob:` URL is the dashboard's origin, and a
+file shown as HTML could reach the token — revoked after 60 s; no tab, a
+link with `download`; a failure closes it and says `stepFailed`. The texts
+are `dashboard-media-ui.ts`, on the order's page alone. **A transfer order
+after «اقبل»**: «تأكّدنا من التحويل» (`nextStaffAction(status,
+fulfillment, payment)`, the third required), the same `preparing`; and its
+cancel dialog says «إذا حوّل الزبون، أعِد له المبلغ.» (`showsRefund`:
+`accepted` · `preparing` · `ready`). `pending_transfer` has no badge, like
+`pending_cash` (decision 4).
+
+**Light and dark (brief م-هـ-ب, Mohammed's decisions 9–11, 8 November;
+it replaces 4 October's «the choice on the settings screen»).** Before any
+press, the device's setting, as before. The header's button — the sound's
+look (`.logout`), after it and before «خروج» — says the mode it takes you
+to, «غامق» or «فاتح»; a press sets `data-theme` on `<html>` (the colours at
+once, transitions stopped for that one change) and keeps it in this
+device's `localStorage` (`sufria-theme`), where it wins over the device.
+`designTokensCss` holds both: `data-theme="dark"` dark on a light device,
+`"light"` light on a dark one, `color-scheme` with it. The script first in
+`<head>` (`THEME_SCRIPT`, `shared/theme/theme.ts`) sets the kept choice
+before the first paint, `light` or `dark` alone, inside `try`;
+`suppressHydrationWarning` on `<html>` alone. The header is drawn in the
+browser alone (`SessionGate` renders nothing on the server), so the button
+knows the mode at its first render. Not in the API, not in the account.
+
 **The RTL and width contract, on every file touched** — from 375px to 1440px,
 right to left by `dir="rtl"` on `<html>` alone, no horizontal scroll:
 - DOM order = reading order = the phone's column. **Never** `row-reverse`,
@@ -622,6 +718,17 @@ into the same `.next` that `next start` serves: restart a running one after.
 
 ## Known gaps
 
+- **Light and dark (brief م-هـ-ب):** once pressed, there is **no way back
+  to «the device's setting»** but clearing the site's data; the choice
+  stays on the device, never across devices. On a 360px phone the button
+  leaves the restaurant's name about 7px (37 on 390; 72 and 102 before it)
+  — the name is cut first, by the header's rule.
+- **The three Taqat scripts have no tests** (`hosting-sync-passwords`,
+  `hosting-demo`, `hosting-staff-password`): they name `sufria`,
+  `sufria_dashboard` and `sufria_engine` themselves, so a test on the test
+  instance would touch roles other packages log in with at the same moment
+  (`bootstrap.test.mts`'s reason). They need names from outside first — a
+  brief of its own.
 - **Hosting (brief س): what is not known until Taqat runs it.** No backups
   on Taqat yet — the database exists there alone. Whether the app sleeps
   without visits, how much memory and disk it has, and what `PORT` is: the
@@ -916,6 +1023,15 @@ into the same `.next` that `next start` serves: restart a running one after.
   JS `/login` 138642 · `/orders` 148304 · `/history` 148455 ·
   `/orders/[id]` 155817 · `/menu` 151767 · `/menu/removed` 149679 (+14 on
   every page, +239/+240/+226 on the three that show notes); fonts 123204.
+  **Brief م-هـ-ب (8 November), within its thresholds (4800 on
+  `/orders/[id]`, 800 elsewhere for the header's button), set to the
+  measure by hand** — the cloud builds with substitute fonts, so not
+  `--write`: JS `/login` 138736 (+94) · `/orders` 148866 (+562) ·
+  `/history` 149016 (+561) · `/orders/[id]` 159531 (+3714) · `/menu`
+  152322 (+555) · `/menu/removed` 150230 (+551); fonts 123204. Every page:
+  `Http.blob` (+~45) and the light and dark button with its two words and
+  the script's module (+~460); the order's page: the media, the viewer,
+  the player and the PDF.
 - **Under the pointer and pressed (brief ل §3, decision 2).** Eight tokens
   in `design-tokens.ts`, each named by the ground it changes:
   `surface-hover`/`-press`, `bg-hover`/`-press` (`bg-press` is also the view
@@ -946,8 +1062,10 @@ into the same `.next` that `next start` serves: restart a running one after.
 - **A customer's voice note, image, video or file is a word, never shown**
   (brief م-ب): «رسالة صوتية — لا تظهر هنا»; a location is «موقع» and a
   Google Maps link. Since brief م-هـ-أ the engine keeps images, audio and
-  PDFs (below), and the API serves them — **the screen is brief م-هـ-ب's**:
-  until then the dashboard writes the word, as before. The
+  PDFs (below), and the API serves them — and since brief م-هـ-ب the
+  dashboard shows an image, plays a voice note and opens a PDF (*Dashboard
+  structure*); a video, a file not PDF, a sticker and media before 0021
+  stay a word. The
   location's `payload->'location'` shape is Meta's documented one — no real
   location message exists in the repo to check it; coordinates that are
   not JSON numbers show «موقع» with no link.
@@ -1159,8 +1277,25 @@ into the same `.next` that `next start` serves: restart a running one after.
   - **The host must reach Meta's file domain** (`lookaside.fbsbx.com`), not
     `graph.facebook.com` alone — for the hosting brief. Meta's real answers
     are unverified: the downloader was tried on a local server alone.
-  - **The screen is not built** (brief م-هـ-ب): the image, the player, the
-    PDF, the payment badge, the «ابدأ التحضير» text for a transfer order.
+  - **The screen is built** (brief م-هـ-ب, *Dashboard structure*): the
+    image and its viewer, the player, the PDF, «تأكّدنا من التحويل», the
+    refund line. No payment badge, by decision. What to know:
+    - **Untried before the merge, on Taqat after it:** a voice note on an
+      iPhone (playing after the download, Opus before iOS 18.4), the PDF's
+      tab on Safari, the media through `/api` on the same address. A
+      headless browser plays and opens them; a phone is not one.
+    - `NotAllowedError` after the download: the button is «استمع» again,
+      the file ready — the second press plays.
+    - **Chrome on Android downloads the PDF** instead of showing it (so
+      does headless Chromium).
+    - **The crop is from the middle:** an app that puts the amount at the
+      top of its screenshot has it cut — «عرض الكل» shows it.
+    - **The header's size can be turned** (its rotation tag): the frame
+      takes the image's own size once it loaded — one jump.
+    - **An image stops after 3 failed downloads** until the page opens
+      again.
+    - Beside the full-screen viewer, a laptop's page scrollbar stays in
+      sight (the dialog covers the viewport, not the bar).
   - **Not built:** deleting media after a while (a customer's financial
     data) · cancelling a transfer order never paid · linking a media sent
     before «أكّد» to the order · media before 0021 (never fetched again) ·
